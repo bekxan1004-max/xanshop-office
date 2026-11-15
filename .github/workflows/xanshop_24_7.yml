@@ -1,0 +1,88 @@
+name: XAN SHOP 24/7 Autonomous AI Office
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Har 5 soatda avtomatik yangi 24/7 sessiya ulanadi (uzluksiz ishlash uchun)
+    - cron: "0 */5 * * *"
+
+concurrency:
+  group: xanshop-24-7-live
+  cancel-in-progress: false
+
+jobs:
+  run-office:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11 & FFmpeg
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies and Cloudflared
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          pip install -r requirements.txt
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+
+      - name: Start Cloudflared HTTPS Tunnel & XAN SHOP 24/7 Server
+        env:
+          SALES_BOT_TOKEN: ${{ secrets.SALES_BOT_TOKEN }}
+          ADMIN_BOT_TOKEN: ${{ secrets.ADMIN_BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TG_PHONE: ${{ secrets.TG_PHONE }}
+          TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
+          MANAGER_USERNAME: ${{ secrets.MANAGER_USERNAME }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          PDD_RAPIDAPI_KEY: ${{ secrets.PDD_RAPIDAPI_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: "gemini-2.5-flash"
+          CARD_NUMBER: "9860 3501 4182 4135"
+          CARD_OWNER: "POLVONOV BEKMUROD"
+          AUTO_POST_HOURS: "3.0"
+          PROFIT_PERCENT: "100"
+          ENSURE_50_COVERS_COST: "1"
+          PREPAY_ROUND_TO: "50000"
+          USE_OMNIROUTE: "0"
+        run: |
+          ./cloudflared tunnel --url http://localhost:8080 --no-autoupdate > tunnel.log 2>&1 &
+          for i in $(seq 1 20); do
+            TUNNEL_URL=$(grep -oE "https://[a-zA-Z0-9-]+\.trycloudflare\.com" tunnel.log | head -n 1 || true)
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            sleep 2
+          done
+          export PUBLIC_BASE_URL="${TUNNEL_URL:-https://xanshop.uz}"
+          echo "Cloudflare Tunnel URL: $PUBLIC_BASE_URL"
+          timeout 310m python -u main.py || true
+
+      - name: Persist SQLite DB state
+        if: always()
+        run: |
+          git config user.name "xanshop-bot"
+          git config user.email "bekxan1004@gmail.com"
+          git add data/shop.db || true
+          git diff --staged --quiet || git commit -m "chore: sync 24/7 shop.db state [skip ci]"
+          git push || true
+
+      - name: Auto-Chain Next 24/7 Session
+        if: always()
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/xanshop_24_7.yml/dispatches \
+            -d '{"ref":"main"}' || true

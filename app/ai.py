@@ -1,0 +1,410 @@
+"""Sotuvchi & Stilist AI (Gemini Interactions API).
+
+Ham Sotuv Botda, ham Haqiqiy Shaxsiy Telegram Akkauntda (Userbot) ishlaydi.
+Matn, rasm (Instagram skrinshot) va ovozli xabarlarni (multimodal) tushunadi.
+"""
+import asyncio
+import base64
+from html import escape
+import json
+import logging
+import time
+from typing import Any
+
+import httpx
+from google import genai
+
+from .config import Settings
+from .pricing import fmt
+from .texts import STATUS_LABELS, look_50_values, look_items
+
+log = logging.getLogger(__name__)
+ADMIN_TAG = "[ADMIN]"
+GEMINI_FALLBACK_MODELS = ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
+_MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
+
+
+def extract_json_dict(raw_text: str) -> dict[str, Any] | None:
+    """AI javobidan ```json ... ``` yoki oddiy JSON obyektni xavfsiz ajratib oladi."""
+    txt = (raw_text or "").strip()
+    if not txt:
+        return None
+    if "```json" in txt:
+        txt = txt.split("```json", 1)[1].split("```", 1)[0].strip()
+    elif "```" in txt:
+        txt = txt.split("```", 1)[1].split("```", 1)[0].strip()
+    try:
+        parsed = json.loads(txt)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        start = txt.find("{")
+        end = txt.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                parsed = json.loads(txt[start : end + 1])
+                return parsed if isinstance(parsed, dict) else None
+            except Exception:
+                return None
+    return None
+
+
+def build_system_prompt(
+    s: Settings,
+    looks: list[dict],
+    orders: list[dict],
+    is_personal_account: bool = False,
+) -> str:
+    catalog = []
+    for lk in looks:
+        items = ", ".join(i["name"] for i in look_items(lk))
+        p50, rem50 = look_50_values(lk)
+        catalog.append(
+            f"- Look #{lk['id']} \"{lk['title']}\": {items}. Jami narx (100%): {fmt(lk['prepay_uzs'])} so'm. "
+            f"50% oldindan to'lov: {fmt(p50)} so'm (qolgan 50%: {fmt(rem50)} so'm). "
+            f"Kargo taxminan {fmt(lk['cargo_est_uzs'])} so'm ({lk['weight_kg']} kg). "
+            f"O'lchamlar: {lk['sizes'] or 'M, L, XL, 2XL'}. Ranglar: {lk['colors'] or 'rasmdagidek'}."
+        )
+    my_orders = [
+        f"- #{o['id']}: {STATUS_LABELS.get(o['status'], o['status'])}"
+        + (f", trek {o['tracking']}" if o.get("tracking") else "")
+        for o in orders
+    ]
+
+    if is_personal_account:
+        mode_instructions = f"""MULOQOT REJIMI (HAQIQIY SHAXSIY TELEGRAM PROFIL — STILIST MENEJER):
+- Sen bot emassan! Sen "{s.shop_name}" do'konining bosh stilist-menejerisan (jonli inson sifatida yozasan).
+- Mijoz Look rasmini ko'rmoqchi bo'lsa, javobing oxiriga [SHOW_LOOK:id] (masalan [SHOW_LOOK:1]) tegini qo'sh — tizim o'sha Look rasmini avtomatik yuboradi.
+- Mijoz buyurtma bermoqchi bo'lsa, undan muloyimlik bilan:
+  1) Bo'yi va vaznini (yoki razmerini) hamda rangini,
+  2) To'lov rejasini (50% oldindan yoki 100% to'liq),
+  3) Ism-familiyasi, telefon raqami va yetkazish manzilini so'ra.
+- Barcha ma'lumotni olgach, javobing oxiriga AYNAN mana bu tegni qo'sh (tizim avtomatik buyurtma yaratib karta raqamni chiqaradi):
+  [ORDER:look_id=1|size=XL|color=Qora|plan=50|name=Ism|phone=+998901234567|address=Manzil]"""
+    else:
+        mode_instructions = """MULOQOT REJIMI (SOTUV BOT):
+- Buyurtma berish uchun mijozga "🛍 Looklar" tugmasini bosib, look ostidagi "🛒 Buyurtma berish" ni bosishni ayt."""
+
+    return f"""Sen "{s.shop_name}" onlayn erkaklar kiyimi brendining 10 yillik tajribaga ega V3 Bosh Stilist-Konsultantisan.
+Mijoz qaysi tilda yozsa (o'zbek, rus), o'sha tilda qisqa, samimiy, ekspert darajasida va 100% halol javob ber.
+Bosh maqsading: Mijozga shunchaki kiyim sotish emas, balki kiyim 5–10 kunda qo'liga yetib borganda u matosi, bichimi va razmeridan 100% rozi bo'lishini ta'minlash!
+
+DO'KON, HALOL SIFAT VA TO'LOV TARTIBI (50% / 100% MODELI):
+- Tayyor looklar (2, 3, 4 yoki 5 qismli kapsula to'plamlar) Pinduoduo / Taobao'dagi tekshirilgan fabrikalardan keltiriladi va Xitoy omborimizda jo'natishdan oldin sifat nazoratidan (QC) o'tadi.
+- TO'LOV 2 XIL (mijoz ixtiyoriy tanlaydi, rasmiy HUMO karta: {s.card_number} — {s.card_owner}):
+  1) 50% OLDINDAN TO'LOV (0% Xavf): Mijoz hozir faqat 50% to'laydi. Qolgan 50% tovar narxini + kargo pulini buyurtma Toshkentga yetib kelib, sifatini ko'rganda (real vazn bo'yicha {fmt(s.cargo_client_uzs_per_kg)} so'm/kg) to'laydi!
+  2) 100% TO'LIQ TO'LOV: Mijoz hozir 100% tovar narxini to'laydi, yuk Toshkentga kelganda faqat kargo pulini to'laydi.
+- Yetkazish: {s.delivery_text} (Xitoy ichki 1–4 kun + Avia 3–7 kun = jami 5–10 kun). Har bir bosqich haqida avtomatik xabar beriladi.
+- O'lcham tanlash (Xitoy/Osiyo jadvali Yevropadan 1 razmer kichik yuradi — mijoz aldangan his qilmasligi uchun doim bo'yi va vaznini so'rab aniq tanla):
+  • 160–170 sm / 50–62 kg → M
+  • 170–176 sm / 63–72 kg → L
+  • 175–182 sm / 73–82 kg → XL
+  • 180–190 sm / 83–96 kg → 2XL (XXL)
+
+KATALOG (faqat shu looklar va narxlar mavjud):
+{chr(10).join(catalog) or "- Hozircha katalog bo'sh"}
+
+MIJOZNING BUYURTMALARI:
+{chr(10).join(my_orders) or "- Buyurtma yo'q"}
+
+{mode_instructions}
+
+QOIDALAR:
+- Chegirma va'da qilma, katalogda yo'q narsani bor dema.
+- JUDA MUHIM: Mijoz "to'lov qildim", "pul tashladim", "o'tkazdim" deb yozsa HAM, HECH QACHON "to'lov tasdiqlandi", "qabul qilindi", "rasmiylashtirildi" DEMA! Agar MIJOZNING BUYURTMALARI ro'yxatida status hali "Oldindan to'lov kutilmoqda" yoki "To'lov tekshirilmoqda" bo'lsa, faqat to'lov chekini (skrinshot/rasm) yuborishni so'ra va chek tekshirilgandan keyin tasdiqlanishini ayt.
+- Shikoyat, nuqsonli tovar, pul qaytarish yoki javobini bilmagan murakkab savol bo'lsa — katta menejer hozir bog'lanishini ayt va javob oxiriga {ADMIN_TAG} qo'sh.
+- Javob 600 belgidan oshmasin. Markdown (** yoki ##) ishlatma."""
+
+
+async def check_omniroute_status(
+    base_url: str = "http://localhost:20128/v1",
+    api_key: str = "omniroute-local",
+) -> dict[str, Any]:
+    """Lokal OmniRoute shlyuzi (http://localhost:20128) ishlayotganini va mavjud modellarni tekshiradi."""
+    base = base_url.rstrip("/")
+    root = base[:-3] if base.endswith("/v1") else base
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            health_resp = await client.get(f"{root}/api/health")
+            if health_resp.status_code == 200:
+                models: list[str] = []
+                try:
+                    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+                    m_resp = await client.get(f"{base}/models", headers=headers)
+                    if m_resp.status_code == 200:
+                        data = m_resp.json()
+                        models = [m.get("id", "") for m in data.get("data", []) if isinstance(m, dict)]
+                except Exception:
+                    pass
+                return {
+                    "online": True,
+                    "base_url": base,
+                    "dashboard_url": f"{root}/dashboard",
+                    "models_count": len(models),
+                    "sample_models": models[:8],
+                }
+    except Exception:
+        pass
+    return {
+        "online": False,
+        "base_url": base,
+        "dashboard_url": f"{root}/dashboard",
+        "models_count": 0,
+        "sample_models": [],
+    }
+
+
+class SalesAI:
+    def __init__(self, s: Settings):
+        self.model = s.gemini_model
+        # Google SDK min deadline >= 10s; attempts=1 keeps 429/503 retries from hanging handlers
+        self.client = (
+            genai.Client(
+                api_key=s.gemini_api_key,
+                http_options={"timeout": 12000, "retry_options": {"attempts": 1}},
+            )
+            if s.gemini_api_key
+            else None
+        )
+        # Tier-1: OmniRoute Lokal AI Gateway (380 provayder, bepul tierlar & auto-fallback)
+        self.use_omniroute = bool(getattr(s, "use_omniroute", True))
+        self.omniroute_base_url = getattr(s, "omniroute_base_url", "http://localhost:20128/v1").strip().rstrip("/")
+        self.omniroute_api_key = getattr(s, "omniroute_api_key", "omniroute-local").strip() or "omniroute-local"
+        self.omniroute_model = getattr(s, "omniroute_model", "auto").strip() or "auto"
+        # Tier-2: OpenRouter Cloud Token Routing
+        self.openrouter_api_key = getattr(s, "openrouter_api_key", "").strip()
+        self.openrouter_model = getattr(s, "openrouter_model", "deepseek/deepseek-chat").strip()
+        self.openrouter_base_url = getattr(s, "openrouter_base_url", "https://openrouter.ai/api/v1").strip().rstrip("/")
+        self.last_provider_used: str = "init"
+
+    @property
+    def enabled(self) -> bool:
+        return (self.client is not None) or bool(self.openrouter_api_key) or self.use_omniroute
+
+    def _gemini_model_candidates(self) -> list[str]:
+        candidates: list[str] = []
+        for m in (self.model, *GEMINI_FALLBACK_MODELS):
+            name = (m or "").strip()
+            if name and name not in candidates:
+                candidates.append(name)
+        return candidates
+
+    async def _call_openai_compat(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        system: str,
+        text: str,
+        media_bytes: bytes | None = None,
+        mime_type: str = "",
+        timeout_sec: float = 25.0,
+    ) -> str | None:
+        """OmniRoute yoki OpenRouter (OpenAI-compatible) endpointidan javob oladi."""
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "HTTP-Referer": "https://xanshop.uz",
+            "X-Title": "XAN SHOP AI Office",
+        }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        user_content: Any = text
+        if media_bytes and mime_type and mime_type.startswith("image/"):
+            b64 = base64.b64encode(media_bytes).decode("utf-8")
+            user_content = [
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}},
+            ]
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_content},
+            ],
+            "temperature": 0.4,
+            "max_tokens": 1500,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_sec, connect=2.0)) as http_client:
+                resp = await http_client.post(url, json=payload, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        return choices[0].get("message", {}).get("content", "")
+                log.debug("Gateway %s status %s: %s", base_url, resp.status_code, resp.text[:160])
+        except Exception as e:
+            log.debug("Gateway %s ulanmadi: %s", base_url, e)
+        return None
+
+    def _create(
+        self,
+        system: str,
+        text: str,
+        previous_id: str | None,
+        media_bytes: bytes | None = None,
+        mime_type: str = "",
+        model_override: str | None = None,
+    ):
+        input_payload: Any = text
+        if media_bytes and mime_type:
+            media_type = "audio" if mime_type.startswith("audio/") else "image"
+            input_payload = [
+                {"type": "text", "text": text},
+                {
+                    "type": media_type,
+                    "data": base64.b64encode(media_bytes).decode("utf-8"),
+                    "mime_type": mime_type,
+                },
+            ]
+        kwargs = dict(model=model_override or self.model, system_instruction=system, input=input_payload)
+        if previous_id:
+            kwargs["previous_interaction_id"] = previous_id
+        return self.client.interactions.create(**kwargs)
+
+    async def _call_gemini_models(
+        self,
+        system: str,
+        text: str,
+        previous_id: str | None = None,
+        media_bytes: bytes | None = None,
+        mime_type: str = "",
+        timeout_sec: float = 16.0,
+    ) -> tuple[str | None, str | None]:
+        """Birlamchi va zaxira Gemini modellarini timeout va cooldown nazorati bilan sinaydi."""
+        if not self.client:
+            return None, None
+        candidates = self._gemini_model_candidates()
+        is_real_client = isinstance(self.client, genai.Client)
+        if is_real_client:
+            now = time.monotonic()
+            active = [c for c in candidates if _MODEL_COOLDOWN_UNTIL.get(c, 0.0) <= now]
+            if active:
+                candidates = active
+
+        for idx, candidate in enumerate(candidates):
+            use_prev = previous_id if idx == 0 else None
+            attempts = (use_prev, None) if use_prev else (None,)
+            candidate_failed = True
+            for prev_token in attempts:
+                try:
+                    inter = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self._create,
+                            system,
+                            text,
+                            prev_token,
+                            media_bytes,
+                            mime_type,
+                            candidate,
+                        ),
+                        timeout=timeout_sec,
+                    )
+                    out = (getattr(inter, "output_text", None) or "").strip()
+                    if out:
+                        self.last_provider_used = f"Gemini ({candidate})"
+                        _MODEL_COOLDOWN_UNTIL.pop(candidate, None)
+                        candidate_failed = False
+                        return out, getattr(inter, "id", None)
+                except Exception as e:
+                    log.warning("Gemini modeli (%s) zaxiraga o'tdi (%s): %s", candidate, type(e).__name__, e)
+            if candidate_failed and is_real_client:
+                _MODEL_COOLDOWN_UNTIL[candidate] = time.monotonic() + 180.0
+        return None, None
+
+    async def _call_providers(
+        self,
+        system: str,
+        text: str,
+        previous_id: str | None = None,
+        media_bytes: bytes | None = None,
+        mime_type: str = "",
+        timeout_sec: float = 16.0,
+    ) -> tuple[str | None, str | None]:
+        """3 bosqichli avto-zaxira zanjiri: OmniRoute -> OpenRouter -> Google Gemini (multi-model)."""
+        if self.use_omniroute and self.omniroute_base_url:
+            omni_resp = await self._call_openai_compat(
+                self.omniroute_base_url,
+                self.omniroute_api_key,
+                self.omniroute_model,
+                system,
+                text,
+                media_bytes,
+                mime_type,
+                timeout_sec=min(15.0, timeout_sec),
+            )
+            if omni_resp and omni_resp.strip():
+                self.last_provider_used = f"OmniRoute ({self.omniroute_model})"
+                return omni_resp.strip(), None
+
+        if self.openrouter_api_key:
+            or_resp = await self._call_openai_compat(
+                self.openrouter_base_url,
+                self.openrouter_api_key,
+                self.openrouter_model,
+                system,
+                text,
+                media_bytes,
+                mime_type,
+                timeout_sec=timeout_sec,
+            )
+            if or_resp and or_resp.strip():
+                self.last_provider_used = f"OpenRouter ({self.openrouter_model})"
+                return or_resp.strip(), None
+
+        return await self._call_gemini_models(
+            system,
+            text,
+            previous_id=previous_id,
+            media_bytes=media_bytes,
+            mime_type=mime_type,
+            timeout_sec=timeout_sec,
+        )
+
+    async def ask_json(
+        self,
+        prompt: str,
+        *,
+        system: str = "",
+        media_bytes: bytes | None = None,
+        mime_type: str = "",
+        timeout_sec: float = 16.0,
+    ) -> dict[str, Any] | None:
+        """Skaut, Tahlilchi va AI Hisobchi uchun OmniRoute/OpenRouter/Gemini orqali toza JSON oladi."""
+        sys_prompt = system or (
+            "Sen XAN SHOP tizimidagi aniq va professional AI mutaxassissan. "
+            "Faqat so'ralgan formatdagi toza JSON obyektini qaytar."
+        )
+        raw, _ = await self._call_providers(
+            sys_prompt,
+            prompt,
+            previous_id=None,
+            media_bytes=media_bytes,
+            mime_type=mime_type,
+            timeout_sec=timeout_sec,
+        )
+        return extract_json_dict(raw or "")
+
+    async def reply(
+        self,
+        system: str,
+        text: str,
+        previous_id: str | None,
+        media_bytes: bytes | None = None,
+        mime_type: str = "",
+    ) -> tuple[str | None, str | None, bool]:
+        """(javob matni HTML-xavfsiz, interaction_id, operator kerakmi).
+        3 bosqichli avto-zaxira zanjiri: OmniRoute -> OpenRouter -> Google Gemini.
+        """
+        raw, inter_id = await self._call_providers(
+            system,
+            text,
+            previous_id=previous_id,
+            media_bytes=media_bytes,
+            mime_type=mime_type,
+            timeout_sec=16.0,
+        )
+        if not raw:
+            return None, None, True
+        need_admin = ADMIN_TAG in raw
+        answer = raw.replace(ADMIN_TAG, "").strip()
+        return escape(answer) or None, inter_id, need_admin
