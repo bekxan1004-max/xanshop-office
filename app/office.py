@@ -122,11 +122,15 @@ class AgentOffice:
         rates = await get_rates(self.db, self.s)
         params = await get_params(self.db, self.s)
 
-        cycle_idx = self._cycle_counter
+        existing_looks = await self.db.list_looks(only_active=False)
+        saved_cycle = int(await self.db.get_setting("look_cycle_idx") or "0")
+        cycle_idx = max(len(existing_looks), saved_cycle, self._cycle_counter)
+        await self.db.set_setting("look_cycle_idx", cycle_idx + 1)
+        self._cycle_counter = cycle_idx + 1
+
         skaut = TrendSourcingAgent(self.s, rates=rates, params=params)
         skaut._fallback_idx = cycle_idx
         brief = skaut.analyze_instagram_trends(cycle_idx)
-        self._cycle_counter += 1
 
         # 1-QADAM: Instagram Razvedka Agent (insta_analyst) -> 5–10 kun oldingi ob-havo + @_tima_shop/Stylesh tahlilini Skautga uzatadi
         await self.db.set_agent_status(
@@ -513,6 +517,11 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
     logistics = LogisticsAgent(office.db, office.s)
     ai = SalesAI(office.s)
     last_sla_ts = 0.0
+    if office.s.auto_post_hours > 0:
+        init_ts = int(await office.db.get_setting("last_auto_post_ts") or "0")
+        if init_ts == 0 and await office.db.list_looks(only_active=False):
+            await office.db.set_setting("last_auto_post_ts", int(time.time()))
+
     while True:
         await asyncio.sleep(120)  # Har 2 daqiqada tekshiruv
         try:

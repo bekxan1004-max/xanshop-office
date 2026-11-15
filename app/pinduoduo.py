@@ -542,92 +542,141 @@ class PinduoduoConnector:
             log.warning("Pinduoduo rasmiy API xatosi (%s): %s", keyword_cn, e)
             return []
 
-    async def search_rapidapi(self, keyword_cn: str, page_size: int = 5) -> list[PddProduct]:
-        """RapidAPI (pinduoduo1 / pinduoduo-data) orqali jonli mahsulot qidiruvi."""
+    async def search_rapidapi(self, keyword_cn: str, page_size: int = 10) -> list[PddProduct]:
+        """RapidAPI (Alibaba 1688 / Pinduoduo Live API) orqali haqiqiy Xitoy ulgurji tovar va rasmlarini qidiradi."""
+        cache_path = "data/pdd_live_cache.json"
+        kw_key = (keyword_cn or "").strip()
+        if not kw_key:
+            return []
+
+        # 1) Avval keshdan tekshiramiz (RapidAPI oylik limitini tejash va tezkorlik uchun)
+        cached_map: dict[str, list[dict[str, Any]]] = {}
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cached_map = json.load(f) or {}
+            except Exception:
+                cached_map = {}
+
+        if kw_key in cached_map and cached_map[kw_key]:
+            return [PddProduct(**row) for row in cached_map[kw_key][: max(page_size, 15)]]
+
         if not self.rapidapi_key:
             return []
-        endpoints = [
-            (
-                "https://pinduoduo1.p.rapidapi.com/pinduoduo/search",
-                "pinduoduo1.p.rapidapi.com",
-                {"keyword": keyword_cn, "sortType": "default"},
-            ),
-            (
-                "https://pinduoduo-data.p.rapidapi.com/goods/search",
-                "pinduoduo-data.p.rapidapi.com",
-                {"keyword": keyword_cn, "page": "1"},
-            ),
-        ]
-        timeout = aiohttp.ClientTimeout(total=12)
-        for url, host, params in endpoints:
-            headers = {
-                "x-rapidapi-key": self.rapidapi_key,
-                "x-rapidapi-host": host,
-            }
-            try:
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.get(url, headers=headers, params=params) as resp:
-                        if resp.status != 200:
-                            continue
-                        data = await resp.json(content_type=None)
-                if isinstance(data, list):
-                    raw_list = data
-                elif isinstance(data, dict):
-                    inner = data.get("data") or data.get("result") or {}
-                    if isinstance(inner, list):
-                        raw_list = inner
-                    elif isinstance(inner, dict):
-                        raw_list = (
-                            inner.get("items")
-                            or inner.get("goods_list")
-                            or inner.get("list")
-                            or []
-                        )
-                    else:
-                        raw_list = data.get("goods_list") or data.get("items") or []
-                else:
-                    raw_list = []
 
-                out: list[PddProduct] = []
-                for g in raw_list[:page_size]:
-                    if not isinstance(g, dict):
-                        continue
-                    gid = str(g.get("goods_id") or g.get("item_id") or g.get("id") or "")
-                    price_raw = float(
-                        g.get("price")
-                        or g.get("min_group_price")
-                        or g.get("normal_price")
-                        or 55.0
+        url = "https://alibaba-1688-api.p.rapidapi.com/api/1688/search-item-list/v1"
+        headers = {
+            "x-rapidapi-key": self.rapidapi_key,
+            "x-rapidapi-host": "alibaba-1688-api.p.rapidapi.com",
+        }
+        params = {
+            "keyword": kw_key,
+            "page": "1",
+            "pageSize": "20",
+            "sort": "default",
+        }
+        try:
+            timeout = aiohttp.ClientTimeout(total=22)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers, params=params) as resp:
+                    if resp.status != 200:
+                        return []
+                    data = await resp.json(content_type=None)
+
+            raw_items: list[dict[str, Any]] = []
+            if isinstance(data, dict):
+                offer_block = (
+                    data.get("data", {})
+                    .get("data", {})
+                    .get("OFFER", {})
+                    .get("items")
+                )
+                if isinstance(offer_block, list) and offer_block:
+                    for cell in offer_block:
+                        if isinstance(cell, dict) and isinstance(cell.get("data"), dict):
+                            raw_items.append(cell["data"])
+                else:
+                    alt_items = data.get("data", {}).get("items") or data.get("items") or []
+                    if isinstance(alt_items, list):
+                        raw_items.extend(x for x in alt_items if isinstance(x, dict))
+
+            out: list[PddProduct] = []
+            for g in raw_items:
+                gid = str(g.get("offerId") or g.get("item_id") or g.get("goods_id") or g.get("id") or "").strip()
+                img_url = str(
+                    g.get("offerPicUrl")
+                    or g.get("odPicUrl")
+                    or g.get("img")
+                    or g.get("pic_url")
+                    or (g.get("grid", {}).get("cover", {}).get("pic") if isinstance(g.get("grid"), dict) else "")
+                    or ""
+                ).strip()
+                if not gid or not img_url.startswith("http"):
+                    continue
+
+                price_str = ""
+                if isinstance(g.get("priceInfo"), dict):
+                    price_str = str(g["priceInfo"].get("price") or "")
+                if not price_str:
+                    price_str = str(g.get("price") or g.get("min_group_price") or "48")
+                m_price = re.search(r"\d+(?:\.\d+)?", price_str)
+                price_val = float(m_price.group(0)) if m_price else 48.0
+                if price_val > 500:
+                    price_val = round(price_val / 100.0, 1)
+                # Ulgurji (optom) juda past yoki juda baland narxlarni chakana diapazonga keltiramiz
+                price_cny = max(25.0, min(95.0, round(price_val, 1)))
+
+                raw_title = str(g.get("title") or g.get("subject") or kw_key)
+                clean_title = re.sub(r"<[^>]+>", "", raw_title).strip()
+
+                sales_txt = "1万+件"
+                if isinstance(g.get("afterPrice"), dict) and g["afterPrice"].get("text"):
+                    sales_txt = str(g["afterPrice"]["text"])
+                elif isinstance(g.get("sale_info"), dict) and g["sale_info"].get("sale_quantity"):
+                    sales_txt = str(g["sale_info"]["sale_quantity"])
+
+                prod_url = f"https://detail.1688.com/offer/{gid}.html"
+                out.append(
+                    PddProduct(
+                        goods_id=gid,
+                        title_uz=clean_title[:60],
+                        title_cn=clean_title,
+                        price_cny=price_cny,
+                        weight_kg=0.52,
+                        sales_tip=sales_txt,
+                        image_url=img_url,
+                        product_url=prod_url,
+                        category="general",
                     )
-                    if price_raw > 500:
-                        price_raw = round(price_raw / 100.0, 1)
-                    title = str(g.get("title") or g.get("goods_name") or keyword_cn)
-                    img_url = str(
-                        g.get("pic_url")
-                        or g.get("img")
-                        or g.get("thumb_url")
-                        or g.get("hd_thumb_url")
-                        or g.get("image_url")
-                        or ""
-                    )
-                    out.append(
-                        PddProduct(
-                            goods_id=gid,
-                            title_uz=title[:60],
-                            title_cn=title,
-                            price_cny=max(15.0, price_raw),
-                            weight_kg=0.55,
-                            sales_tip=str(g.get("sales") or g.get("sales_tip") or "1万+"),
-                            image_url=img_url,
-                            product_url=f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}" if gid else "",
-                            category="general",
-                        )
-                    )
-                if out:
-                    return out
-            except Exception as e:
-                log.warning("Pinduoduo RapidAPI xatosi (%s - %s): %s", host, keyword_cn, e)
-        return []
+                )
+                if len(out) >= 20:
+                    break
+
+            if out:
+                try:
+                    os.makedirs(os.path.dirname(cache_path) or "data", exist_ok=True)
+                    cached_map[kw_key] = [
+                        {
+                            "goods_id": p.goods_id,
+                            "title_uz": p.title_uz,
+                            "title_cn": p.title_cn,
+                            "price_cny": p.price_cny,
+                            "weight_kg": p.weight_kg,
+                            "sales_tip": p.sales_tip,
+                            "image_url": p.image_url,
+                            "product_url": p.product_url,
+                            "category": p.category,
+                        }
+                        for p in out
+                    ]
+                    with open(cache_path, "w", encoding="utf-8") as f:
+                        json.dump(cached_map, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+            return out[:page_size]
+        except Exception as e:
+            log.warning("RapidAPI 1688/Pinduoduo qidiruv xatosi (%s): %s", keyword_cn, e)
+            return []
 
     async def search_browser(self, keyword_cn: str, page_size: int = 5) -> list[PddProduct]:
         """Saqlangan shaxsiy brauzer sessiyasi (`data/pdd_session.json`) orqali jonli Pinduoduo qidiruvi."""
@@ -934,15 +983,30 @@ class PinduoduoConnector:
         return []
 
     async def fetch_image_bytes(self, image_url: str) -> bytes | None:
-        """Haqiqiy Pinduoduo mahsulot rasmini yuklab oladi."""
+        """Haqiqiy Xitoy do'koni (1688 / Pinduoduo CDN) mahsulot rasmini yuklab oladi va tekshiradi."""
         if not image_url or not image_url.startswith("http"):
             return None
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Referer": "https://www.1688.com/",
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        }
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            import io
+            from PIL import Image
+
+            timeout = aiohttp.ClientTimeout(total=12)
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 async with session.get(image_url) as resp:
                     if resp.status == 200:
-                        return await resp.read()
+                        raw = await resp.read()
+                        if len(raw) > 1500:
+                            im = Image.open(io.BytesIO(raw))
+                            im.verify()
+                            return raw
         except Exception:
             pass
         return None

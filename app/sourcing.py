@@ -174,6 +174,52 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
 ]
 
 
+def _detect_garment_color_uz(img_bytes: bytes | None) -> str:
+    """Jonli yuklab olingan kiyim rasmining markaziy qismidan asosiy rangni aniqlab, o'zbekcha nomini qaytaradi."""
+    if not img_bytes:
+        return ""
+    try:
+        import io
+        from PIL import Image
+
+        im = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        w, h = im.size
+        crop = im.crop((int(w * 0.28), int(h * 0.25), int(w * 0.72), int(h * 0.75))).resize((36, 36))
+        pixels = list(crop.getdata())
+        fg = [
+            (r, g, b)
+            for (r, g, b) in pixels
+            if not (r > 228 and g > 228 and b > 228 and max(r, g, b) - min(r, g, b) < 18)
+        ]
+        if not fg:
+            fg = pixels
+        r_avg = sum(p[0] for p in fg) / len(fg)
+        g_avg = sum(p[1] for p in fg) / len(fg)
+        b_avg = sum(p[2] for p in fg) / len(fg)
+        lum = 0.299 * r_avg + 0.587 * g_avg + 0.114 * b_avg
+        spread = max(r_avg, g_avg, b_avg) - min(r_avg, g_avg, b_avg)
+
+        if lum < 48:
+            return "Qora"
+        if lum > 212 and spread < 26:
+            return "Oq"
+        if spread < 22:
+            return "To'q kulrang (grafit)" if lum < 115 else "Kulrang"
+        if r_avg > g_avg + 14 and g_avg >= b_avg:
+            if lum > 165:
+                return "Och bej"
+            if lum < 105:
+                return "To'q jigarrang"
+            return "Bej / Qahva"
+        if b_avg > r_avg + 15 and b_avg >= g_avg:
+            return "To'q ko'k (navy)" if lum < 115 else "Ko'k (denim)"
+        if g_avg >= r_avg and g_avg > b_avg + 12:
+            return "Zaytun (xaki)"
+        return "To'q kulrang (grafit)" if lum < 125 else "Och bej"
+    except Exception:
+        return ""
+
+
 def _sync_item_with_studio_photo_color(name: str, category: str = "", idx: int = 0) -> tuple[str, str]:
     """Lokal studiya rasmidagi HAQIQIY rang bilan buyum nomini 100% bir xil qiladi (rasmda boshqa, yozuvda boshqa bo'lmasligi uchun)."""
     low = (name or "").lower()
@@ -281,8 +327,14 @@ class TrendSourcingAgent:
                 weight_kg=w,
                 idx=idx,
             )
-            if i.get("url") and "yangkeduo.com" in str(i.get("url")):
-                pdd_enriched["url"] = i["url"]
+            if i.get("pdd_goods_id"):
+                pdd_enriched["pdd_goods_id"] = str(i["pdd_goods_id"])
+            if i.get("sales_tip"):
+                pdd_enriched["sales_tip"] = str(i["sales_tip"])
+            if i.get("image_url"):
+                pdd_enriched["image_url"] = str(i["image_url"])
+            if i.get("url") and any(d in str(i.get("url")) for d in ("yangkeduo.com", "1688.com", "taobao.com")):
+                pdd_enriched["url"] = str(i["url"])
             normalized.append(pdd_enriched)
             items.append(
                 Item(
@@ -348,12 +400,25 @@ FAQAT JSON QAYTAR:
         calc, norm_items = self._calculate_pricing(items_input)
         palette_hex = data.get("palette_hex") or brief.color_hex_list
 
-        # Agar jonli Pinduoduo rasmi emas, lokal studiya rasmlari ishlatilayotgan bo'lsa,
-        # rasmdagi kiyim rangi bilan yozuvdagi rangni 100% bir xil qilamiz!
         has_live_imgs = bool(downloaded_images and any(downloaded_images))
         exact_colors: list[str] = []
-        if not has_live_imgs:
-            for idx, it in enumerate(norm_items):
+        for idx, it in enumerate(norm_items):
+            live_img = downloaded_images[idx] if (downloaded_images and idx < len(downloaded_images)) else None
+            if live_img:
+                # Jonli 1688/Pinduoduo rasmi bor: kiyimning o'zbekcha nomini va rasmdagi haqiqiy rangni uyg'unlashtiramiz
+                det_col = _detect_garment_color_uz(live_img) or str(it.get("color_uz") or "Qora")
+                short_col = det_col.split("(")[0].split("/")[0].strip().title()
+                cur_name = str(it.get("name") or "")
+                for old_prefix in ("Muzdek Oq ", "Oq-Kulrang ", "To'q Kulrang ", "Och Bej ", "Grafit ", "Qora ", "Bej ", "Oq ", "Zaytun ", "Jigarrang ", "Ko'k ", "Kulrang "):
+                    if cur_name.lower().startswith(old_prefix.lower()) and short_col:
+                        cur_name = f"{short_col} {cur_name[len(old_prefix):].strip()}"
+                        break
+                it["name"] = cur_name
+                it["color_uz"] = det_col
+                if det_col and det_col not in exact_colors:
+                    exact_colors.append(det_col)
+            else:
+                # Faqat lokal studiya rasmi ishlatilgandagina studiya rangi bilan sinxronlaymiz
                 synced_name, synced_col = _sync_item_with_studio_photo_color(
                     str(it.get("name", "")),
                     str(it.get("category", "")),
@@ -454,7 +519,7 @@ FAQAT JSON QAYTAR:
         trend_brief: InstagramTrendBrief | None = None,
         weather: WeatherForecast | None = None,
     ) -> GeneratedLook:
-        """Jonli Toshkent ob-havosi + OmniRoute/Gemini AI + Pinduoduo bilan asinxron Look yaratadi."""
+        """Jonli Toshkent ob-havosi + OmniRoute/Gemini AI + RapidAPI (1688/Pinduoduo) bilan asinxron Look yaratadi."""
         weather = weather or await fetch_tashkent_weather()
         eff_brief = trend_brief or await self.analyze_instagram_trends_async(weather)
         eff_season = weather.season_uz if season in ("", "avtomatik ob-havo") else season
@@ -468,31 +533,46 @@ FAQAT JSON QAYTAR:
         prompt = self._build_look_prompt(eff_brief, weather_line, gender)
         ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
         raw_data = self._pick_template_if_invalid(ai_data)
-        gen = self._build_generated_look(raw_data, eff_brief, weather_line)
 
-        # Agar Rasmiy Pinduoduo yoki RapidAPI ulangan bo'lsa, jonli narx va rasmlarni olamiz
-        # (browser_session cookie'larni search_result.html anti-bot cheklovida kuydirmaslik uchun qidiruvga ishlatilmaydi)
         if self.pdd.connection_mode not in ("official_api", "rapidapi"):
-            return gen
+            return self._build_generated_look(raw_data, eff_brief, weather_line)
 
+        _, base_items = self._calculate_pricing(raw_data["items"])
         enriched_items: list[dict[str, Any]] = []
         downloaded_imgs: list[bytes | None] = []
-        for item in gen.raw_items:
+        used_urls: set[str] = set()
+
+        for item_idx, item in enumerate(base_items):
             kw = item.get("cn_keyword") or item.get("name", "")
-            live_matches = await self.pdd.search_live(kw, page_size=1)
+            live_matches = await self.pdd.search_live(kw, page_size=12)
+            picked_prod = None
+            picked_bytes = None
             if live_matches:
-                best = live_matches[0]
+                start_offset = (self._fallback_idx + item_idx) % len(live_matches)
+                ordered = live_matches[start_offset:] + live_matches[:start_offset]
+                for cand in ordered[:6]:
+                    if cand.image_url and cand.image_url not in used_urls:
+                        img_b = await self.pdd.fetch_image_bytes(cand.image_url)
+                        if img_b:
+                            picked_prod = cand
+                            picked_bytes = img_b
+                            used_urls.add(cand.image_url)
+                            break
+                if picked_prod is None:
+                    picked_prod = ordered[0]
+                    picked_bytes = await self.pdd.fetch_image_bytes(picked_prod.image_url)
+
+            if picked_prod is not None:
                 updated = dict(item)
-                updated["price_cny"] = best.price_cny
-                updated["cny"] = best.price_cny
-                updated["pdd_goods_id"] = best.goods_id or updated.get("pdd_goods_id", "")
-                updated["sales_tip"] = best.sales_tip
-                if best.product_url:
-                    updated["url"] = best.product_url
-                if best.image_url:
-                    updated["image_url"] = best.image_url
-                img_bytes = await self.pdd.fetch_image_bytes(best.image_url)
-                downloaded_imgs.append(img_bytes)
+                updated["price_cny"] = picked_prod.price_cny
+                updated["cny"] = picked_prod.price_cny
+                updated["pdd_goods_id"] = picked_prod.goods_id or updated.get("pdd_goods_id", "")
+                updated["sales_tip"] = picked_prod.sales_tip
+                if picked_prod.product_url:
+                    updated["url"] = picked_prod.product_url
+                if picked_prod.image_url:
+                    updated["image_url"] = picked_prod.image_url
+                downloaded_imgs.append(picked_bytes)
                 enriched_items.append(updated)
             else:
                 downloaded_imgs.append(None)
