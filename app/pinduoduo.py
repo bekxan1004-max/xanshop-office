@@ -543,45 +543,91 @@ class PinduoduoConnector:
             return []
 
     async def search_rapidapi(self, keyword_cn: str, page_size: int = 5) -> list[PddProduct]:
-        """RapidAPI (Pinduoduo/Taobao Bridge) orqali jonli mahsulot qidiruvi."""
+        """RapidAPI (pinduoduo1 / pinduoduo-data) orqali jonli mahsulot qidiruvi."""
         if not self.rapidapi_key:
             return []
-        url = "https://pinduoduo-data.p.rapidapi.com/goods/search"
-        headers = {
-            "X-RapidAPI-Key": self.rapidapi_key,
-            "X-RapidAPI-Host": "pinduoduo-data.p.rapidapi.com",
-        }
-        try:
-            timeout = aiohttp.ClientTimeout(total=12)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, headers=headers, params={"keyword": keyword_cn, "page": "1"}) as resp:
-                    if resp.status != 200:
-                        return []
-                    data = await resp.json(content_type=None)
-            raw_list = data.get("data", {}).get("items") or data.get("goods_list") or []
-            out: list[PddProduct] = []
-            for g in raw_list[:page_size]:
-                gid = str(g.get("goods_id") or g.get("id") or "")
-                price_raw = float(g.get("price") or g.get("min_group_price") or 55.0)
-                if price_raw > 500:
-                    price_raw = round(price_raw / 100.0, 1)
-                out.append(
-                    PddProduct(
-                        goods_id=gid,
-                        title_uz=str(g.get("title") or keyword_cn)[:60],
-                        title_cn=str(g.get("title") or keyword_cn),
-                        price_cny=max(15.0, price_raw),
-                        weight_kg=0.55,
-                        sales_tip=str(g.get("sales") or g.get("sales_tip") or "1万+"),
-                        image_url=str(g.get("pic_url") or g.get("img") or ""),
-                        product_url=f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}" if gid else "",
-                        category="general",
+        endpoints = [
+            (
+                "https://pinduoduo1.p.rapidapi.com/pinduoduo/search",
+                "pinduoduo1.p.rapidapi.com",
+                {"keyword": keyword_cn, "sortType": "default"},
+            ),
+            (
+                "https://pinduoduo-data.p.rapidapi.com/goods/search",
+                "pinduoduo-data.p.rapidapi.com",
+                {"keyword": keyword_cn, "page": "1"},
+            ),
+        ]
+        timeout = aiohttp.ClientTimeout(total=12)
+        for url, host, params in endpoints:
+            headers = {
+                "x-rapidapi-key": self.rapidapi_key,
+                "x-rapidapi-host": host,
+            }
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(url, headers=headers, params=params) as resp:
+                        if resp.status != 200:
+                            continue
+                        data = await resp.json(content_type=None)
+                if isinstance(data, list):
+                    raw_list = data
+                elif isinstance(data, dict):
+                    inner = data.get("data") or data.get("result") or {}
+                    if isinstance(inner, list):
+                        raw_list = inner
+                    elif isinstance(inner, dict):
+                        raw_list = (
+                            inner.get("items")
+                            or inner.get("goods_list")
+                            or inner.get("list")
+                            or []
+                        )
+                    else:
+                        raw_list = data.get("goods_list") or data.get("items") or []
+                else:
+                    raw_list = []
+
+                out: list[PddProduct] = []
+                for g in raw_list[:page_size]:
+                    if not isinstance(g, dict):
+                        continue
+                    gid = str(g.get("goods_id") or g.get("item_id") or g.get("id") or "")
+                    price_raw = float(
+                        g.get("price")
+                        or g.get("min_group_price")
+                        or g.get("normal_price")
+                        or 55.0
                     )
-                )
-            return out
-        except Exception as e:
-            log.warning("Pinduoduo RapidAPI xatosi (%s): %s", keyword_cn, e)
-            return []
+                    if price_raw > 500:
+                        price_raw = round(price_raw / 100.0, 1)
+                    title = str(g.get("title") or g.get("goods_name") or keyword_cn)
+                    img_url = str(
+                        g.get("pic_url")
+                        or g.get("img")
+                        or g.get("thumb_url")
+                        or g.get("hd_thumb_url")
+                        or g.get("image_url")
+                        or ""
+                    )
+                    out.append(
+                        PddProduct(
+                            goods_id=gid,
+                            title_uz=title[:60],
+                            title_cn=title,
+                            price_cny=max(15.0, price_raw),
+                            weight_kg=0.55,
+                            sales_tip=str(g.get("sales") or g.get("sales_tip") or "1万+"),
+                            image_url=img_url,
+                            product_url=f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}" if gid else "",
+                            category="general",
+                        )
+                    )
+                if out:
+                    return out
+            except Exception as e:
+                log.warning("Pinduoduo RapidAPI xatosi (%s - %s): %s", host, keyword_cn, e)
+        return []
 
     async def search_browser(self, keyword_cn: str, page_size: int = 5) -> list[PddProduct]:
         """Saqlangan shaxsiy brauzer sessiyasi (`data/pdd_session.json`) orqali jonli Pinduoduo qidiruvi."""
