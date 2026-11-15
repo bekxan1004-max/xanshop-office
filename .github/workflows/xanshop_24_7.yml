@@ -6,9 +6,13 @@ on:
     # Har 5 soatda avtomatik yangi 24/7 sessiya ulanadi (uzluksiz ishlash uchun)
     - cron: "0 */5 * * *"
 
+permissions:
+  contents: write
+  actions: write
+
 concurrency:
   group: xanshop-24-7-live
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   run-office:
@@ -17,6 +21,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
       - name: Set up Python 3.11 & FFmpeg
         uses: actions/setup-python@v5
@@ -65,24 +71,32 @@ jobs:
           done
           export PUBLIC_BASE_URL="${TUNNEL_URL:-https://xanshop.uz}"
           echo "Cloudflare Tunnel URL: $PUBLIC_BASE_URL"
+          START_TS=$(date +%s)
           timeout 310m python -u main.py || true
+          ELAPSED=$(( $(date +%s) - START_TS ))
+          echo "RUN_ELAPSED=$ELAPSED" >> $GITHUB_ENV
 
       - name: Persist SQLite DB state
         if: always()
         run: |
           git config user.name "xanshop-bot"
           git config user.email "bekxan1004@gmail.com"
-          git add data/shop.db || true
+          git add -f data/shop.db || true
           git diff --staged --quiet || git commit -m "chore: sync 24/7 shop.db state [skip ci]"
-          git push || true
+          git pull --rebase origin main || true
+          git push origin main || true
 
       - name: Auto-Chain Next 24/7 Session
-        if: always()
+        if: always() && env.RUN_ELAPSED != ''
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
-          curl -s -X POST \
-            -H "Authorization: Bearer $GH_PAT" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/xanshop_24_7.yml/dispatches \
-            -d '{"ref":"main"}' || true
+          if [ "${RUN_ELAPSED:-0}" -ge 120 ]; then
+            curl -s -X POST \
+              -H "Authorization: Bearer $GH_PAT" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/${{ github.repository }}/actions/workflows/xanshop_24_7.yml/dispatches \
+              -d '{"ref":"main"}' || true
+          else
+            echo "Session exited early (${RUN_ELAPSED}s); skipping immediate auto-chain (cron will retry)."
+          fi
