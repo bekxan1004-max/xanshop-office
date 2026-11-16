@@ -342,7 +342,7 @@ class TrendSourcingAgent:
                 pdd_enriched["sales_tip"] = str(i["sales_tip"])
             if i.get("image_url"):
                 pdd_enriched["image_url"] = str(i["image_url"])
-            if i.get("url") and any(d in str(i.get("url")) for d in ("yangkeduo.com", "1688.com", "taobao.com")):
+            if i.get("url") and "yangkeduo.com" in str(i.get("url")):
                 pdd_enriched["url"] = str(i["url"])
             normalized.append(pdd_enriched)
             items.append(
@@ -362,17 +362,19 @@ class TrendSourcingAgent:
         brief: InstagramTrendBrief,
         weather_line: str,
         gender: str,
+        playbooks_text: str = "",
     ) -> str:
+        playbook_section = f"\n{playbooks_text}\n" if playbooks_text else ""
         return f"""Sen "XAN SHOP" moda brendining Bosh Bozor Tahlilchisi, Dizayner-Stilisti va Pinduoduo Skaut Agentisan.
-Instagram Reels tahlilchisi quyidagi trend hisobotini yubordi:
+Instagram & Telegram tahlilchisi quyidagi trend hisobotini yubordi:
 - Trend yo'nalishi: {brief.trend_name}
-- Tavsiya etilgan buyumlar soni: {brief.recommended_piece_count} ta buyum (faqat 4 talik emas, aynan {brief.recommended_piece_count} ta buyum bo'lsin!)
+- Tavsiya etilgan buyumlar soni: {brief.recommended_piece_count} ta buyum (qotib qolmasdan aynan {brief.recommended_piece_count} ta uyg'un buyum yig')
 - Dizayner ranglar palitrasi: {brief.color_palette_name} ({', '.join(brief.color_hex_list)})
 - Toshkent ob-havosi va mavsumi: {weather_line}
 - Auditoriya: {gender}
-
-Vazifang: Pinduoduo (拼多多) da eng ko'p sotilayotgan (10万+ sotuvli), O'zbekiston bozorida raqobatbardosh narxga tushadigan (har buyum ~42–115 CNY (qishki qalin sviter/palto/etik sifatli bo'lsin, arzon futbolka taqiqlanadi!), to'plam jami ~145–260 CNY atrofida) aynan {brief.recommended_piece_count} qismli uyg'un Look yig'.
-MUHIM QOIDA: "title" va har bir buyumning "name" maydoni FAQAT O'ZBEK TILIDA, qisqa va tushunarli (2–3 so'z, masalan: "Qora Bomber Kurtka", "Bej Zamokli Sviter", "Keng Kargo Shim", "Oq Retro Krossovka", "Qora Zamsh Lofer") bo'lsin! Inglizcha so'zlar yozma!
+{playbook_section}
+Vazifang: Pinduoduo (拼多多) da haqiqatda ko'p sotilayotgan (10万+ sotuvli), O'zbekiston bozoriga va berilgan kanallar uslubiga mos, narxiga yarasha qimmat ko'rinadigan (~42–135 CNY atrofida, sovuq mavsumda arzon yupqa futbolka o'rniga issiq qalin sviter/palto/blazer/hoodie afzal, jami ~145–280 CNY) uyg'un Look yig'. Erkin va ijodkor bo'l — bir xil qolipda qotib qolma!
+MUHIM QOIDA: "title" va har bir buyumning "name" maydoni FAQAT O'ZBEK TILIDA, qisqa va tushunarli (2–4 so'z) bo'lsin! Inglizcha so'zlar yozma!
 Har bir buyum uchun real Pinduoduo narxi (yuan - CNY), vazni (kg), kategoriyasi (outerwear, top, bottom, shoes, accessory) va xitoycha qidiruv so'zini ber.
 
 FAQAT JSON QAYTAR:
@@ -521,42 +523,19 @@ FAQAT JSON QAYTAR:
         for idx, raw_it in enumerate(out.get("items") or []):
             it = dict(raw_it)
             name_low = f"{it.get('name', '')} {it.get('cn_keyword', '')}".lower()
-            cat = str(it.get("category") or "general").lower()
+            price_val = float(it.get("price_cny") or 0)
 
-            # 1) Sovuq/qishki mavsumda futbolka/mayka qat'iyan bloklanadi!
-            if rules.get("forbid_tshirts") and any(
+            # Erkin va ochiq tizim: qattiq majburlov yo'q, faqat sovuqda arzon yozgi futbolkani yumshoq almashtirish + 1688 ni tozalash
+            if rules.get("forbid_tshirts") and price_val < 40.0 and any(
                 w in name_low for w in ("futbolka", "t-shirt", "mayka", "短袖", "t恤", "tee")
             ):
                 rep = warm_knit_alts[(var_idx + idx) % len(warm_knit_alts)]
                 it.update(rep)
                 it["category"] = "top"
-            # 2) Diplomat/Yuridika/Old Money uslubida Kargo, Xudi, Kepka, Krossovka taqiqlanadi!
-            elif is_diplomat_old_money:
-                if cat == "outerwear" or any(w in name_low for w in ("palto", "trench", "bomber", "kurtka", "blazer", "kardigan")):
-                    rep = old_money_outer_alts[(var_idx + idx) % len(old_money_outer_alts)]
-                    it.update(rep)
-                    it["category"] = "outerwear"
-                elif cat == "top" or any(w in name_low for w in ("xudi", "hoodie", "sviter", "svitshot", "half-zip", "vodolazka")):
-                    rep = warm_knit_alts[(var_idx + idx) % len(warm_knit_alts)]
-                    it.update(rep)
-                    it["category"] = "top"
-                elif cat == "bottom" or any(w in name_low for w in ("shim", "kargo", "cargo", "bryuk", "jinsi", "joger")):
-                    rep = classic_bottom_alts[(var_idx + idx) % len(classic_bottom_alts)]
-                    it.update(rep)
-                    it["category"] = "bottom"
-                elif cat == "shoes" or any(w in name_low for w in ("krossovka", "sneaker", "lofer", "chelsea", "etik", "poyabzal")):
-                    rep = classic_shoe_alts[(var_idx + idx) % len(classic_shoe_alts)]
-                    it.update(rep)
-                    it["category"] = "shoes"
-                elif cat == "accessory" or any(w in name_low for w in ("kepka", "cap")):
-                    # Diplomat uslubida kepka o'rniga issiq vodolazka/palto/lofer qatlami
-                    rep = old_money_outer_alts[(var_idx + 1) % len(old_money_outer_alts)]
-                    it.update(rep)
-                    it["category"] = "outerwear"
 
-            # Har doim toza Pinduoduo qidiruv havolasini ta'minlash (1688 ga ruxsat yo'q)
+            # Har doim toza Pinduoduo qidiruv havolasi (1688/taobao olib tashlanadi)
             cn_kw = str(it.get("cn_keyword") or it.get("name") or "").strip()
-            if not it.get("url") or "1688.com" in str(it.get("url", "")):
+            if not it.get("url") or "1688.com" in str(it.get("url", "")) or "taobao.com" in str(it.get("url", "")):
                 it["url"] = f"https://mobile.yangkeduo.com/search_result.html?search_key={quote(cn_kw)}"
             fixed_items.append(it)
 
@@ -719,7 +698,8 @@ FAQAT JSON QAYTAR:
 
         if self.client is not self.ai.client:
             self.ai.client = self.client
-        prompt = self._build_look_prompt(eff_brief, weather_line, gender)
+        pb_txt = str((ig_intel or {}).get("learned_playbooks_text") or "")
+        prompt = self._build_look_prompt(eff_brief, weather_line, gender, playbooks_text=pb_txt)
         ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
         raw_data = self._pick_template_if_invalid(ai_data, recent_titles=(ig_intel or {}).get("recent_titles"))
         raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)

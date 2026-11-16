@@ -275,6 +275,67 @@ def test_halol_ogri_db_and_real_audio_tracks(tmp_path):
     asyncio.run(_check())
 
 
+def test_open_source_learner_and_nonrigid_flexibility(tmp_path):
+    import asyncio
+    from dataclasses import replace
+    from app.config import load_settings
+    from app.db import Database
+    from app.source_learner import format_playbooks_for_ai, parse_source_url
+    from app.sourcing import InstagramTrendBrief, TrendSourcingAgent
+
+    assert parse_source_url("https://t.me/uz_menswear_test")[:2] == ("telegram", "tg:uz_menswear_test")
+    assert parse_source_url("https://www.instagram.com/reel/DfwuRH0TXX5/?vrfl=123")[:2] == ("ig_reel", "reel:DfwuRH0TXX5")
+    assert parse_source_url("https://www.instagram.com/stylesh.uz/")[:2] == ("instagram", "ig:stylesh.uz")
+
+    # Ochiq/erkin tizim: AI tanlagan noodatiy/yangi buyumni qattiq qolipga majburlab o'zgartirib yubormasligi kerak!
+    s = replace(load_settings(), gemini_api_key="", pdd_rapidapi_key="")
+    agent = TrendSourcingAgent(s)
+    brief = InstagramTrendBrief(
+        trend_name="Diplomat Old Money",
+        recommended_piece_count=2,
+        color_palette_name="Cream",
+        color_hex_list=["#111111"],
+        viral_hook_uz="Test",
+        audio_vibe="diplomat_old_money",
+        conversion_reason="Test",
+    )
+    ai_raw = {
+        "title": "Erkin Klassik Kardigan Seti",
+        "items": [
+            {"category": "outerwear", "name": "Merino Yengil Kardigan", "price_cny": 79.0, "weight_kg": 0.45, "cn_keyword": "羊毛开衫男"},
+            {"category": "bottom", "name": "Bej Chinos Shim", "price_cny": 65.0, "weight_kg": 0.45, "cn_keyword": "休闲卡其裤男"},
+        ],
+    }
+    res = agent._enforce_seasonal_and_persona_rules(ai_raw, brief)
+    assert res["items"][0]["name"] == "Merino Yengil Kardigan"
+    assert res["items"][1]["name"] == "Bej Chinos Shim"
+    assert all("yangkeduo.com/search_result.html" in it["url"] for it in res["items"])
+
+    async def _check_db():
+        db = Database(":memory:")
+        await db.connect()
+        try:
+            await db.upsert_tracked_source(
+                source_key="tg:sample_shop",
+                platform="telegram",
+                url="https://t.me/sample_shop",
+                style_summary="Ochiq foto-albom va narx",
+            )
+            await db.save_learned_playbook(
+                "tg_channel_strategy",
+                {"format": "photo_album", "trust_building": "real_video_review"},
+                source_refs=["https://t.me/sample_shop"],
+            )
+            srcs = await db.list_tracked_sources()
+            pbs = await db.get_all_playbooks()
+            assert len(srcs) == 1
+            assert "photo_album" in format_playbooks_for_ai(pbs)
+        finally:
+            await db.close()
+
+    asyncio.run(_check_db())
+
+
 if __name__ == "__main__":
     test_calculate_example()
     test_payment_fee_is_covered()

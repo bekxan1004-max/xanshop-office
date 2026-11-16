@@ -543,6 +543,9 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
     logistics = LogisticsAgent(office.db, office.s)
     ai = SalesAI(office.s)
     last_sla_ts = 0.0
+    last_ig_probe_ts = 0.0
+    ig_ready = False
+    ig_block_reason = ""
     if office.s.auto_post_hours > 0:
         init_ts = int(await office.db.get_setting("last_auto_post_ts") or "0")
         if init_ts == 0 and await office.db.list_looks(only_active=False):
@@ -552,7 +555,33 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
         await asyncio.sleep(120)  # Har 2 daqiqada tekshiruv
         try:
             now_ts = time.time()
-            await poll_and_reply_instagram_comments(office.db, office.s, ai=ai, notify_fn=alert_fn)
+            from app.source_learner import check_ig_publish_ready
+
+            has_ig_creds = bool(office.s.ig_user_id and office.s.ig_access_token)
+            if has_ig_creds and (now_ts - last_ig_probe_ts) >= 1800:
+                last_ig_probe_ts = now_ts
+                ig_ready, ig_block_reason = await check_ig_publish_ready(
+                    office.s.ig_user_id,
+                    office.s.ig_access_token,
+                )
+                if ig_ready:
+                    if await office.db.get_setting("ig_pause_alerted") == "1":
+                        await office.db.set_setting("ig_pause_alerted", "0")
+                        if alert_fn:
+                            await alert_fn("🟢 Instagram qulfdan chiqdi — avtonom Reels + Telegram nashr qayta tiklandi!")
+                else:
+                    if await office.db.get_setting("ig_pause_alerted") != "1":
+                        await office.db.set_setting("ig_pause_alerted", "1")
+                        if alert_fn:
+                            await alert_fn(
+                                "⏸ <b>Avto-look va Telegram kanal posti vaqtincha to'xtatildi</b>\n"
+                                f"Sabab: <i>{ig_block_reason}</i>\n\n"
+                                "Instagram tiklanmaguncha bo'sh Telegram kanalga bekorchi token va video sarflanmaydi. "
+                                "Agar majburiy Telegram rejimi kerak bo'lsa: <code>/tg_holat yoq</code>"
+                            )
+
+            if ig_ready:
+                await poll_and_reply_instagram_comments(office.db, office.s, ai=ai, notify_fn=alert_fn)
 
             if (now_ts - last_sla_ts) >= 3600:
                 last_sla_ts = now_ts
@@ -561,9 +590,11 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
                     await alert_fn("\n".join(alerts))
 
             if office.s.auto_post_hours > 0:
-                last_ts = int(await office.db.get_setting("last_auto_post_ts") or "0")
-                if (now_ts - last_ts) >= office.s.auto_post_hours * 3600:
-                    await office.run_look_pipeline(delete_previous=False, notify_admin_on_publish=True)
-                    await office.db.set_setting("last_auto_post_ts", int(time.time()))
+                allow_tg_only = (await office.db.get_setting("allow_tg_without_ig")) == "1"
+                if ig_ready or allow_tg_only:
+                    last_ts = int(await office.db.get_setting("last_auto_post_ts") or "0")
+                    if (now_ts - last_ts) >= office.s.auto_post_hours * 3600:
+                        await office.run_look_pipeline(delete_previous=False, notify_admin_on_publish=True)
+                        await office.db.set_setting("last_auto_post_ts", int(time.time()))
         except Exception as e:
             log.warning("24/7 Scheduler xatosi: %s", e)

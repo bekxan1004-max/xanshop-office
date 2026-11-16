@@ -145,6 +145,25 @@ CREATE TABLE IF NOT EXISTS competitor_videos (
     raw_json TEXT DEFAULT '{}',
     analyzed_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS tracked_sources (
+    source_key TEXT PRIMARY KEY,
+    platform TEXT NOT NULL,
+    url TEXT DEFAULT '',
+    added_by TEXT DEFAULT 'owner',
+    status TEXT DEFAULT 'active',
+    style_summary TEXT DEFAULT '',
+    posting_pattern TEXT DEFAULT '',
+    pricing_pattern TEXT DEFAULT '',
+    extracted_playbook_json TEXT DEFAULT '{}',
+    last_analyzed_at INTEGER DEFAULT 0,
+    created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS learned_playbooks (
+    playbook_key TEXT PRIMARY KEY,
+    rules_json TEXT NOT NULL,
+    source_refs_json TEXT DEFAULT '[]',
+    updated_at INTEGER
+);
 """
 
 ACTIVE_STATUSES = (
@@ -620,3 +639,75 @@ class Database:
             "SELECT * FROM competitor_videos ORDER BY (likes_count + comments_count*4 + views_est/200) DESC, analyzed_at DESC LIMIT ?",
             (limit,),
         )
+
+    async def upsert_tracked_source(
+        self,
+        source_key: str,
+        platform: str,
+        url: str,
+        added_by: str = "owner",
+        status: str = "active",
+        style_summary: str = "",
+        posting_pattern: str = "",
+        pricing_pattern: str = "",
+        extracted_playbook: dict | None = None,
+    ) -> None:
+        clean_key = source_key.strip().lower()
+        if not clean_key:
+            return
+        now = int(time.time())
+        pb_str = json.dumps(extracted_playbook or {}, ensure_ascii=False)
+        existing = await self._one("SELECT source_key FROM tracked_sources WHERE source_key=?", (clean_key,))
+        if existing:
+            await self._exec(
+                "UPDATE tracked_sources SET platform=?, url=CASE WHEN ?!='' THEN ? ELSE url END, status=?, "
+                "style_summary=CASE WHEN ?!='' THEN ? ELSE style_summary END, "
+                "posting_pattern=CASE WHEN ?!='' THEN ? ELSE posting_pattern END, "
+                "pricing_pattern=CASE WHEN ?!='' THEN ? ELSE pricing_pattern END, "
+                "extracted_playbook_json=CASE WHEN ?!='' THEN ? ELSE extracted_playbook_json END, "
+                "last_analyzed_at=? WHERE source_key=?",
+                (
+                    platform, url, url, status,
+                    style_summary, style_summary,
+                    posting_pattern, posting_pattern,
+                    pricing_pattern, pricing_pattern,
+                    pb_str, pb_str,
+                    now, clean_key,
+                ),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO tracked_sources(source_key, platform, url, added_by, status, style_summary, "
+                "posting_pattern, pricing_pattern, extracted_playbook_json, last_analyzed_at, created_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (clean_key, platform, url, added_by, status, style_summary, posting_pattern, pricing_pattern, pb_str, now, now),
+            )
+
+    async def list_tracked_sources(self, limit: int = 40) -> list[dict]:
+        return await self._all("SELECT * FROM tracked_sources ORDER BY last_analyzed_at DESC LIMIT ?", (limit,))
+
+    async def save_learned_playbook(self, playbook_key: str, rules: dict[str, Any], source_refs: list[str] | None = None) -> None:
+        now = int(time.time())
+        r_str = json.dumps(rules, ensure_ascii=False)
+        refs_str = json.dumps(source_refs or [], ensure_ascii=False)
+        existing = await self._one("SELECT playbook_key FROM learned_playbooks WHERE playbook_key=?", (playbook_key,))
+        if existing:
+            await self._exec(
+                "UPDATE learned_playbooks SET rules_json=?, source_refs_json=?, updated_at=? WHERE playbook_key=?",
+                (r_str, refs_str, now, playbook_key),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO learned_playbooks(playbook_key, rules_json, source_refs_json, updated_at) VALUES(?,?,?,?)",
+                (playbook_key, r_str, refs_str, now),
+            )
+
+    async def get_all_playbooks(self) -> dict[str, dict[str, Any]]:
+        rows = await self._all("SELECT * FROM learned_playbooks")
+        out: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            try:
+                out[r["playbook_key"]] = json.loads(r["rules_json"] or "{}")
+            except Exception:
+                out[r["playbook_key"]] = {}
+        return out

@@ -788,14 +788,18 @@ async def run_live_instagram_analyst_async(
 
     recent_looks: list[dict[str, Any]] = []
     recent_learnings: list[str] = []
+    playbooks: dict[str, dict[str, Any]] = {}
     if db is not None:
         try:
             recent_looks = (await db.list_looks(only_active=False))[:6]
             agents = {a["agent_id"]: a for a in await db.list_agents()}
             raw_l = (agents.get("insta_analyst") or {}).get("learnings_json") or "[]"
             recent_learnings = json.loads(raw_l) if isinstance(raw_l, str) else []
+            playbooks = await db.get_all_playbooks()
         except Exception:
             pass
+    from app.source_learner import format_playbooks_for_ai
+    learned_playbooks_text = format_playbooks_for_ai(playbooks)
 
     recent_styles = [str(l.get("style") or "") for l in recent_looks[:4]]
     recent_titles = [str(l.get("title") or "") for l in recent_looks[:4]]
@@ -823,6 +827,8 @@ async def run_live_instagram_analyst_async(
         "recent_titles": recent_titles,
         "prior_learnings": recent_learnings[-4:],
         "learning_note": learning_note,
+        "learned_playbooks": playbooks,
+        "learned_playbooks_text": learned_playbooks_text,
         "halol_ogri": {
             "accounts_tracked": len(all_accounts) or len(SEED_COMPETITOR_ACCOUNTS),
             "new_web_accounts": web_intel.get("discovered_handles", []),

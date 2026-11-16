@@ -27,8 +27,12 @@ PHOTO_DIR = os.path.join("data", "photos")
 
 HELP = """<b>👑 XAN SHOP — Admin Boshqaruv Paneli (v3.2)</b>
 
-⚡ <b>Avtonom AI Ofis (Har 3 soatda 1080p Look):</b>
-/ai_look — Hoziroq yangi 1080p Look yaratish va IG + TG ga joylash
+⚡ <b>Avtonom AI Ofis (Ochiq o'rganuvchi tizim):</b>
+/ai_look — Hoziroq yangi 1080p Look yaratish
+/manba https://t.me/... — TG kanal / IG / Reel linkidan tizimni o'qitish
+/manbalar — O'rganilgan kanallar va jonli strategiyalar
+/tg_holat [yoq|toxtat] — IG yo'q paytda TG avtomatini boshqarish
+<i>Shuningdek, istalgan namuna .mp4 Reels videoni menga tashlasangiz, montaj va zvukini tizimga integratsiya qilaman!</i>
 /ofis — 7 ta AI agentning jonli holati
 /hisobchi — Karta tushumlari va to'lovlar
 
@@ -164,6 +168,113 @@ def build_admin_router(s: Settings) -> Router:
             f"⭕ <b>Instagram Aktualnoe (Highlights):</b>\n<code>{escape(kit['instagram_highlights'])}</code>\n\n"
             f"📢 <b>Telegram Kanal Bio:</b>\n<code>{escape(kit['telegram_channel_bio'])}</code>\n\n"
             f"📌 <b>Telegram Kanal Zakrep (Pinned Post):</b>\n{kit['telegram_pinned_post']}"
+        )
+
+    @admin.message(Command("manba"))
+    @admin.message(Command("addsource"))
+    async def add_source_cmd(message: Message, command: CommandObject, db: Database):
+        args_str = (command.args or "").strip()
+        if not args_str:
+            await message.answer(
+                "🔗 Menga o'rganish uchun Telegram kanal, Instagram akkaunt yoki Reels linkini yuboring:\n"
+                "Masalan: <code>/manba https://t.me/kanal_nomi</code>\n"
+                "yoki <code>/manba https://www.instagram.com/accaunt/ montaj zo'r</code>"
+            )
+            return
+        parts = args_str.split(maxsplit=1)
+        url_arg = parts[0]
+        note_arg = parts[1] if len(parts) > 1 else ""
+        wait_m = await message.answer("🕵️‍♂️ <b>Halol O'g'ri manbani o'rganmoqda...</b>")
+        from .source_learner import ingest_and_learn_source
+        res = await ingest_and_learn_source(db, s, url_arg, user_instruction=note_arg)
+        if not res.get("ok"):
+            await wait_m.edit_text(f"❌ Xato: {escape(str(res.get('error', 'noma`lum')))}")
+            return
+        msg_lines = [
+            f"✅ <b>Manba tizimga qo'shildi ({escape(res['platform'].upper())})</b>",
+            f"🔗 <code>{escape(res['url'])}</code>",
+            f"📌 Holat: <b>{escape(res['status'])}</b>",
+        ]
+        if res.get("style_summary"):
+            msg_lines.append(f"🎨 Xulosa: <i>{escape(res['style_summary'])}</i>")
+        if res.get("posting_pattern"):
+            msg_lines.append(f"⏱ Ritm: {escape(res['posting_pattern'])}")
+        if res.get("pricing_pattern"):
+            msg_lines.append(f"💰 Narx uslubi: {escape(res['pricing_pattern'])}")
+        if res.get("learned_patch"):
+            msg_lines.append("🧠 <b>Playbook yangilandi!</b> Keyingi look va videolar endi shu uslubdan foydalanadi.")
+        await wait_m.edit_text("\n".join(msg_lines))
+
+    @admin.message(Command("manbalar"))
+    @admin.message(Command("sources"))
+    async def list_sources_cmd(message: Message, db: Database):
+        sources = await db.list_tracked_sources(limit=20)
+        pbs = await db.get_all_playbooks()
+        if not sources and not pbs:
+            await message.answer("Hali o'rganilgan tashqi manbalar yo'q. Qo'shish: <code>/manba https://t.me/...</code>")
+            return
+        lines = ["🧠 <b>O'ZLASHTIRILGAN KANALLAR VA STRATEGIYALAR</b>\n"]
+        for src in sources[:12]:
+            lines.append(
+                f"• <b>[{escape(src['platform'])}]</b> <code>{escape(src['url'] or src['source_key'])}</code> ({escape(src['status'])})\n"
+                f"  └ <i>{escape((src.get('style_summary') or '')[:120])}</i>"
+            )
+        if pbs:
+            lines.append("\n📘 <b>Faol Playbook lar:</b>")
+            for k, v in pbs.items():
+                lines.append(f"• <code>{escape(k)}</code>: {escape(json.dumps(v, ensure_ascii=False)[:180])}")
+        await message.answer("\n".join(lines))
+
+    @admin.message(Command("tg_holat"))
+    async def tg_holat_cmd(message: Message, command: CommandObject, db: Database):
+        arg = (command.args or "").strip().lower()
+        if arg in ("yoq", "on", "1", "ruxsat"):
+            await db.set_setting("allow_tg_without_ig", "1")
+            await message.answer("🟢 <b>TG avto-posti yoqildi</b> (Instagram blokda bo'lsa ham Telegram kanalga post qo'yaveradi).")
+            return
+        if arg in ("toxtat", "off", "0", "pauza"):
+            await db.set_setting("allow_tg_without_ig", "0")
+            await message.answer("⏸ <b>TG bo'sh postlari to'xtatildi</b> (Instagram qulfdan chiqmaguncha bekorga token sarflanmaydi).")
+            return
+        cur = await db.get_setting("allow_tg_without_ig")
+        st_txt = "YOQILGAN (IG siz ham ishlaydi)" if cur == "1" else "PAUZADA (IG blokda bo'lsa token tejaydi)"
+        await message.answer(
+            f"📢 <b>Telegram Avto-Nashr Holati:</b> {st_txt}\n\n"
+            "O'zgartirish: <code>/tg_holat yoq</code> yoki <code>/tg_holat toxtat</code>"
+        )
+
+    @admin.message(StateFilter(default_state), F.video)
+    async def learn_from_uploaded_video(message: Message, db: Database, admin_bot: Bot):
+        wait_m = await message.answer("🎬 <b>Videoni kadrlar va audio bo'yicha chuqur tahlil qilyapman...</b>")
+        import tempfile
+        from .source_learner import analyze_video_file_blueprint
+        with tempfile.TemporaryDirectory() as td:
+            vpath = os.path.join(td, "ref_reel.mp4")
+            try:
+                tg_file = await admin_bot.get_file(message.video.file_id)
+                await admin_bot.download_file(tg_file.file_path, vpath)
+            except Exception as exc:
+                await wait_m.edit_text(f"❌ Videoni yuklab bo'lmadi: {escape(str(exc)[:120])}")
+                return
+            hint = (message.caption or "").strip()
+            res = await analyze_video_file_blueprint(
+                db, s, vpath,
+                source_label=f"tg_video_{message.message_id}",
+                caption_hint=hint,
+            )
+        if not res.get("ok"):
+            await wait_m.edit_text(f"❌ Video tahlil xatosi: {escape(str(res.get('error', '')))}")
+            return
+        bp = res.get("blueprint") or {}
+        ed = bp.get("editing_blueprint") or {}
+        await wait_m.edit_text(
+            "✅ <b>Video to'liq tahlil qilindi va tizimga integratsiya qilindi!</b>\n\n"
+            f"⏱ Davomiyligi: <b>{res['duration_sec']}s</b> | 📐 Sifat: <b>{escape(str(res['resolution']))}</b>\n"
+            f"🎯 Ma'nosi: <i>{escape(str(bp.get('video_meaning', ''))[:160])}</i>\n"
+            f"🎬 Montaj/Ritm: <i>{escape(str(ed.get('pacing', ''))[:140])}</i>\n"
+            f"🎵 Mos Zvuk: <code>{escape(str(ed.get('recommended_audio_vibe', 'luxury_chill')))}</code>\n"
+            f"🔓 Ochiqlik darsi: <i>{escape(str(bp.get('tg_ig_openness_lesson', ''))[:160])}</i>\n\n"
+            "🧠 Keyingi video va kanallar shu blueprint asosida rivojlanadi!"
         )
 
     @admin.message(Command("ai_look"))
