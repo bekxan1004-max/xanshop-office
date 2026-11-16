@@ -1,6 +1,9 @@
 name: XAN SHOP 24/7 Autonomous AI Office
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
   schedule:
     # Har 5 soatda avtomatik yangi 24/7 sessiya ulanadi (uzluksiz ishlash uchun)

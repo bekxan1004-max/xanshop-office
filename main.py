@@ -128,10 +128,10 @@ async def main() -> None:
         await notify_admins(
             admin_bot,
             s,
-            f"🟢 <b>{s.shop_name} — 24/7 AI AGENT OFFICE</b> ishga tushdi!\n"
+            f"🟢 <b>{s.shop_name} — 24/7 AI AGENT OFFICE (v3.3)</b> ishga tushdi!\n"
             f"🛍 Sotuv bot: @{sales_username}\n"
-            f"🏢 Web-Ofis: <code>http://localhost:{s.office_port}</code>\n"
-            f"Buyruqlar: /ofis · /ai_look · /kanal_paket · /hisobchi · /help",
+            f"🧠 Ochiq o‘rganish: <code>.mp4</code> video yoki <code>t.me / instagram.com</code> link tashlang!\n"
+            f"Menyu: /start · /help",
         )
     except Exception as e:
         logging.warning("Boshlanish xabarini adminlarga yuborishda vaqtinchalik xato: %s", e)

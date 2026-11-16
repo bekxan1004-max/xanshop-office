@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 from html import escape
 
 from aiogram import Bot, F, Router
@@ -473,15 +474,33 @@ def build_admin_router(s: Settings) -> Router:
             "O'zgartirish: <code>/tg_holat yoq</code> yoki <code>/tg_holat toxtat</code>"
         )
 
-    @admin.message(StateFilter(default_state), F.video)
-    async def learn_from_uploaded_video(message: Message, db: Database, admin_bot: Bot):
+    @admin.message(
+        ~StateFilter(AddLook),
+        F.video
+        | F.animation
+        | F.document.func(
+            lambda d: bool(
+                d
+                and (
+                    (d.mime_type or "").startswith("video/")
+                    or (d.file_name or "").lower().endswith((".mp4", ".mov", ".m4v", ".webm"))
+                )
+            )
+        ),
+    )
+    async def learn_from_uploaded_video(message: Message, state: FSMContext, db: Database, admin_bot: Bot):
+        await state.clear()
         wait_m = await message.answer("🎬 <b>Videoni kadrlar va audio bo'yicha chuqur tahlil qilyapman...</b>")
         import tempfile
         from .source_learner import analyze_video_file_blueprint
+        media_obj = message.video or message.animation or message.document
+        if not media_obj:
+            await wait_m.edit_text("❌ Video fayl topilmadi.")
+            return
         with tempfile.TemporaryDirectory() as td:
             vpath = os.path.join(td, "ref_reel.mp4")
             try:
-                tg_file = await admin_bot.get_file(message.video.file_id)
+                tg_file = await admin_bot.get_file(media_obj.file_id)
                 await admin_bot.download_file(tg_file.file_path, vpath)
             except Exception as exc:
                 await wait_m.edit_text(f"❌ Videoni yuklab bo'lmadi: {escape(str(exc)[:120])}")
@@ -509,15 +528,24 @@ def build_admin_router(s: Settings) -> Router:
         )
 
     @admin.message(
-        StateFilter(default_state),
+        ~StateFilter(AddLook),
         F.text,
         ~F.text.startswith("/"),
-        F.text.regexp(r"https?://(?:t\.me|telegram\.me|(?:www\.)?instagram\.com|youtube\.com|youtu\.be)/"),
+        F.text.func(
+            lambda t: bool(
+                re.search(
+                    r"https?://(?:t\.me|telegram\.me|(?:www\.)?instagram\.com|youtube\.com|youtu\.be)/",
+                    t or "",
+                )
+            )
+        ),
     )
-    async def auto_learn_dropped_url(message: Message, db: Database):
-        parts = (message.text or "").strip().split(maxsplit=1)
-        url_arg = parts[0]
-        note_arg = parts[1] if len(parts) > 1 else ""
+    async def auto_learn_dropped_url(message: Message, state: FSMContext, db: Database):
+        await state.clear()
+        raw_txt = (message.text or "").strip()
+        m_url = re.search(r"(https?://\S+)", raw_txt)
+        url_arg = m_url.group(1) if m_url else raw_txt.split(maxsplit=1)[0]
+        note_arg = raw_txt.replace(url_arg, "").strip()
         wait_m = await message.answer("🕵️‍♂️ <b>Havoladan o‘rganilmoqda...</b>")
         from .source_learner import ingest_and_learn_source
         res = await ingest_and_learn_source(db, s, url_arg, user_instruction=note_arg)
