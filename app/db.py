@@ -108,6 +108,43 @@ CREATE TABLE IF NOT EXISTS receipt_checks (
     reason TEXT DEFAULT '',
     created_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS competitor_accounts (
+    handle TEXT PRIMARY KEY,
+    platform TEXT DEFAULT 'instagram',
+    region TEXT DEFAULT 'uzbekistan',
+    style_focus TEXT DEFAULT '',
+    followers_est INTEGER DEFAULT 0,
+    avg_likes REAL DEFAULT 0,
+    avg_views INTEGER DEFAULT 0,
+    discovered_via TEXT DEFAULT 'seed',
+    last_scanned_at INTEGER DEFAULT 0,
+    notes_json TEXT DEFAULT '{}',
+    active INTEGER DEFAULT 1,
+    created_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS competitor_videos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_key TEXT UNIQUE NOT NULL,
+    account_handle TEXT NOT NULL,
+    video_url TEXT DEFAULT '',
+    posted_at_info TEXT DEFAULT '',
+    garment_type TEXT DEFAULT '',
+    video_meaning TEXT DEFAULT '',
+    editing_style TEXT DEFAULT '',
+    video_quality TEXT DEFAULT '',
+    music_genre TEXT DEFAULT '',
+    audio_vibe TEXT DEFAULT 'diplomat_old_money',
+    views_est INTEGER DEFAULT 0,
+    likes_count INTEGER DEFAULT 0,
+    comments_count INTEGER DEFAULT 0,
+    competitor_sell_price_uzs INTEGER DEFAULT 0,
+    estimated_pdd_cost_uzs INTEGER DEFAULT 0,
+    estimated_profit_uzs INTEGER DEFAULT 0,
+    xan_target_price_uzs INTEGER DEFAULT 0,
+    insight_summary TEXT DEFAULT '',
+    raw_json TEXT DEFAULT '{}',
+    analyzed_at INTEGER
+);
 """
 
 ACTIVE_STATUSES = (
@@ -475,3 +512,111 @@ class Database:
 
     async def list_bank_transactions(self, limit: int = 25) -> list[dict]:
         return await self._all("SELECT * FROM bank_transactions ORDER BY id DESC LIMIT ?", (limit,))
+
+    async def upsert_competitor_account(
+        self,
+        handle: str,
+        platform: str = "instagram",
+        region: str = "uzbekistan",
+        style_focus: str = "",
+        followers_est: int = 0,
+        avg_likes: float = 0.0,
+        avg_views: int = 0,
+        discovered_via: str = "web_crawler",
+        notes: dict | None = None,
+    ) -> None:
+        clean = handle.strip().lstrip("@").lower()
+        if not clean:
+            return
+        now = int(time.time())
+        notes_str = json.dumps(notes or {}, ensure_ascii=False)
+        existing = await self._one("SELECT handle FROM competitor_accounts WHERE handle=?", (clean,))
+        if existing:
+            await self._exec(
+                "UPDATE competitor_accounts SET style_focus=CASE WHEN ?!='' THEN ? ELSE style_focus END, "
+                "followers_est=CASE WHEN ?>0 THEN ? ELSE followers_est END, "
+                "avg_likes=CASE WHEN ?>0 THEN ? ELSE avg_likes END, "
+                "avg_views=CASE WHEN ?>0 THEN ? ELSE avg_views END, "
+                "last_scanned_at=?, notes_json=CASE WHEN ?!='' THEN ? ELSE notes_json END WHERE handle=?",
+                (
+                    style_focus, style_focus,
+                    followers_est, followers_est,
+                    avg_likes, avg_likes,
+                    avg_views, avg_views,
+                    now, notes_str, notes_str, clean,
+                ),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO competitor_accounts(handle, platform, region, style_focus, followers_est, avg_likes, avg_views, "
+                "discovered_via, last_scanned_at, notes_json, active, created_at) VALUES(?,?,?,?,?,?,?,?,?,?,1,?)",
+                (clean, platform, region, style_focus, followers_est, avg_likes, avg_views, discovered_via, now, notes_str, now),
+            )
+
+    async def list_competitor_accounts(self, limit: int = 30) -> list[dict]:
+        return await self._all(
+            "SELECT * FROM competitor_accounts WHERE active=1 ORDER BY avg_likes DESC, last_scanned_at DESC LIMIT ?",
+            (limit,),
+        )
+
+    async def add_competitor_video(self, payload: dict[str, Any]) -> int:
+        vkey = str(payload.get("video_key") or "").strip()
+        if not vkey:
+            return 0
+        now = int(time.time())
+        existing = await self._one("SELECT id FROM competitor_videos WHERE video_key=?", (vkey,))
+        cols = (
+            str(payload.get("account_handle") or "").lstrip("@").lower(),
+            str(payload.get("video_url") or ""),
+            str(payload.get("posted_at_info") or ""),
+            str(payload.get("garment_type") or ""),
+            str(payload.get("video_meaning") or ""),
+            str(payload.get("editing_style") or ""),
+            str(payload.get("video_quality") or ""),
+            str(payload.get("music_genre") or ""),
+            str(payload.get("audio_vibe") or "diplomat_old_money"),
+            int(payload.get("views_est") or 0),
+            int(payload.get("likes_count") or 0),
+            int(payload.get("comments_count") or 0),
+            int(payload.get("competitor_sell_price_uzs") or 0),
+            int(payload.get("estimated_pdd_cost_uzs") or 0),
+            int(payload.get("estimated_profit_uzs") or 0),
+            int(payload.get("xan_target_price_uzs") or 0),
+            str(payload.get("insight_summary") or ""),
+            json.dumps(payload.get("raw_json") or {}, ensure_ascii=False),
+            now,
+        )
+        if existing:
+            await self._exec(
+                "UPDATE competitor_videos SET account_handle=?, video_url=?, posted_at_info=?, garment_type=?, "
+                "video_meaning=?, editing_style=?, video_quality=?, music_genre=?, audio_vibe=?, views_est=?, "
+                "likes_count=?, comments_count=?, competitor_sell_price_uzs=?, estimated_pdd_cost_uzs=?, "
+                "estimated_profit_uzs=?, xan_target_price_uzs=?, insight_summary=?, raw_json=?, analyzed_at=? WHERE video_key=?",
+                (*cols, vkey),
+            )
+            return int(existing["id"])
+        return await self._exec(
+            "INSERT INTO competitor_videos(video_key, account_handle, video_url, posted_at_info, garment_type, "
+            "video_meaning, editing_style, video_quality, music_genre, audio_vibe, views_est, likes_count, "
+            "comments_count, competitor_sell_price_uzs, estimated_pdd_cost_uzs, estimated_profit_uzs, "
+            "xan_target_price_uzs, insight_summary, raw_json, analyzed_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (vkey, *cols),
+        )
+
+    async def list_competitor_videos(self, limit: int = 50, account_handle: str | None = None) -> list[dict]:
+        if account_handle:
+            return await self._all(
+                "SELECT * FROM competitor_videos WHERE account_handle=? ORDER BY (likes_count + comments_count*3) DESC, analyzed_at DESC LIMIT ?",
+                (account_handle.strip().lstrip("@").lower(), limit),
+            )
+        return await self._all(
+            "SELECT * FROM competitor_videos ORDER BY (likes_count + comments_count*3 + views_est/100) DESC, analyzed_at DESC LIMIT ?",
+            (limit,),
+        )
+
+    async def get_halol_ogri_winning_patterns(self, limit: int = 5) -> list[dict]:
+        return await self._all(
+            "SELECT * FROM competitor_videos ORDER BY (likes_count + comments_count*4 + views_est/200) DESC, analyzed_at DESC LIMIT ?",
+            (limit,),
+        )

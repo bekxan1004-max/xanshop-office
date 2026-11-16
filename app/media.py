@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -315,10 +316,37 @@ def synthesize_reels_beat_wav(
 
     custom_dir = Path("data/audio")
     if custom_dir.is_dir():
-        for ext in ("*.wav", "*.mp3", "*.m4a"):
-            found = list(custom_dir.glob(ext))
-            if found:
-                return str(found[0])
+        vibe_clean = re.sub(r"[^a-zA-Z0-9_-]", "", vibe or "").lower()
+        vibe_matches: list[Path] = []
+        all_tracks: list[Path] = []
+        for ext in ("mp3", "wav", "m4a"):
+            if vibe_clean:
+                vibe_matches.extend(sorted(custom_dir.glob(f"{vibe_clean}*.{ext}")))
+            all_tracks.extend(sorted(custom_dir.glob(f"*.{ext}")))
+        pool = vibe_matches or all_tracks
+        if pool:
+            picked = pool[int(duration_sec * 10) % len(pool)]
+            ff = find_ffmpeg_binary()
+            if ff:
+                try:
+                    fade_out_st = max(0.4, round(float(duration_sec) - 0.55, 2))
+                    proc = subprocess.run(
+                        [
+                            ff, "-y", "-stream_loop", "-1", "-i", str(picked),
+                            "-t", f"{max(1.5, float(duration_sec)):.2f}",
+                            "-af", f"afade=t=in:st=0:d=0.35,afade=t=out:st={fade_out_st:.2f}:d=0.55,volume=0.88",
+                            "-ar", str(sample_rate), "-ac", "2",
+                            str(out),
+                        ],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=25,
+                    )
+                    if proc.returncode == 0 and out.exists() and out.stat().st_size > 2000:
+                        return str(out)
+                except Exception:
+                    pass
+            return str(picked)
 
     n_samples = int(max(1.5, duration_sec) * sample_rate)
     t = np.linspace(0, duration_sec, n_samples, endpoint=False)
@@ -381,8 +409,8 @@ def synthesize_reels_beat_wav(
             c_mask = (t >= cut_t) & (t < cut_t + 0.04)
             if np.any(c_mask):
                 ct = (t[c_mask] - cut_t) / 0.04
-                click_wave = np.sin(2 * np.pi * 1750.0 * (t[c_mask] - cut_t)) * np.exp(-ct * 12.0)
-                sfx[c_mask] += (click_wave * 0.21) + (noise[c_mask] * np.exp(-ct * 16.0) * 0.14)
+                soft_thump = np.sin(2 * np.pi * 165.0 * (t[c_mask] - cut_t)) * np.exp(-ct * 14.0)
+                sfx[c_mask] += (soft_thump * 0.08) + (noise[c_mask] * np.exp(-ct * 18.0) * 0.04)
 
     mix_l = np.clip(riser + kick + sub_808 + pad + hihat * 1.04 + sfx, -0.95, 0.95)
     mix_r = np.clip(riser + kick + sub_808 + pad * 0.96 + hihat * 0.92 + sfx, -0.95, 0.95)
@@ -1159,12 +1187,12 @@ def render_reels_mp4_with_audio(
 
         total_sec = max(2.0, frame_idx / float(fps))
         wav_path = os.path.join(tmpdir, "beat.wav")
-        synthesize_reels_beat_wav(
+        audio_input_path = synthesize_reels_beat_wav(
             wav_path,
             duration_sec=total_sec,
             vibe=audio_vibe,
             transition_times=transition_timestamps,
-        )
+        ) or wav_path
 
         has_voice = voiceover_path and os.path.isfile(str(voiceover_path))
 
@@ -1180,7 +1208,7 @@ def render_reels_mp4_with_audio(
                     "-y",
                     "-framerate", str(fps),
                     "-i", os.path.join(tmpdir, "f_%04d.jpg"),
-                    "-i", wav_path,
+                    "-i", audio_input_path,
                     "-i", str(voiceover_path),
                     "-filter_complex", "[1:a]volume=0.25[bg];[2:a]volume=1.20[vox];[bg][vox]amix=inputs=2:duration=first:dropout_transition=2[aout]",
                     "-map", "0:v",
@@ -1199,7 +1227,7 @@ def render_reels_mp4_with_audio(
                     "-y",
                     "-framerate", str(fps),
                     "-i", os.path.join(tmpdir, "f_%04d.jpg"),
-                    "-i", wav_path,
+                    "-i", audio_input_path,
                     "-c:v", vcodec,
                     *quality_flags,
                     "-pix_fmt", "yuv420p",

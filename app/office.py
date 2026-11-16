@@ -149,16 +149,18 @@ class AgentOffice:
         comp_snap = analyze_competitor_account("_tima_shop", weather)
         if not comp_snap.get("ig_live"):
             comp_snap["ig_live"] = ig_intel
+        halol_ogri = ig_intel.get("halol_ogri") or {}
+        ho_stats = f"Akkountlar: {halol_ogri.get('accounts_tracked', 5)} | Videolar: {halol_ogri.get('videos_analyzed', 4)}"
         await self.db.set_agent_status(
             "insta_analyst",
             "idle",
-            f"Razvedka tayyor: {weather.lead_time_days} ob-havo (~{weather.future_temp_c or weather.temp_c}°C) | {brief.trend_name}",
+            f"Halol O'g'ri tayyor ({ho_stats}) | {weather.lead_time_days} (~{weather.future_temp_c or weather.temp_c}°C)",
             increment_done=True,
         )
         await self.db.log_agent_action(
             "insta_analyst",
-            f"Instagram razvedkasi yakunlandi: '{brief.trend_name}' ({brief.recommended_piece_count}-in-1) | Ob-havo ({weather.lead_time_days}): ~{weather.future_temp_c or weather.temp_c}°C",
-            f"Raqobatchi (@_tima_shop) triggeri: komentda '+' | Hook: {comp_snap['hook_patterns'][0]} | Palitra: {brief.color_palette_name} | Zvuk: {brief.audio_vibe}",
+            f"Halol O'g'ri razvedkasi [{ho_stats}]: '{brief.trend_name}' | Top zvuk: {halol_ogri.get('recommended_audio_vibe', brief.audio_vibe)}",
+            halol_ogri.get("scout_brief") or f"Hook: {comp_snap['hook_patterns'][0]} | Palitra: {brief.color_palette_name}",
             target_id="skaut",
         )
 
@@ -220,7 +222,12 @@ class AgentOffice:
             target_id="smm_manager",
         )
 
-        # 3-QADAM: insta_analyst v3.2 va SMM Boshlig'i Video Montajchi (video_employee v3.2) ga 1080p kreativ rejissura buyrug'ini beradi
+        # 3-QADAM: insta_analyst ("Halol O'g'ri") va SMM Boshlig'i Video Montajchi ga 1080p kreativ rejissura + haqiqiy musiqa buyrug'ini beradi
+        effective_vibe = (
+            "diplomat_old_money"
+            if any(k in gen.title.lower() for k in ("diplomat", "yurid", "old money", "klassik"))
+            else str(halol_ogri.get("recommended_audio_vibe") or gen.audio_vibe)
+        )
         creative_directive = build_video_creative_directive(
             look_title=gen.title,
             piece_count=gen.piece_count,
@@ -228,20 +235,20 @@ class AgentOffice:
             prepay_50_uzs=b.prepay_50_uzs,
             palette_name=gen.palette_name,
             palette_hex=palette_hex,
-            audio_vibe=gen.audio_vibe,
+            audio_vibe=effective_vibe,
             weather=weather,
             items=gen.raw_items,
             style_idx=cycle_idx,
             viral_hook=gen.viral_hook,
         )
-        video_style = str(creative_directive.get("video_style") or "orbit_3d_turntable")
+        video_style = str(creative_directive.get("video_style") or halol_ogri.get("recommended_video_style") or "orbit_3d_turntable")
         target_persona = str(creative_directive.get("target_persona") or "Zamonaviy yigitlar")
-        audio_vibe = str(creative_directive.get("audio_vibe") or gen.audio_vibe)
+        audio_vibe = str(creative_directive.get("audio_vibe") or effective_vibe)
 
         await self.db.log_agent_action(
             "insta_analyst",
-            f"🎬 Video Montajchiga 1080p Rejissura [Look #{look_id}]: Stil='{video_style}' | Auditoriya='{target_persona}' | Zvuk='{audio_vibe}'",
-            f"Hook: {creative_directive['hook_headline']} | Kafolat: {creative_directive['honest_quality_pledge'][:120]}",
+            f"🎬 Halol O'g'ri → Video Montajchi [Look #{look_id}]: Stil='{video_style}' | Zvuk='{audio_vibe}'",
+            f"{halol_ogri.get('video_brief') or creative_directive['hook_headline']}",
             target_id="video_employee",
         )
         await self.db.set_agent_status(

@@ -241,6 +241,40 @@ def test_pinduoduo_only_and_winter_old_money_rules():
         assert "yangkeduo.com" in (item.get("url") or "")
 
 
+def test_halol_ogri_db_and_real_audio_tracks(tmp_path):
+    import asyncio
+    from dataclasses import replace
+    from app.config import load_settings
+    from app.db import Database
+    from app.ig_analytics import run_live_instagram_analyst_async
+    from app.media import synthesize_reels_beat_wav
+
+    out_wav = tmp_path / "out_beat.wav"
+    audio_res = synthesize_reels_beat_wav(out_wav, duration_sec=3.0, vibe="diplomat_old_money")
+    assert audio_res
+    assert ("diplomat_old_money" in audio_res) or str(out_wav) == audio_res
+
+    async def _check():
+        db = Database(":memory:")
+        await db.connect()
+        try:
+            s = replace(load_settings(), ig_access_token="", gemini_api_key="")
+            intel = await run_live_instagram_analyst_async(db, s, cycle_idx=0)
+            ho = intel["halol_ogri"]
+            assert ho["accounts_tracked"] >= 5
+            assert ho["videos_analyzed"] >= 4
+            assert "Pinduoduo Skaut" in ho["scout_brief"]
+            assert "Video Montajchi" in ho["video_brief"]
+            accs = await db.list_competitor_accounts()
+            vids = await db.list_competitor_videos()
+            assert len(accs) >= 5 and len(vids) >= 4
+            assert all(v["competitor_sell_price_uzs"] > 0 and v["estimated_profit_uzs"] > 0 for v in vids)
+        finally:
+            await db.close()
+
+    asyncio.run(_check())
+
+
 if __name__ == "__main__":
     test_calculate_example()
     test_payment_fee_is_covered()
