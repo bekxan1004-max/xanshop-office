@@ -217,7 +217,8 @@ async def ingest_and_learn_source(
             style_summary = style_summary or str(scraped.get("error", "Ochiq web preview yo'q"))
 
     elif platform in ("instagram", "ig_reel"):
-        handle = source_key.replace("ig:", "")
+        from app.agent_reach_client import exa_web_search
+        handle = source_key.replace("ig:", "").replace("reel:", "")
         if platform == "instagram" and getattr(settings, "ig_user_id", "") and getattr(settings, "ig_access_token", ""):
             from app.ig_analytics import fetch_competitor_business_discovery
             bd = await fetch_competitor_business_discovery(settings.ig_user_id, settings.ig_access_token, handles=[handle])
@@ -227,11 +228,33 @@ async def ingest_and_learn_source(
                 style_summary = f"@{handle} ({info.get('followers', 0):,} obunachi) | O'rtacha {info.get('avg_likes', 0)} layk"
                 posting_pattern = " | ".join(info.get("top_hooks") or [])[:180]
             else:
-                status = "queued_for_ig_unlock"
-                style_summary = style_summary or f"IG navbatda ({bd.get('permission_error', 'IG qulfdan chiqqach tahlil qilinadi')[:90]})"
+                exa_hits = await exa_web_search(f'"{handle}" instagram fashion menswear', num_results=3)
+                if exa_hits:
+                    scraped = {"ok": True, "source": "agent_reach_exa", "hits": exa_hits}
+                    style_summary = style_summary or f"Agent-Reach Web qidiruvi: {exa_hits[0].get('title', '')[:120]}"
+                else:
+                    status = "queued_for_ig_unlock"
+                    style_summary = style_summary or f"IG navbatda ({bd.get('permission_error', 'IG qulfdan chiqqach tahlil qilinadi')[:90]})"
         else:
-            status = "queued_for_video_or_ig"
-            style_summary = style_summary or "Reel/IG manba navbatga saqlandi (video fayl yuborilsa darhol chuqur tahlil qilinadi)"
+            exa_hits = await exa_web_search(f'"{handle}" instagram', num_results=3)
+            if exa_hits:
+                scraped = {"ok": True, "source": "agent_reach_exa", "hits": exa_hits}
+                style_summary = style_summary or f"Agent-Reach Web: {exa_hits[0].get('title', '')[:120]}"
+            else:
+                status = "queued_for_video_or_ig"
+                style_summary = style_summary or "Reel/IG manba navbatga saqlandi (video fayl yuborilsa chuqur audio+kadr tahlil qilinadi)"
+    elif platform in ("youtube", "web"):
+        from app.agent_reach_client import jina_read_url, youtube_search_videos
+        jina_res = await jina_read_url(clean_url, max_chars=3200)
+        if jina_res.get("ok"):
+            scraped = {"ok": True, "source": "agent_reach_jina", "markdown_excerpt": jina_res["text"][:1800]}
+            first_line = next((l.strip("# ").strip() for l in jina_res["text"].splitlines() if l.strip()), clean_url)
+            style_summary = style_summary or f"Agent-Reach (Jina): {first_line[:130]}"
+        elif platform == "youtube":
+            yt_res = await youtube_search_videos(clean_url, limit=3)
+            if yt_res:
+                scraped = {"ok": True, "source": "agent_reach_yt", "videos": yt_res}
+                style_summary = style_summary or f"YouTube: {yt_res[0].get('title', '')[:130]}"
 
     # AI bilan ochiq playbook sintez qilish (agar Gemini/OmniRoute yoqilgan bo'lsa)
     learned_patch: dict[str, Any] = {}
@@ -321,8 +344,10 @@ async def analyze_video_file_blueprint(
     source_label: str = "owner_ref_video",
     caption_hint: str = "",
 ) -> dict[str, Any]:
-    """Yuborilgan/yuklangan .mp4 videodan 4 ta asosiy kadr (storyboard) va audio/texnik ko'rsatkichlarni olib,
-    Gemini Vision orqali to'liq montaj, hook, zvuk va stil strategiyasini tizimga integratsiya qiladi."""
+    """Chuqur multimodal video tahlilchi:
+    1) Videodan 9 ta tiniq kadr (1620x2880 3x3 storyboard) chiqaradi;
+    2) Haqiqiy audio/nutq trekini (.wav) ajratib oladi va Gemini Audio orqali to'liq transkript + vositalar + zvukni eshitadi;
+    3) Kadrlar + Nutq matnini birlashtirib, chuqur montaj, animatsiya, hook va tizimga integratsiya rejasini chiqaradi."""
     import io
     import os
     import subprocess
@@ -338,6 +363,7 @@ async def analyze_video_file_blueprint(
     video_res = "noma'lum"
     has_audio = False
     grid_bytes: bytes | None = None
+    wav_bytes: bytes | None = None
 
     if ff:
         try:
@@ -352,13 +378,13 @@ async def analyze_video_file_blueprint(
             has_audio = "Audio:" in info
 
             with tempfile.TemporaryDirectory() as td:
-                pcts = [0.08, 0.35, 0.65, 0.90]
                 frames: list[Image.Image] = []
-                for idx, p in enumerate(pcts):
-                    ts = max(0.05, round(dur_sec * p, 2)) if dur_sec > 0.4 else (idx * 0.5)
+                n_shots = 9
+                for idx in range(n_shots):
+                    ts = max(0.05, min(max(dur_sec - 0.1, 0.2), dur_sec * (idx + 0.5) / n_shots)) if dur_sec > 0.4 else (idx * 0.4)
                     out_jpg = os.path.join(td, f"fr_{idx}.jpg")
                     subprocess.run(
-                        [ff, "-y", "-ss", str(ts), "-i", video_path, "-vframes", "1", "-q:v", "3", out_jpg],
+                        [ff, "-y", "-ss", f"{ts:.2f}", "-i", video_path, "-vframes", "1", "-q:v", "2", out_jpg],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         timeout=15,
@@ -366,63 +392,119 @@ async def analyze_video_file_blueprint(
                     if os.path.isfile(out_jpg) and os.path.getsize(out_jpg) > 500:
                         frames.append(Image.open(out_jpg).convert("RGB"))
                 if frames:
-                    cell_w, cell_h = 360, 640
-                    grid = Image.new("RGB", (cell_w * 2, cell_h * 2), (18, 18, 22))
-                    for i, im in enumerate(frames[:4]):
+                    cell_w, cell_h = 540, 960
+                    cols = 3 if len(frames) >= 5 else 2
+                    rows = (len(frames) + cols - 1) // cols
+                    grid = Image.new("RGB", (cell_w * cols, cell_h * rows), (14, 15, 19))
+                    for i, im in enumerate(frames[:9]):
                         im.thumbnail((cell_w, cell_h), Image.Resampling.LANCZOS)
-                        gx = (i % 2) * cell_w + (cell_w - im.width) // 2
-                        gy = (i // 2) * cell_h + (cell_h - im.height) // 2
+                        gx = (i % cols) * cell_w + (cell_w - im.width) // 2
+                        gy = (i // cols) * cell_h + (cell_h - im.height) // 2
                         grid.paste(im, (gx, gy))
                     buf = io.BytesIO()
-                    grid.save(buf, format="JPEG", quality=88)
+                    grid.save(buf, format="JPEG", quality=90)
                     grid_bytes = buf.getvalue()
+
+                if has_audio:
+                    wav_path = os.path.join(td, "track.wav")
+                    subprocess.run(
+                        [ff, "-y", "-i", video_path, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav_path],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=20,
+                    )
+                    if os.path.isfile(wav_path) and os.path.getsize(wav_path) > 1000:
+                        with open(wav_path, "rb") as wf:
+                            wav_bytes = wf.read()
         except Exception as exc:
-            logger.warning("Video frame extraction warning: %s", exc)
+            logger.warning("Video frame/audio extraction warning: %s", exc)
 
     blueprint: dict[str, Any] = {
         "duration_sec": round(dur_sec, 1),
         "resolution": video_res,
         "has_audio": has_audio,
-        "video_meaning": caption_hint[:180] or "Foydalanuvchi yuborgan namuna Reels videosi",
+        "ai_deep_used": False,
+        "speech_transcript": "",
+        "spoken_tools_and_urls": [],
+        "video_meaning": caption_hint[:240] or "Foydalanuvchi yuborgan namuna Reels videosi",
+        "scene_by_scene": "",
         "editing_blueprint": {
-            "pacing": "Tez va dinamik kesimlar" if 0 < dur_sec <= 9 else "Hikoyaviy editorial ritm",
-            "visual_mix": "Storyboard 4 kadr tahlili asosida kiyim fakturasi va to'liq obraz almashuvi",
+            "pacing": "Tez va dinamik kesimlar" if 0 < dur_sec <= 12 else "Hikoyaviy tushuntirish + kadr almashuvi",
+            "visual_mix": "9 ta kadr tahlili asosida kiyim/UI/subtitr almashuvi",
             "recommended_audio_vibe": "diplomat_old_money" if "old money" in caption_hint.lower() else "luxury_chill",
         },
         "tg_ig_openness_lesson": "Jonli, samimiy taqdimot va qiyosiy narx/foyda bilan mijoz ishonchini qozonish",
+        "system_integration_action": "",
     }
 
     try:
         from app.ai import SalesAI
         ai = SalesAI(settings)
-        if (ai.enabled or getattr(settings, "gemini_api_key", "")) and grid_bytes:
-            prompt = (
-                "Sen XAN SHOP video montaj direktori va Telegram/Instagram strategisan. "
-                "Ushbu 4 ta ketma-ket video kadrini (chap-tepa -> o'ng-tepa -> chap-past -> o'ng-past) diqqat bilan tahlil qil!\n"
-                f"Texnik ko'rsatkichlar: davomiyligi={dur_sec:.1f}s, o'lchami={video_res}, audio={'bor' if has_audio else 'yoq'}.\n"
-                f"Foydalanuvchi izohi: {caption_hint}\n\n"
-                "Vazifang: bu video nega odamlarni ushlab qolyapti, kadrlar/matn/rang/temp qanday tuzilgan, "
-                "bizning `video_employee` va Telegram/Instagram kanalimiz aynan shunday ochiq/samarali uslubga o'tishi uchun nima qilishi kerak?\n"
-                "FAQAT JSON QAYTAR:\n"
-                "{\n"
-                '  "video_meaning": "...",\n'
-                '  "editing_blueprint": {\n'
-                '    "hook_first_1_5s": "...",\n'
-                '    "pacing": "...",\n'
-                '    "text_overlay_style": "...",\n'
-                '    "color_and_lighting": "...",\n'
-                '    "recommended_audio_vibe": "diplomat_old_money | phonk_bass | luxury_chill | lofi_editorial | uk_drill_beat"\n'
-                '  },\n'
-                '  "ig_reels_strategy": {"hook_style": "...", "caption_cta": "..."},\n'
-                '  "tg_channel_strategy": {"post_tone": "...", "format": "...", "trust_building": "..."},\n'
-                '  "tg_ig_openness_lesson": "..."\n'
-                "}"
-            )
-            parsed = await ai.ask_json(prompt, media_bytes=grid_bytes, mime_type="image/jpeg", timeout_sec=22.0)
-            if isinstance(parsed, dict) and parsed:
-                blueprint.update(parsed)
+        if ai.enabled or getattr(settings, "gemini_api_key", ""):
+            # 1-BOSQICH: Audio / Nutq / Musiqani so'zma-so'z tinglash
+            speech_text = ""
+            spoken_tools: list[str] = []
+            audio_mood = ""
+            if wav_bytes and len(wav_bytes) <= 8_000_000:
+                audio_prompt = (
+                    "Ushbu video audio trekini diqqat bilan tingla! O'zbekcha/ruscha/inglizcha gapirilgan barcha so'zlarni "
+                    "to'liq eshitib yozib ol, tilga olingan dasturlar, GitHub/Telegram/sayt nomlari hamda fon musiqasi uslubini aniq ajrat.\n"
+                    "FAQAT JSON QAYTAR:\n"
+                    "{\n"
+                    '  "speech_transcript": "So\'zma-so\'z yoki batafsil to\'liq matn",\n'
+                    '  "spoken_tools_and_urls": ["vosita yoki havola nomi"],\n'
+                    '  "audio_style_and_music": "ovoz tempi va fon musiqa janri"\n'
+                    "}"
+                )
+                aud_res = await ai.ask_json(audio_prompt, media_bytes=wav_bytes, mime_type="audio/wav", timeout_sec=35.0)
+                if isinstance(aud_res, dict):
+                    speech_text = str(aud_res.get("speech_transcript") or "").strip()
+                    spoken_tools = list(aud_res.get("spoken_tools_and_urls") or [])
+                    audio_mood = str(aud_res.get("audio_style_and_music") or "").strip()
+
+            # 2-BOSQICH: 9 ta tiniq kadr (3x3) + Nutq matnini birlashtirib chuqur arxitektura tahlili
+            if grid_bytes:
+                vis_prompt = (
+                    "Sen XAN SHOP ning Bosh Video Rejissyori, SMM Strategi va AI Tizim Arxitektorisan. "
+                    "Yuzaki umumiy gaplar yozma! Rasmdagi barcha 9 ta kadrni (1-satr: boshi, 2-satr: o'rtasi, 3-satr: oxiri) "
+                    "va audio nutqini chuqur tahlil qil!\n"
+                    f"Texnik: davomiyligi={dur_sec:.1f}s, o'lcham={video_res}.\n"
+                    f"Audio nutq transkripti: {speech_text or '(ovoz matni ajratilmadi, rasmdagi yozuvlarga qara)'}\n"
+                    f"Tilga olingan vositalar: {spoken_tools}\n"
+                    f"Audio/musiqa holati: {audio_mood}\n"
+                    f"Izoh: {caption_hint}\n\n"
+                    "Ekran yozuvlari, terminal buyruqlari, GitHub/sayt nomlari, subtitr dizayni, animatsiya uslubi, hook va CTA gacha "
+                    "hammasini aniq va amaliy tahlil qilib ber.\n"
+                    "FAQAT JSON QAYTAR:\n"
+                    "{\n"
+                    '  "video_meaning": "Videoning asl g\'oyasi, kim uchun va nimani hal qilayotgani (batafsil)",\n'
+                    '  "spoken_tools_and_urls": ["kadrda va audioda chiqqan aniq texnologiya/linklar"],\n'
+                    '  "scene_by_scene": "0-3s hook -> o\'rta kadrlar -> oxirgi CTA qanday yasalgan",\n'
+                    '  "editing_blueprint": {\n'
+                    '    "hook_first_1_5s": "birinchi soniyada e\'tiborni qanday tortadi",\n'
+                    '    "pacing": "kadr tezligi, animatsiya va sakrash tempi",\n'
+                    '    "subtitle_typography": "shrift, tagiga chizish/highlight uslubi va joylashuvi",\n'
+                    '    "color_and_lighting": "fon rangi (oq/bej/qora) va kontrast",\n'
+                    '    "recommended_audio_vibe": "diplomat_old_money | phonk_bass | luxury_chill | lofi_editorial | uk_drill_beat"\n'
+                    '  },\n'
+                    '  "ig_reels_strategy": {"hook_style": "...", "caption_cta": "..."},\n'
+                    '  "tg_channel_strategy": {"post_tone": "...", "format": "...", "trust_building": "..."},\n'
+                    '  "tg_ig_openness_lesson": "Telegram va Instagramni rivojlantirish uchun aniq dars",\n'
+                    '  "system_integration_action": "XAN SHOP kodiga/tizimiga aynan nima qo\'shilishi kerak"\n'
+                    "}"
+                )
+                parsed = await ai.ask_json(vis_prompt, media_bytes=grid_bytes, mime_type="image/jpeg", timeout_sec=35.0)
+                if isinstance(parsed, dict) and parsed:
+                    blueprint.update(parsed)
+                    blueprint["ai_deep_used"] = True
+            if speech_text:
+                blueprint["speech_transcript"] = speech_text
+            if spoken_tools and not blueprint.get("spoken_tools_and_urls"):
+                blueprint["spoken_tools_and_urls"] = spoken_tools
+            if audio_mood:
+                blueprint["audio_style_and_music"] = audio_mood
     except Exception as exc:
-        logger.warning("Gemini video vision fallback: %s", exc)
+        logger.warning("Gemini deep video analysis fallback: %s", exc)
 
     if db is not None:
         key = f"video:{re.sub(r'[^a-zA-Z0-9_-]', '', source_label)[:36]}_{int(time.time())}"

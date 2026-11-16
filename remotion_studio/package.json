@@ -1,0 +1,21 @@
+{
+  "name": "xanshop-remotion-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "XAN SHOP 1080p 30fps Programmatic Fashion Reels Engine (Remotion)",
+  "scripts": {
+    "render": "node render_reel.mjs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.234",
+    "@remotion/cli": "4.0.234",
+    "@remotion/renderer": "4.0.234",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.234"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}

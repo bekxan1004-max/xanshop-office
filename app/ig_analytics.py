@@ -501,6 +501,39 @@ async def discover_fashion_accounts_from_web(
         except Exception as exc:
             logger.debug("Web discovery skipped: %s", exc)
 
+        # Agent-Reach (Exa MCP) ochiq internet qidiruvi (API kalitsiz)
+        try:
+            from app.agent_reach_client import exa_web_search
+            exa_hits = await exa_web_search(q, num_results=3, timeout_sec=8.0)
+            for hit in exa_hits:
+                h_url = hit.get("url") or ""
+                m_ig = re.search(r"instagram\.com/([A-Za-z0-9_.]{3,30})", h_url)
+                if m_ig:
+                    cand = m_ig.group(1).strip(".").lower()
+                    if cand not in _IG_NON_ACCOUNTS and cand not in discovered_handles:
+                        discovered_handles.append(cand)
+                        if db is not None:
+                            await db.upsert_competitor_account(
+                                handle=cand,
+                                platform="instagram",
+                                region="global",
+                                style_focus=hit.get("title", "")[:90],
+                                discovered_via="agent_reach_exa",
+                                notes={"url": h_url},
+                            )
+                if hit.get("title"):
+                    web_snippets.append({
+                        "handle": m_ig.group(1).lower() if m_ig else "web_fashion",
+                        "video_id": str(abs(hash(h_url)) % 10_000_000),
+                        "video_url": h_url,
+                        "title": hit.get("title", "")[:160],
+                        "snippet": hit.get("snippet", "")[:260],
+                        "views_est": 22000,
+                        "posted_at_info": hit.get("published") or "Exa Internet Trend",
+                    })
+        except Exception as exc:
+            logger.debug("Agent-Reach Exa skipped: %s", exc)
+
     return {
         "discovered_handles": discovered_handles,
         "web_snippets": web_snippets,

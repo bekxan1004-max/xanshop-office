@@ -33,10 +33,18 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install dependencies and Cloudflared
+      - name: Set up Node.js for Remotion Studio
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies, Remotion & Cloudflared
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
           pip install -r requirements.txt
+          if [ -f remotion_studio/package.json ]; then
+            npm --prefix remotion_studio install --no-audit --no-fund
+          fi
           curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
           chmod +x cloudflared
 

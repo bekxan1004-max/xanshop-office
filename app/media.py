@@ -1094,6 +1094,93 @@ def save_reels_animation(
     return str(out)
 
 
+def render_reels_with_remotion(
+    mp4_path: str | Path,
+    orbit_meta: dict[str, Any],
+    audio_vibe: str = "diplomat_old_money",
+) -> str | None:
+    """Remotion (React 30fps spring-motion + kinetic subtitles + real MP3 audio) orqali 1080p Reels render qiladi."""
+    import json
+    import time
+
+    node_bin = shutil.which("node")
+    studio_dir = Path("remotion_studio")
+    script_path = studio_dir / "render_reel.mjs"
+    if not node_bin or not script_path.is_file() or not (studio_dir / "node_modules").is_dir():
+        return None
+
+    cards = orbit_meta.get("product_cards") or []
+    if not cards:
+        return None
+
+    job_id = f"job_{int(time.time() * 1000)}"
+    job_public_dir = studio_dir / "public" / "render_jobs" / job_id
+    job_public_dir.mkdir(parents=True, exist_ok=True)
+    mp4_out = Path(mp4_path)
+    mp4_out.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        names = orbit_meta.get("item_names") or []
+        prices = orbit_meta.get("item_prices_uzs") or []
+        items_payload: list[dict[str, Any]] = []
+        for idx, card in enumerate(cards):
+            img_name = f"item_{idx}.png"
+            card_path = job_public_dir / img_name
+            card.convert("RGB").save(card_path, format="PNG")
+            items_payload.append({
+                "name": str(names[idx] if idx < len(names) else f"Kiyim #{idx + 1}"),
+                "priceUzs": int(prices[idx] if idx < len(prices) else 250000),
+                "imageFile": f"render_jobs/{job_id}/{img_name}",
+            })
+
+        # Haqiqiy MP3/WAV musiqa trekini Remotion public papkasiga ulash
+        audio_rel = ""
+        audio_tmp = job_public_dir / "track.wav"
+        chosen_audio = synthesize_reels_beat_wav(
+            audio_tmp,
+            duration_sec=max(4.0, len(items_payload) * 1.6 + 1.8),
+            vibe=audio_vibe,
+        )
+        if chosen_audio and os.path.isfile(chosen_audio):
+            src_p = Path(chosen_audio)
+            if src_p.resolve() != audio_tmp.resolve():
+                dest_audio = job_public_dir / f"track{src_p.suffix}"
+                shutil.copy2(src_p, dest_audio)
+                audio_rel = f"render_jobs/{job_id}/{dest_audio.name}"
+            else:
+                audio_rel = f"render_jobs/{job_id}/{audio_tmp.name}"
+
+        v_style = str(orbit_meta.get("video_style") or "")
+        theme_variant = "obsidian_gold" if "orbit" in v_style or "dark" in v_style else "editorial_light"
+        props = {
+            "shopBrand": str(orbit_meta.get("shop_brand") or "XAN SHOP"),
+            "lookTitle": str(orbit_meta.get("look_title") or "XAN SHOP Kapsula"),
+            "subtitleHook": str(orbit_meta.get("subtitle_hook") or "Toshkentga 5–10 kunda yetib keladi"),
+            "totalPriceUzs": int(orbit_meta.get("total_price_uzs") or 600000),
+            "prepay50Uzs": int(orbit_meta.get("prepay_50_uzs") or 300000),
+            "themeVariant": theme_variant,
+            "audioFile": audio_rel,
+            "items": items_payload,
+        }
+        props_file = job_public_dir / "props.json"
+        props_file.write_text(json.dumps(props, ensure_ascii=False), encoding="utf-8")
+
+        proc = subprocess.run(
+            [node_bin, str(script_path.resolve()), str(props_file.resolve()), str(mp4_out.resolve())],
+            cwd=str(studio_dir.resolve()),
+            capture_output=True,
+            text=True,
+            timeout=140,
+        )
+        if proc.returncode == 0 and mp4_out.exists() and mp4_out.stat().st_size > 5000:
+            return str(mp4_out)
+    except Exception:
+        pass
+    finally:
+        shutil.rmtree(job_public_dir, ignore_errors=True)
+    return None
+
+
 def render_reels_mp4_with_audio(
     frames: Sequence[Image.Image],
     mp4_path: str | Path,
@@ -1103,7 +1190,21 @@ def render_reels_mp4_with_audio(
     orbit_meta: dict[str, Any] | None = None,
     collage: Image.Image | None = None,
 ) -> str | None:
-    """True 1080p Full HD (`1080x1920`, High-Bitrate `8 Mbps`, `-crf 17`) MP4 Reels renderi."""
+    """True 1080p Full HD (`1080x1920`, High-Bitrate `8 Mbps`, `-crf 17`) MP4 Reels renderi (Remotion + FFmpeg)."""
+    if orbit_meta is None:
+        for fr in frames:
+            if hasattr(fr, "info") and isinstance(fr.info, dict) and fr.info.get("xan_orbit_meta"):
+                orbit_meta = fr.info["xan_orbit_meta"]
+                break
+
+    use_remotion = (os.getenv("USE_REMOTION", "1") == "1") and (
+        bool(os.getenv("FORCE_REMOTION")) or not os.getenv("PYTEST_CURRENT_TEST")
+    )
+    if use_remotion and orbit_meta and not voiceover_path:
+        remotion_out = render_reels_with_remotion(mp4_path, orbit_meta, audio_vibe=audio_vibe)
+        if remotion_out:
+            return remotion_out
+
     ffmpeg_bin = find_ffmpeg_binary()
     if not ffmpeg_bin:
         return None

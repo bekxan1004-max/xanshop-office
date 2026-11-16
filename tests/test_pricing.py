@@ -343,6 +343,41 @@ def test_open_source_learner_and_nonrigid_flexibility(tmp_path):
     assert router is not None
 
 
+def test_agent_reach_deep_video_and_remotion():
+    import json
+    from pathlib import Path
+    from app.agent_reach_client import (
+        exa_web_search,
+        jina_read_url,
+        youtube_search_videos,
+        fetch_video_metadata_ytdlp,
+    )
+    from app.source_learner import analyze_video_file_blueprint
+    from app.media import render_reels_with_remotion
+
+    assert all(
+        callable(fn)
+        for fn in (
+            exa_web_search,
+            jina_read_url,
+            youtube_search_videos,
+            fetch_video_metadata_ytdlp,
+            analyze_video_file_blueprint,
+            render_reels_with_remotion,
+        )
+    )
+    assert render_reels_with_remotion("unused_remotion_test.mp4", {}) is None
+
+    studio = Path("remotion_studio")
+    pkg = json.loads((studio / "package.json").read_text(encoding="utf-8"))
+    assert "remotion" in (pkg.get("dependencies") or {})
+    assert (studio / "render_reel.mjs").is_file()
+    assert (studio / "src" / "Root.tsx").is_file()
+    look_tsx = (studio / "src" / "LookReel.tsx").read_text(encoding="utf-8")
+    assert "minHeight: 0" in look_tsx
+    assert "minmax(0, 1fr)" in look_tsx
+
+
 if __name__ == "__main__":
     test_calculate_example()
     test_payment_fee_is_covered()
@@ -350,4 +385,5 @@ if __name__ == "__main__":
     test_helpers()
     test_parse_items()
     test_sizes()
+    test_agent_reach_deep_video_and_remotion()
     print("OK")

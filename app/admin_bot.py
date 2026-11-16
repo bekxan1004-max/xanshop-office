@@ -516,14 +516,34 @@ def build_admin_router(s: Settings) -> Router:
             return
         bp = res.get("blueprint") or {}
         ed = bp.get("editing_blueprint") or {}
+        tools = bp.get("spoken_tools_and_urls") or []
+        tools_line = f"🛠 <b>Topilgan vosita/linklar:</b> <code>{escape(', '.join(str(x) for x in tools[:6]))}</code>\n" if tools else ""
+        speech_line = (
+            f"🗣 <b>Audiodan o‘qilgan nutq:</b> <i>{escape(str(bp.get('speech_transcript', ''))[:260])}</i>\n"
+            if bp.get("speech_transcript")
+            else ""
+        )
+        scene_line = (
+            f"🎞 <b>Kadrlar ketma-ketligi:</b> <i>{escape(str(bp.get('scene_by_scene', ''))[:260])}</i>\n"
+            if bp.get("scene_by_scene")
+            else ""
+        )
+        int_line = (
+            f"⚙️ <b>Tizimga integratsiya:</b> <i>{escape(str(bp.get('system_integration_action', ''))[:220])}</i>\n"
+            if bp.get("system_integration_action")
+            else ""
+        )
+        mode_tag = "🧠 Chuqur Audio+9-Kadr AI Tahlil" if bp.get("ai_deep_used") else "⚡ Tezkor Texnik Tahlil (AI timeout/off)"
         await wait_m.edit_text(
-            "✅ <b>Video to'liq tahlil qilindi va tizimga integratsiya qilindi!</b>\n\n"
-            f"⏱ Davomiyligi: <b>{res['duration_sec']}s</b> | 📐 Sifat: <b>{escape(str(res['resolution']))}</b>\n"
-            f"🎯 Ma'nosi: <i>{escape(str(bp.get('video_meaning', ''))[:160])}</i>\n"
-            f"🎬 Montaj/Ritm: <i>{escape(str(ed.get('pacing', ''))[:140])}</i>\n"
-            f"🎵 Mos Zvuk: <code>{escape(str(ed.get('recommended_audio_vibe', 'luxury_chill')))}</code>\n"
-            f"🔓 Ochiqlik darsi: <i>{escape(str(bp.get('tg_ig_openness_lesson', ''))[:160])}</i>\n\n"
-            "🧠 Keyingi video va kanallar shu blueprint asosida rivojlanadi!",
+            f"✅ <b>Video chuqur tahlil qilindi ({escape(mode_tag)})</b>\n\n"
+            f"⏱ <b>{res['duration_sec']}s</b> · 📐 <b>{escape(str(res['resolution']))}</b> · 🎵 Zvuk: <code>{escape(str(ed.get('recommended_audio_vibe', 'luxury_chill')))}</code>\n\n"
+            f"🎯 <b>Asosiy g‘oya:</b> <i>{escape(str(bp.get('video_meaning', ''))[:280])}</i>\n"
+            f"{tools_line}"
+            f"{speech_line}"
+            f"{scene_line}"
+            f"🎬 <b>Montaj/Subtitr:</b> <i>{escape(str(ed.get('pacing', ''))[:160])} · {escape(str(ed.get('subtitle_typography', ''))[:140])}</i>\n"
+            f"{int_line}"
+            f"🔓 <b>Ochiqlik darsi:</b> <i>{escape(str(bp.get('tg_ig_openness_lesson', ''))[:200])}</i>",
             reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
         )
 
