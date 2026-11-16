@@ -293,13 +293,23 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
         },
         {
             "goods_id": "638192041185",
-            "title_uz": "Old Money Klassik Kalta Palto (Trench)",
-            "title_cn": "老钱风高级感短款毛呢大衣男秋冬英伦外套",
-            "price_cny": 112.0,
-            "weight_kg": 0.85,
+            "title_uz": "Old Money Ikki Qatorli Jun Palto",
+            "title_cn": "老钱风双排扣羊毛呢大衣男秋冬加厚长款英伦外套",
+            "price_cny": 138.0,
+            "weight_kg": 1.15,
             "sales_tip": "5.8万+件 (58,000+ sotilgan)",
             "category": "outerwear",
             "color_hex": "#3B322C",
+        },
+        {
+            "goods_id": "645120981144",
+            "title_uz": "To'q Ko'k Klassik Jun Blazer",
+            "title_cn": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克",
+            "price_cny": 115.0,
+            "weight_kg": 0.78,
+            "sales_tip": "4.6万+件 (46,000+ sotilgan)",
+            "category": "outerwear",
+            "color_hex": "#1B263B",
         },
         {
             "goods_id": "650918273641",
@@ -345,13 +355,13 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
         },
         {
             "goods_id": "604918273512",
-            "title_uz": "280g Heavyweight Bazaviy Futbolka",
-            "title_cn": "280g重磅纯棉短袖T恤男纯色宽松打底衫",
-            "price_cny": 29.0,
-            "weight_kg": 0.26,
+            "title_uz": "Qalin Trikotaj Kashemir Vodolazka (Qish)",
+            "title_cn": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫",
+            "price_cny": 64.0,
+            "weight_kg": 0.48,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "top",
-            "color_hex": "#F2F2F5",
+            "color_hex": "#3D2B22",
         },
         {
             "goods_id": "612938475601",
@@ -377,13 +387,23 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
         },
         {
             "goods_id": "583910293847",
-            "title_uz": "Klassik To'g'ri Bichimli Bryuk (Drape)",
+            "title_uz": "Klassik To'g'ri Bichimli Bryuk (Grafit Drape)",
             "title_cn": "垂感西装裤男直筒宽松老钱风休闲长裤",
             "price_cny": 55.0,
-            "weight_kg": 0.45,
+            "weight_kg": 0.48,
             "sales_tip": "9.3万+件 (93,000+ sotilgan)",
             "category": "bottom",
-            "color_hex": "#1C1C1F",
+            "color_hex": "#2B2D32",
+        },
+        {
+            "goods_id": "587612093814",
+            "title_uz": "Taupe-Jigarrang Old Money Jun Shim",
+            "title_cn": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚",
+            "price_cny": 64.0,
+            "weight_kg": 0.52,
+            "sales_tip": "6.8万+件 (68,000+ sotilgan)",
+            "category": "bottom",
+            "color_hex": "#6E5A4B",
         },
         {
             "goods_id": "589102938412",
@@ -426,6 +446,16 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "sales_tip": "4.9万+件 (49,000+ sotilgan)",
             "category": "shoes",
             "color_hex": "#4A3B31",
+        },
+        {
+            "goods_id": "561920384712",
+            "title_uz": "Qora Charm Qishki Chelsea Etik",
+            "title_cn": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴",
+            "price_cny": 78.0,
+            "weight_kg": 0.92,
+            "sales_tip": "7.4万+件 (74,000+ sotilgan)",
+            "category": "shoes",
+            "color_hex": "#18191C",
         },
         {
             "goods_id": "564019283711",
@@ -543,13 +573,13 @@ class PinduoduoConnector:
             return []
 
     async def search_rapidapi(self, keyword_cn: str, page_size: int = 10) -> list[PddProduct]:
-        """RapidAPI (Alibaba 1688 / Pinduoduo Live API) orqali haqiqiy Xitoy ulgurji tovar va rasmlarini qidiradi."""
+        """Faqat haqiqiy Pinduoduo provayderlari (OneBound / kesh) orqali qidiruv. 1688 qat'iyan taqiqlangan."""
         cache_path = "data/pdd_live_cache.json"
         kw_key = (keyword_cn or "").strip()
         if not kw_key:
             return []
 
-        # 1) Avval keshdan tekshiramiz (RapidAPI oylik limitini tejash va tezkorlik uchun)
+        # 1) Keshdan faqat haqiqiy Pinduoduo (yangkeduo/pddpic) yozuvlarini olamiz (1688 yozuvlari inkor etiladi)
         cached_map: dict[str, list[dict[str, Any]]] = {}
         if os.path.exists(cache_path):
             try:
@@ -559,124 +589,89 @@ class PinduoduoConnector:
                 cached_map = {}
 
         if kw_key in cached_map and cached_map[kw_key]:
-            return [PddProduct(**row) for row in cached_map[kw_key][: max(page_size, 15)]]
+            clean_cached = [
+                PddProduct(**row)
+                for row in cached_map[kw_key][: max(page_size, 15)]
+                if "1688.com" not in str(row.get("product_url", ""))
+                and "alicdn.com" not in str(row.get("image_url", ""))
+            ]
+            if clean_cached:
+                return clean_cached
 
-        if not self.rapidapi_key:
-            return []
+        # 2) OneBound Pinduoduo API (agar ONEBOUND_API_KEY + ONEBOUND_API_SECRET berilgan bo'lsa)
+        ob_key = os.getenv("ONEBOUND_API_KEY", "").strip()
+        ob_secret = os.getenv("ONEBOUND_API_SECRET", "").strip()
+        if ob_key and ob_secret:
+            try:
+                ob_url = "https://api-gw.onebound.cn/pinduoduo/item_search"
+                ob_params = {
+                    "key": ob_key,
+                    "secret": ob_secret,
+                    "q": kw_key,
+                    "page": "1",
+                    "sort": "sale",
+                }
+                timeout = aiohttp.ClientTimeout(total=18)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(ob_url, params=ob_params) as resp:
+                        if resp.status == 200:
+                            data = await resp.json(content_type=None)
+                            raw_items = ((data.get("items") or {}).get("item") or []) if isinstance(data, dict) else []
+                            out: list[PddProduct] = []
+                            for g in raw_items:
+                                if not isinstance(g, dict):
+                                    continue
+                                gid = str(g.get("num_iid") or g.get("goods_id") or "").strip()
+                                img_url = str(g.get("pic_url") or "").strip()
+                                if img_url.startswith("//"):
+                                    img_url = "https:" + img_url
+                                if not gid or not img_url.startswith("http"):
+                                    continue
+                                price_val = float(re.search(r"\d+(?:\.\d+)?", str(g.get("price") or "48")).group(0))
+                                price_cny = max(25.0, min(140.0, round(price_val, 1)))
+                                clean_title = str(g.get("title") or kw_key).strip()
+                                prod_url = f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}"
+                                out.append(
+                                    PddProduct(
+                                        goods_id=gid,
+                                        title_uz=clean_title[:60],
+                                        title_cn=clean_title,
+                                        price_cny=price_cny,
+                                        weight_kg=0.55,
+                                        sales_tip=str(g.get("sales") or "1万+件"),
+                                        image_url=img_url,
+                                        product_url=prod_url,
+                                        category="general",
+                                    )
+                                )
+                                if len(out) >= 15:
+                                    break
+                            if out:
+                                try:
+                                    os.makedirs(os.path.dirname(cache_path) or "data", exist_ok=True)
+                                    cached_map[kw_key] = [
+                                        {
+                                            "goods_id": p.goods_id,
+                                            "title_uz": p.title_uz,
+                                            "title_cn": p.title_cn,
+                                            "price_cny": p.price_cny,
+                                            "weight_kg": p.weight_kg,
+                                            "sales_tip": p.sales_tip,
+                                            "image_url": p.image_url,
+                                            "product_url": p.product_url,
+                                            "category": p.category,
+                                        }
+                                        for p in out
+                                    ]
+                                    with open(cache_path, "w", encoding="utf-8") as f:
+                                        json.dump(cached_map, f, ensure_ascii=False, indent=2)
+                                except Exception:
+                                    pass
+                                return out[:page_size]
+            except Exception as e:
+                log.warning("OneBound Pinduoduo qidiruv xatosi (%s): %s", keyword_cn, e)
 
-        url = "https://alibaba-1688-api.p.rapidapi.com/api/1688/search-item-list/v1"
-        headers = {
-            "x-rapidapi-key": self.rapidapi_key,
-            "x-rapidapi-host": "alibaba-1688-api.p.rapidapi.com",
-        }
-        params = {
-            "keyword": kw_key,
-            "page": "1",
-            "pageSize": "20",
-            "sort": "default",
-        }
-        try:
-            timeout = aiohttp.ClientTimeout(total=22)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, headers=headers, params=params) as resp:
-                    if resp.status != 200:
-                        return []
-                    data = await resp.json(content_type=None)
-
-            raw_items: list[dict[str, Any]] = []
-            if isinstance(data, dict):
-                offer_block = (
-                    data.get("data", {})
-                    .get("data", {})
-                    .get("OFFER", {})
-                    .get("items")
-                )
-                if isinstance(offer_block, list) and offer_block:
-                    for cell in offer_block:
-                        if isinstance(cell, dict) and isinstance(cell.get("data"), dict):
-                            raw_items.append(cell["data"])
-                else:
-                    alt_items = data.get("data", {}).get("items") or data.get("items") or []
-                    if isinstance(alt_items, list):
-                        raw_items.extend(x for x in alt_items if isinstance(x, dict))
-
-            out: list[PddProduct] = []
-            for g in raw_items:
-                gid = str(g.get("offerId") or g.get("item_id") or g.get("goods_id") or g.get("id") or "").strip()
-                img_url = str(
-                    g.get("offerPicUrl")
-                    or g.get("odPicUrl")
-                    or g.get("img")
-                    or g.get("pic_url")
-                    or (g.get("grid", {}).get("cover", {}).get("pic") if isinstance(g.get("grid"), dict) else "")
-                    or ""
-                ).strip()
-                if not gid or not img_url.startswith("http"):
-                    continue
-
-                price_str = ""
-                if isinstance(g.get("priceInfo"), dict):
-                    price_str = str(g["priceInfo"].get("price") or "")
-                if not price_str:
-                    price_str = str(g.get("price") or g.get("min_group_price") or "48")
-                m_price = re.search(r"\d+(?:\.\d+)?", price_str)
-                price_val = float(m_price.group(0)) if m_price else 48.0
-                if price_val > 500:
-                    price_val = round(price_val / 100.0, 1)
-                # Ulgurji (optom) juda past yoki juda baland narxlarni chakana diapazonga keltiramiz
-                price_cny = max(25.0, min(95.0, round(price_val, 1)))
-
-                raw_title = str(g.get("title") or g.get("subject") or kw_key)
-                clean_title = re.sub(r"<[^>]+>", "", raw_title).strip()
-
-                sales_txt = "1万+件"
-                if isinstance(g.get("afterPrice"), dict) and g["afterPrice"].get("text"):
-                    sales_txt = str(g["afterPrice"]["text"])
-                elif isinstance(g.get("sale_info"), dict) and g["sale_info"].get("sale_quantity"):
-                    sales_txt = str(g["sale_info"]["sale_quantity"])
-
-                prod_url = f"https://detail.1688.com/offer/{gid}.html"
-                out.append(
-                    PddProduct(
-                        goods_id=gid,
-                        title_uz=clean_title[:60],
-                        title_cn=clean_title,
-                        price_cny=price_cny,
-                        weight_kg=0.52,
-                        sales_tip=sales_txt,
-                        image_url=img_url,
-                        product_url=prod_url,
-                        category="general",
-                    )
-                )
-                if len(out) >= 20:
-                    break
-
-            if out:
-                try:
-                    os.makedirs(os.path.dirname(cache_path) or "data", exist_ok=True)
-                    cached_map[kw_key] = [
-                        {
-                            "goods_id": p.goods_id,
-                            "title_uz": p.title_uz,
-                            "title_cn": p.title_cn,
-                            "price_cny": p.price_cny,
-                            "weight_kg": p.weight_kg,
-                            "sales_tip": p.sales_tip,
-                            "image_url": p.image_url,
-                            "product_url": p.product_url,
-                            "category": p.category,
-                        }
-                        for p in out
-                    ]
-                    with open(cache_path, "w", encoding="utf-8") as f:
-                        json.dump(cached_map, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
-            return out[:page_size]
-        except Exception as e:
-            log.warning("RapidAPI 1688/Pinduoduo qidiruv xatosi (%s): %s", keyword_cn, e)
-            return []
+        return []
 
     async def search_browser(self, keyword_cn: str, page_size: int = 5) -> list[PddProduct]:
         """Saqlangan shaxsiy brauzer sessiyasi (`data/pdd_session.json`) orqali jonli Pinduoduo qidiruvi."""
@@ -796,8 +791,8 @@ class PinduoduoConnector:
     def connection_mode(self) -> str:
         if self.client_id and self.client_secret:
             return "official_api"
-        if self.rapidapi_key:
-            return "rapidapi"
+        if os.getenv("ONEBOUND_API_KEY", "").strip() and os.getenv("ONEBOUND_API_SECRET", "").strip():
+            return "onebound_pdd"
         if has_valid_pdd_session(self.session_path):
             return "browser_session"
         return "offline"
@@ -983,15 +978,17 @@ class PinduoduoConnector:
         return []
 
     async def fetch_image_bytes(self, image_url: str) -> bytes | None:
-        """Haqiqiy Xitoy do'koni (1688 / Pinduoduo CDN) mahsulot rasmini yuklab oladi va tekshiradi."""
+        """Faqat Pinduoduo (yangkeduo/pddpic) mahsulot rasmini yuklab oladi va tekshiradi."""
         if not image_url or not image_url.startswith("http"):
+            return None
+        if "1688.com" in image_url or "cbu01.alicdn.com" in image_url:
             return None
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
             ),
-            "Referer": "https://www.1688.com/",
+            "Referer": "https://mobile.yangkeduo.com/",
             "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         }
         try:
@@ -1040,17 +1037,18 @@ class PinduoduoConnector:
         gid = ref["goods_id"]
         final_cny = price_cny if price_cny > 0 else ref["price_cny"]
         final_w = weight_kg if weight_kg > 0 else ref["weight_kg"]
+        kw_val = cn_keyword or ref["title_cn"]
         return {
             "name": name_uz or ref["title_uz"],
             "price_cny": final_cny,
             "cny": final_cny,
             "weight_kg": final_w,
-            "cn_keyword": cn_keyword or ref["title_cn"],
+            "cn_keyword": kw_val,
             "pdd_goods_id": gid,
             "sales_tip": ref["sales_tip"],
             "category": cat_key,
             "color_hex": ref["color_hex"],
-            "url": f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}",
+            "url": f"https://mobile.yangkeduo.com/search_result.html?search_key={quote(kw_val)}",
         }
 
 

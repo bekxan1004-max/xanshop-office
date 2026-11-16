@@ -208,6 +208,13 @@ async def poll_and_reply_instagram_comments(
                     ) as rep_resp:
                         rep_data = await rep_resp.json(content_type=None)
 
+                    if rep_data.get("error"):
+                        log.warning(
+                            "Instagram izohga javob berilmadi (%s): %s",
+                            cid,
+                            (rep_data.get("error") or {}).get("message", rep_data["error"]),
+                        )
+
                     if rep_data.get("id"):
                         replied_ids.add(cid)
                         replied_count += 1

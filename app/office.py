@@ -144,7 +144,11 @@ class AgentOffice:
             f"@_tima_shop / @stylesh.uz hooklari va {params.profit_percent:g}% marja asosida tahlil...",
         )
         weather = await fetch_tashkent_weather()
+        from app.ig_analytics import run_live_instagram_analyst_async
+        ig_intel = await run_live_instagram_analyst_async(self.db, self.s, cycle_idx, weather=weather)
         comp_snap = analyze_competitor_account("_tima_shop", weather)
+        if not comp_snap.get("ig_live"):
+            comp_snap["ig_live"] = ig_intel
         await self.db.set_agent_status(
             "insta_analyst",
             "idle",
@@ -164,7 +168,7 @@ class AgentOffice:
             "working",
             f"Toshkent ob-havosi va Pinduoduo'dan {brief.recommended_piece_count} qismli Look yig'ilmoqda...",
         )
-        gen = await skaut.generate_look_async(season, gender, style, brief, weather=weather)
+        gen = await skaut.generate_look_async(season, gender, style, brief, weather=weather, ig_intel=ig_intel)
         b = gen.breakdown
 
         price_dict = {
@@ -421,7 +425,17 @@ class AgentOffice:
             )
 
         ig_media_id = None
-        if self.s.ig_user_id and self.s.ig_access_token and self.s.public_base_url and os.path.exists(mp4_path):
+        ig_own_err = str((ig_intel.get("own_performance") or {}).get("error") or "")
+        ig_checkpoint_blocked = bool(
+            ig_own_err and ("does not exist" in ig_own_err.lower() or "checkpoint" in ig_own_err.lower())
+        )
+        if (
+            self.s.ig_user_id
+            and self.s.ig_access_token
+            and self.s.public_base_url
+            and os.path.exists(mp4_path)
+            and not ig_checkpoint_blocked
+        ):
             video_url = f"{self.s.public_base_url}/media/look_{look_id}_reels.mp4?v={int(time.time())}"
             ig_media_id = await publish_reels_to_instagram(
                 ig_user_id=self.s.ig_user_id,
@@ -464,7 +478,12 @@ class AgentOffice:
 
         # Admin botga avtomatik xabar va post linklarini yuborish
         if self.admin_bot and notify_admin_on_publish:
-            ig_line = f"📸 <b>Instagram Reels:</b> <a href='{ig_link}'>{ig_link}</a>" if ig_media_id else "📸 <b>Instagram Reels:</b> Yuklanmoqda / navbatda"
+            if ig_media_id:
+                ig_line = f"📸 <b>Instagram Reels:</b> <a href='{ig_link}'>{ig_link}</a>"
+            elif ig_checkpoint_blocked:
+                ig_line = "📸 <b>Instagram Reels:</b> ⚠️ Meta checkpoint qulflangan (hisobni ochgach avto-yuklanadi)"
+            else:
+                ig_line = "📸 <b>Instagram Reels:</b> Yuklanmoqda / navbatda"
             tg_line = f"📢 <b>Telegram Kanal:</b> <a href='{tg_link}'>{tg_link}</a>" if channel_msg_id else "📢 <b>Telegram Kanal:</b> https://t.me/Xan_style"
             admin_report = (
                 f"🚀 <b>Yangi Look #{look_id} (1080p Full HD) joylandi!</b>\n\n"

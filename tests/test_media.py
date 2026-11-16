@@ -44,7 +44,7 @@ def test_create_comparison_hook_slide_and_voiceover_script():
         total_price_uzs=499000,
         prepay_50_uzs=249500,
     )
-    assert slide.size == (540, 960)
+    assert slide.size == (1080, 1920)
     assert slide.mode == "RGB"
 
     script = generate_look_voiceover_script(

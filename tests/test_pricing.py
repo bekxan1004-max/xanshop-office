@@ -212,6 +212,35 @@ def test_v3_self_learning_and_video_directive():
     asyncio.run(_check_db())
 
 
+def test_pinduoduo_only_and_winter_old_money_rules():
+    from dataclasses import replace
+    from app.config import load_settings
+    from app.ig_analytics import evaluate_seasonal_styling_rules
+    from app.pinduoduo import PinduoduoConnector
+    from app.sourcing import TrendSourcingAgent
+
+    rules = evaluate_seasonal_styling_rules({"cur_temp": 8.0, "forecast_5_10d_min": 3.0, "forecast_5_10d_max": 10.0})
+    assert rules["is_cold_season"] is True
+    assert rules["forbid_tshirts"] is True
+
+    pdd = PinduoduoConnector()
+    matched = pdd.match_verified_item("outerwear", "Qishki Jun Palto", "羊毛大衣男", 138.0, 1.15)
+    assert matched["url"].startswith("https://mobile.yangkeduo.com/search_result.html?search_key=")
+    assert "1688.com" not in matched["url"]
+
+    s = replace(load_settings(), gemini_api_key="", pdd_rapidapi_key="")
+    agent = TrendSourcingAgent(s)
+    agent._fallback_idx = 0
+    look = agent.generate_look()
+    assert look.piece_count >= 3
+    names_low = " ".join(i.get("name", "").lower() for i in look.raw_items)
+    assert "futbolka" not in names_low
+    assert "kargo" not in names_low
+    for item in look.raw_items:
+        assert "1688.com" not in (item.get("url") or "")
+        assert "yangkeduo.com" in (item.get("url") or "")
+
+
 if __name__ == "__main__":
     test_calculate_example()
     test_payment_fee_is_covered()

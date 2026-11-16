@@ -89,19 +89,19 @@ MARKET_TREND_BRIEFS: list[InstagramTrendBrief] = [
 # Turli auditoriya va formatdagi (2, 3, 4, 5 qismli) Pinduoduo Look bazasi
 DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
     {
-        "title": "Diplomatiya va Yuridika Old Money Kapsulasi",
-        "description": "Och bej zamokli sviter + to'q kulrang (grafit) klassik shim + to'q jigarrang zamsh lofer.",
+        "title": "Diplomatiya va Yuridika Qishki Old Money Kapsulasi",
+        "description": "To'q jigarrang ikki qatorli jun palto + to'q qahva kashmir vodolazka + qahva-taupe old money jun shim.",
         "piece_count": 3,
-        "palette_name": "Old Money Espresso & Latte",
-        "palette_hex": ["#2B211B", "#7A6352", "#C8B8A6", "#F5F0EB"],
+        "palette_name": "Old Money Espresso & Palto",
+        "palette_hex": ["#2B211B", "#6E5A4B", "#C8B8A6", "#F4EFE8"],
         "audio_vibe": "diplomat_old_money",
-        "viral_hook": "DIPLOMATIYA VA YURIDIKADA O'QIYDIGANLAR UCHUN",
-        "colors": "Och bej, To'q kulrang (grafit), To'q jigarrang",
+        "viral_hook": "DIPLOMATIYA VA YURIDIKADA O'QIYDIGANLAR UCHUN (QISH-KUZ)",
+        "colors": "To'q jigarrang, Qahva-taupe",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "top", "name": "Bej Zamokli Sviter", "price_cny": 48.0, "weight_kg": 0.45, "cn_keyword": "美式复古半拉链立领卫衣男宽松华夫格上衣"},
-            {"category": "bottom", "name": "Grafit Klassik Shim", "price_cny": 52.0, "weight_kg": 0.45, "cn_keyword": "垂感西装裤男直筒宽松老钱风休闲长裤"},
-            {"category": "shoes", "name": "Jigarrang Zamsh Lofer", "price_cny": 54.0, "weight_kg": 0.68, "cn_keyword": "老钱风翻毛皮乐福鞋男一脚蹬英伦休闲皮鞋"},
+            {"category": "outerwear", "name": "To'q Jigarrang Ikki Qatorli Jun Palto", "price_cny": 138.0, "weight_kg": 1.15, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
+            {"category": "top", "name": "To'q Qahva Kashmir Vodolazka", "price_cny": 68.0, "weight_kg": 0.48, "cn_keyword": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫"},
+            {"category": "bottom", "name": "Qahva-Taupe Old Money Jun Shim", "price_cny": 64.0, "weight_kg": 0.52, "cn_keyword": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚"},
         ],
     },
     {
@@ -115,44 +115,43 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "Qora, To'q kulrang (grafit), To'q zaytun, Oq-kulrang",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "Qora Bomber Kurtka", "price_cny": 58.0, "weight_kg": 0.65, "cn_keyword": "美式复古重磅飞行员夹克男春秋宽松外套"},
-            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 42.0, "weight_kg": 0.50, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
-            {"category": "bottom", "name": "Zaytun Kargo Shim", "price_cny": 40.0, "weight_kg": 0.45, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
-            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 38.0, "weight_kg": 0.70, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
+            {"category": "outerwear", "name": "Qora Jun Bomber Kurtka", "price_cny": 89.0, "weight_kg": 0.75, "cn_keyword": "美式复古重磅飞行员夹克男春秋宽松外套"},
+            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 54.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
+            {"category": "bottom", "name": "Zaytun Kargo Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
+            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 48.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
     {
-        "title": "175–188 sm Cleanfit Klassik Obraz",
-        "description": "Qora bomber kurtka + och bej zamokli sviter + grafit klassik shim + oq-kulrang retro krossovka.",
-        "piece_count": 4,
-        "palette_name": "Cleanfit Obsidian & Sand",
-        "palette_hex": ["#15181E", "#3A3D45", "#C7B8A5", "#F4F3EF"],
+        "title": "IT va Biznes Minimalist Blazer Kapsulasi (2-in-1)",
+        "description": "To'q ko'k klassik jun blazer + och bej zamokli sviter.",
+        "piece_count": 2,
+        "palette_name": "Midnight Navy & Cream",
+        "palette_hex": ["#1B263B", "#C8B8A6", "#F4EFE8"],
         "audio_vibe": "luxury_chill",
-        "viral_hook": "175–188 SM BO'YLI YIGITLAR UCHUN TAYYOR OBRAZ",
-        "colors": "Qora, Och bej, To'q kulrang (grafit), Oq-kulrang",
+        "viral_hook": "IT, BIZNES VA OFISDA ISHLAYDIGANLAR UCHUN",
+        "colors": "To'q ko'k (navy), Och bej",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "Qora Bomber Kurtka", "price_cny": 56.0, "weight_kg": 0.62, "cn_keyword": "Cleanfit双拉链针织开衫男立领夹克外套"},
-            {"category": "top", "name": "Bej Zamokli Sviter", "price_cny": 44.0, "weight_kg": 0.44, "cn_keyword": "美式复古半拉链立领卫衣男宽松华夫格上衣"},
-            {"category": "bottom", "name": "Grafit Klassik Shim", "price_cny": 46.0, "weight_kg": 0.45, "cn_keyword": "垂感西装裤男直筒宽松老钱风休闲长裤"},
-            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 38.0, "weight_kg": 0.70, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
+            {"category": "outerwear", "name": "To'q Ko'k Klassik Jun Blazer", "price_cny": 115.0, "weight_kg": 0.78, "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克"},
+            {"category": "top", "name": "Och Bej Zamokli Sviter", "price_cny": 62.0, "weight_kg": 0.50, "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领"},
         ],
     },
     {
-        "title": "IT va Biznes Smart-Casual Kapsula",
-        "description": "Qora bomber kurtka + grafit klassik shim + to'q jigarrang zamsh lofer + qora minimalist kepka.",
-        "piece_count": 4,
-        "palette_name": "Smart Slate & Espresso",
-        "palette_hex": ["#1C1E24", "#4A4E58", "#D6CBBF"],
+        "title": "Qishki Klassik Diplomat To'liq Kapsulasi (5-in-1)",
+        "description": "To'q ko'k blazer + och bej zamokli sviter + grafit klassik drape shim + qora charm chelsea etik + espresso zamsh lofer (almashtirish uchun).",
+        "piece_count": 5,
+        "palette_name": "Diplomat Navy & Obsidian",
+        "palette_hex": ["#1B263B", "#2B2D32", "#C8B8A6", "#18191C"],
         "audio_vibe": "lofi_editorial",
-        "viral_hook": "IT, BIZNES VA OFISDA ISHLAYDIGANLAR UCHUN",
-        "colors": "Qora, To'q kulrang (grafit), To'q jigarrang",
+        "viral_hook": "QISHKI TO'LIQ KLASSIK GARDEROB • DIPLOMAT USLUBI",
+        "colors": "To'q ko'k (navy), Och bej, To'q kulrang (grafit), Qora",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "Qora Bomber Kurtka", "price_cny": 58.0, "weight_kg": 0.62, "cn_keyword": "美式复古重磅飞行员夹克男春秋宽松外套"},
-            {"category": "bottom", "name": "Grafit Klassik Shim", "price_cny": 48.0, "weight_kg": 0.45, "cn_keyword": "垂感西装裤男直筒宽松老钱风休闲长裤"},
-            {"category": "shoes", "name": "Jigarrang Zamsh Lofer", "price_cny": 49.0, "weight_kg": 0.68, "cn_keyword": "老钱风翻毛皮乐福鞋男一脚蹬英伦休闲皮鞋"},
-            {"category": "accessory", "name": "Qora Minimalist Kepka", "price_cny": 18.0, "weight_kg": 0.12, "cn_keyword": "韩版百搭软顶棒球帽男女显脸小遮阳鸭舌帽"},
+            {"category": "outerwear", "name": "To'q Jigarrang Ikki Qatorli Jun Palto", "price_cny": 138.0, "weight_kg": 1.15, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
+            {"category": "outerwear", "name": "To'q Ko'k Klassik Jun Blazer", "price_cny": 115.0, "weight_kg": 0.78, "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克"},
+            {"category": "top", "name": "Och Bej Zamokli Sviter", "price_cny": 62.0, "weight_kg": 0.50, "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领"},
+            {"category": "bottom", "name": "Grafit Klassik Drape Shim", "price_cny": 62.0, "weight_kg": 0.50, "cn_keyword": "垂感羊毛西装裤男直筒老钱风秋冬加厚长裤"},
+            {"category": "shoes", "name": "Qora Charm Qishki Chelsea Etik", "price_cny": 78.0, "weight_kg": 0.92, "cn_keyword": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴"},
         ],
     },
     {
@@ -166,9 +165,9 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "To'q kulrang (grafit), To'q zaytun, Oq-kulrang",
         "sizes": "S, M, L, XL, 2XL",
         "items": [
-            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 46.0, "weight_kg": 0.50, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
-            {"category": "bottom", "name": "Zaytun Kargo Shim", "price_cny": 48.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
-            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 42.0, "weight_kg": 0.70, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
+            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 54.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
+            {"category": "bottom", "name": "Zaytun Kargo Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
+            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 48.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
 ]
@@ -189,7 +188,7 @@ def _detect_garment_color_uz(img_bytes: bytes | None) -> str:
         fg = [
             (r, g, b)
             for (r, g, b) in pixels
-            if not (r > 228 and g > 228 and b > 228 and max(r, g, b) - min(r, g, b) < 18)
+            if not (r > 215 and g > 210 and b > 198 and max(r, g, b) - min(r, g, b) < 35)
         ]
         if not fg:
             fg = pixels
@@ -199,52 +198,62 @@ def _detect_garment_color_uz(img_bytes: bytes | None) -> str:
         lum = 0.299 * r_avg + 0.587 * g_avg + 0.114 * b_avg
         spread = max(r_avg, g_avg, b_avg) - min(r_avg, g_avg, b_avg)
 
-        if lum < 48:
+        if lum < 45:
             return "Qora"
         if lum > 212 and spread < 26:
             return "Oq"
-        if spread < 22:
-            return "To'q kulrang (grafit)" if lum < 115 else "Kulrang"
-        if r_avg > g_avg + 14 and g_avg >= b_avg:
+        if b_avg > r_avg + 10 and b_avg >= g_avg:
+            return "To'q ko'k (navy)" if lum < 115 else "Ko'k (denim)"
+        if r_avg > b_avg + 12 and r_avg >= g_avg:
             if lum > 165:
                 return "Och bej"
-            if lum < 105:
+            if lum < 110:
                 return "To'q jigarrang"
-            return "Bej / Qahva"
-        if b_avg > r_avg + 15 and b_avg >= g_avg:
-            return "To'q ko'k (navy)" if lum < 115 else "Ko'k (denim)"
-        if g_avg >= r_avg and g_avg > b_avg + 12:
-            return "Zaytun (xaki)"
+            return "Qahva-taupe"
+        if g_avg >= r_avg and g_avg > b_avg + 10:
+            return "To'q zaytun (xaki)"
+        if spread < 18:
+            return "To'q kulrang (grafit)" if lum < 115 else "Kulrang"
         return "To'q kulrang (grafit)" if lum < 125 else "Och bej"
     except Exception:
         return ""
 
 
 def _sync_item_with_studio_photo_color(name: str, category: str = "", idx: int = 0) -> tuple[str, str]:
-    """Lokal studiya rasmidagi HAQIQIY rang bilan buyum nomini 100% bir xil qiladi (rasmda boshqa, yozuvda boshqa bo'lmasligi uchun)."""
+    """Lokal studiya rasmidagi HAQIQIY rang va kiyim turi bilan nomni 100% sinxronlaydi."""
     low = (name or "").lower()
     cat = (category or "").lower()
-    if any(k in low for k in ("bomber", "kurtka", "vetrovka", "jaket", "palt")) or cat == "outerwear":
-        return "Qora Bomber Kurtka", "Qora"
-    if any(k in low for k in ("sviter", "kardigan", "polo", "zip", "rubashka", "ko'ylak", "futbolka")):
+    if any(k in low for k in ("palto", "overcoat", "trench", "ikki qatorli")):
+        return "To'q Jigarrang Ikki Qatorli Jun Palto", "To'q jigarrang"
+    if any(k in low for k in ("blazer", "pidjak", "kostyum", "ko'k jun")):
+        return "To'q Ko'k Klassik Jun Blazer", "To'q ko'k (navy)"
+    if any(k in low for k in ("bomber", "kurtka", "vetrovka", "jaket")) or cat == "outerwear":
+        return "Qora Jun Bomber Kurtka", "Qora"
+    if any(k in low for k in ("vodolazka", "turtleneck", "kashemir", "kashmir", "qahva sviter", "to'q jigarrang sviter")):
+        return "To'q Qahva Kashmir Vodolazka", "To'q jigarrang"
+    if any(k in low for k in ("sviter", "kardigan", "polo", "zip", "half-zip", "jemper", "pullover")):
         return "Bej Zamokli Sviter", "Och bej"
     if any(k in low for k in ("xudi", "hud", "hood", "tolstovka", "svitshot")) or cat == "top":
         return "Grafit Oversize Xudi", "To'q kulrang (grafit)"
-    if any(k in low for k in ("kargo", "parashyut", "jinsi", "jeans")):
+    if any(k in low for k in ("kargo", "parashyut", "jinsi", "jeans", "cargo")):
         return "Zaytun Kargo Shim", "To'q zaytun (xaki)"
+    if any(k in low for k in ("taupe", "jigarrang", "mocha", "qahva", "brown")) and any(k in low for k in ("shim", "bryuk", "trouser", "pants")):
+        return "Qahva-Taupe Old Money Jun Shim", "Qahva-taupe"
     if any(k in low for k in ("shim", "bryuk", "drape", "triko", "shalvar")) or cat == "bottom":
-        return "Grafit Klassik Shim", "To'q kulrang (grafit)"
-    if any(k in low for k in ("lofer", "tufli", "zamsh", "klassik oyoq")):
-        return "Jigarrang Zamsh Lofer", "To'q jigarrang"
+        return "Grafit Klassik Drape Shim", "To'q kulrang (grafit)"
+    if any(k in low for k in ("chelsea", "etik", "botinka", "qishki poyabzal")):
+        return "Qora Charm Qishki Chelsea Etik", "Qora"
+    if any(k in low for k in ("lofer", "tufli", "zamsh", "klassik oyoq", "loafer")):
+        return "Espresso Zamsh Lofer", "To'q jigarrang"
     if any(k in low for k in ("krossovka", "oyoq", "keda", "sneaker")) or cat == "shoes":
         return "Oq-Kulrang Krossovka", "Oq-kulrang"
     if any(k in low for k in ("kepka", "shapka", "sumka", "soat", "kamar", "ochki")) or cat == "accessory":
         return "Qora Minimalist Kepka", "Qora"
     fallbacks = [
-        ("Bej Zamokli Sviter", "Och bej"),
-        ("Grafit Klassik Shim", "To'q kulrang (grafit)"),
-        ("Jigarrang Zamsh Lofer", "To'q jigarrang"),
-        ("Qora Bomber Kurtka", "Qora"),
+        ("To'q Jigarrang Ikki Qatorli Jun Palto", "To'q jigarrang"),
+        ("To'q Qahva Kashmir Vodolazka", "To'q jigarrang"),
+        ("Qahva-Taupe Old Money Jun Shim", "Qahva-taupe"),
+        ("Qora Charm Qishki Chelsea Etik", "Qora"),
     ]
     return fallbacks[idx % len(fallbacks)]
 
@@ -362,7 +371,7 @@ Instagram Reels tahlilchisi quyidagi trend hisobotini yubordi:
 - Toshkent ob-havosi va mavsumi: {weather_line}
 - Auditoriya: {gender}
 
-Vazifang: Pinduoduo (拼多多) da eng ko'p sotilayotgan (10万+ sotuvli), O'zbekiston bozorida raqobatbardosh narxga tushadigan (har buyum ~22–65 CNY, to'plam jami ~95–170 CNY atrofida) aynan {brief.recommended_piece_count} qismli uyg'un Look yig'.
+Vazifang: Pinduoduo (拼多多) da eng ko'p sotilayotgan (10万+ sotuvli), O'zbekiston bozorida raqobatbardosh narxga tushadigan (har buyum ~42–115 CNY (qishki qalin sviter/palto/etik sifatli bo'lsin, arzon futbolka taqiqlanadi!), to'plam jami ~145–260 CNY atrofida) aynan {brief.recommended_piece_count} qismli uyg'un Look yig'.
 MUHIM QOIDA: "title" va har bir buyumning "name" maydoni FAQAT O'ZBEK TILIDA, qisqa va tushunarli (2–3 so'z, masalan: "Qora Bomber Kurtka", "Bej Zamokli Sviter", "Keng Kargo Shim", "Oq Retro Krossovka", "Qora Zamsh Lofer") bo'lsin! Inglizcha so'zlar yozma!
 Har bir buyum uchun real Pinduoduo narxi (yuan - CNY), vazni (kg), kategoriyasi (outerwear, top, bottom, shoes, accessory) va xitoycha qidiruv so'zini ber.
 
@@ -381,12 +390,186 @@ FAQAT JSON QAYTAR:
   ]
 }}"""
 
-    def _pick_template_if_invalid(self, data: dict[str, Any] | None) -> dict[str, Any]:
+    def _pick_template_if_invalid(
+        self,
+        data: dict[str, Any] | None,
+        recent_titles: list[str] | None = None,
+    ) -> dict[str, Any]:
         if isinstance(data, dict) and isinstance(data.get("items"), list) and len(data["items"]) >= 2:
             return data
-        tpl = DYNAMIC_LOOK_TEMPLATES[self._fallback_idx % len(DYNAMIC_LOOK_TEMPLATES)]
+        total = len(DYNAMIC_LOOK_TEMPLATES)
+        pick_idx = self._fallback_idx % total
+        recent_set = {t.strip().lower() for t in (recent_titles or []) if t}
+        for offset in range(total):
+            cand = DYNAMIC_LOOK_TEMPLATES[(self._fallback_idx + offset) % total]
+            if str(cand.get("title", "")).strip().lower() not in recent_set:
+                pick_idx = (self._fallback_idx + offset) % total
+                break
+        tpl = json.loads(json.dumps(DYNAMIC_LOOK_TEMPLATES[pick_idx], ensure_ascii=False))
         self._fallback_idx += 1
         return tpl
+
+    def _enforce_seasonal_and_persona_rules(
+        self,
+        data: dict[str, Any],
+        brief: InstagramTrendBrief,
+        weather: WeatherForecast | None = None,
+        ig_intel: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Qish/kuz ob-havosi, Diplomat/Old Money klassik qoidalari va arzon futbolkani bloklash."""
+        from urllib.parse import quote
+        from app.ig_analytics import evaluate_seasonal_styling_rules
+
+        out = json.loads(json.dumps(data, ensure_ascii=False))
+        w_dict = None
+        if ig_intel and isinstance(ig_intel.get("seasonal_rules"), dict):
+            rules = ig_intel["seasonal_rules"]
+        else:
+            if weather is not None:
+                w_dict = {
+                    "cur_temp": weather.temp_c,
+                    "forecast_5_10d_min": weather.future_temp_c or weather.temp_c,
+                    "forecast_5_10d_max": weather.temp_c,
+                }
+            rules = evaluate_seasonal_styling_rules(w_dict)
+
+        context_text = (
+            f"{out.get('title', '')} {out.get('description', '')} "
+            f"{getattr(brief, 'trend_name', '')} {getattr(brief, 'target_audience', '')} "
+            f"{getattr(brief, 'conversion_reason', '')}"
+        ).lower()
+        is_diplomat_old_money = any(
+            k in context_text
+            for k in ("diplomat", "yurid", "old money", "klassik", "ofis", "biznes", "quiet luxury")
+        )
+
+        # Har siklda bir xil 4 buyumni takrorlamaslik uchun xilma-xil qishki qatlamlar ro'yxati
+        var_idx = max(0, self._fallback_idx)
+        old_money_outer_alts = [
+            {
+                "name": "To'q Jigarrang Ikki Qatorli Jun Palto",
+                "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套",
+                "price_cny": 138.0,
+                "weight_kg": 1.15,
+                "color_uz": "To'q jigarrang",
+            },
+            {
+                "name": "To'q Ko'k Klassik Jun Blazer",
+                "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克",
+                "price_cny": 115.0,
+                "weight_kg": 0.78,
+                "color_uz": "To'q ko'k",
+            },
+            {
+                "name": "Qora Jun Bomber Kurtka",
+                "cn_keyword": "老钱风重磅羊毛飞行员夹克男秋冬外套",
+                "price_cny": 96.0,
+                "weight_kg": 0.78,
+                "color_uz": "Qora",
+            },
+        ]
+        warm_knit_alts = [
+            {
+                "name": "To'q Qahva Kashmir Vodolazka",
+                "cn_keyword": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫",
+                "price_cny": 68.0,
+                "weight_kg": 0.48,
+                "color_uz": "To'q jigarrang",
+            },
+            {
+                "name": "Och Bej Zamokli Sviter",
+                "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领",
+                "price_cny": 62.0,
+                "weight_kg": 0.50,
+                "color_uz": "Och bej",
+            },
+        ]
+        classic_bottom_alts = [
+            {
+                "name": "Qahva-Taupe Old Money Jun Shim",
+                "cn_keyword": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚",
+                "price_cny": 64.0,
+                "weight_kg": 0.52,
+                "color_uz": "Qahva-taupe",
+            },
+            {
+                "name": "Grafit Klassik Drape Shim",
+                "cn_keyword": "垂感羊毛西装裤男直筒老钱风秋冬加厚长裤",
+                "price_cny": 62.0,
+                "weight_kg": 0.50,
+                "color_uz": "To'q kulrang (grafit)",
+            },
+        ]
+        classic_shoe_alts = [
+            {
+                "name": "Qora Charm Qishki Chelsea Etik",
+                "cn_keyword": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴",
+                "price_cny": 78.0,
+                "weight_kg": 0.92,
+                "color_uz": "Qora",
+            },
+            {
+                "name": "Espresso Zamsh Lofer",
+                "cn_keyword": "老钱风翻毛皮乐福鞋男英伦休闲皮鞋加绒",
+                "price_cny": 56.0,
+                "weight_kg": 0.76,
+                "color_uz": "To'q jigarrang",
+            },
+        ]
+
+        fixed_items: list[dict[str, Any]] = []
+        for idx, raw_it in enumerate(out.get("items") or []):
+            it = dict(raw_it)
+            name_low = f"{it.get('name', '')} {it.get('cn_keyword', '')}".lower()
+            cat = str(it.get("category") or "general").lower()
+
+            # 1) Sovuq/qishki mavsumda futbolka/mayka qat'iyan bloklanadi!
+            if rules.get("forbid_tshirts") and any(
+                w in name_low for w in ("futbolka", "t-shirt", "mayka", "短袖", "t恤", "tee")
+            ):
+                rep = warm_knit_alts[(var_idx + idx) % len(warm_knit_alts)]
+                it.update(rep)
+                it["category"] = "top"
+            # 2) Diplomat/Yuridika/Old Money uslubida Kargo, Xudi, Kepka, Krossovka taqiqlanadi!
+            elif is_diplomat_old_money:
+                if cat == "outerwear" or any(w in name_low for w in ("palto", "trench", "bomber", "kurtka", "blazer", "kardigan")):
+                    rep = old_money_outer_alts[(var_idx + idx) % len(old_money_outer_alts)]
+                    it.update(rep)
+                    it["category"] = "outerwear"
+                elif cat == "top" or any(w in name_low for w in ("xudi", "hoodie", "sviter", "svitshot", "half-zip", "vodolazka")):
+                    rep = warm_knit_alts[(var_idx + idx) % len(warm_knit_alts)]
+                    it.update(rep)
+                    it["category"] = "top"
+                elif cat == "bottom" or any(w in name_low for w in ("shim", "kargo", "cargo", "bryuk", "jinsi", "joger")):
+                    rep = classic_bottom_alts[(var_idx + idx) % len(classic_bottom_alts)]
+                    it.update(rep)
+                    it["category"] = "bottom"
+                elif cat == "shoes" or any(w in name_low for w in ("krossovka", "sneaker", "lofer", "chelsea", "etik", "poyabzal")):
+                    rep = classic_shoe_alts[(var_idx + idx) % len(classic_shoe_alts)]
+                    it.update(rep)
+                    it["category"] = "shoes"
+                elif cat == "accessory" or any(w in name_low for w in ("kepka", "cap")):
+                    # Diplomat uslubida kepka o'rniga issiq vodolazka/palto/lofer qatlami
+                    rep = old_money_outer_alts[(var_idx + 1) % len(old_money_outer_alts)]
+                    it.update(rep)
+                    it["category"] = "outerwear"
+
+            # Har doim toza Pinduoduo qidiruv havolasini ta'minlash (1688 ga ruxsat yo'q)
+            cn_kw = str(it.get("cn_keyword") or it.get("name") or "").strip()
+            if not it.get("url") or "1688.com" in str(it.get("url", "")):
+                it["url"] = f"https://mobile.yangkeduo.com/search_result.html?search_key={quote(cn_kw)}"
+            fixed_items.append(it)
+
+        out["items"] = fixed_items
+        if fixed_items:
+            cols = []
+            for x in fixed_items:
+                c = str(x.get("color_uz") or "").strip()
+                if c and c not in cols:
+                    cols.append(c)
+            if cols:
+                out["colors"] = ", ".join(cols)
+        return out
 
     def _build_generated_look(
         self,
@@ -484,7 +667,12 @@ FAQAT JSON QAYTAR:
                 except Exception as e:
                     log.warning("Gemini (%s) orqali trend olishda xatolik (%s)", candidate, e)
 
-        return self._build_generated_look(self._pick_template_if_invalid(data), brief, weather_line)
+        enforced = self._enforce_seasonal_and_persona_rules(
+            self._pick_template_if_invalid(data),
+            brief,
+            weather=weather,
+        )
+        return self._build_generated_look(enforced, brief, weather_line)
 
     async def analyze_instagram_trends_async(
         self,
@@ -518,8 +706,9 @@ FAQAT JSON QAYTAR:
         style: str = "Instagram Reels Trend (Lookzona / Stylesh)",
         trend_brief: InstagramTrendBrief | None = None,
         weather: WeatherForecast | None = None,
+        ig_intel: dict[str, Any] | None = None,
     ) -> GeneratedLook:
-        """Jonli Toshkent ob-havosi + OmniRoute/Gemini AI + RapidAPI (1688/Pinduoduo) bilan asinxron Look yaratadi."""
+        """Jonli Toshkent ob-havosi + OmniRoute/Gemini AI + haqiqiy Pinduoduo API bilan asinxron Look yaratadi."""
         weather = weather or await fetch_tashkent_weather()
         eff_brief = trend_brief or await self.analyze_instagram_trends_async(weather)
         eff_season = weather.season_uz if season in ("", "avtomatik ob-havo") else season
@@ -532,9 +721,10 @@ FAQAT JSON QAYTAR:
             self.ai.client = self.client
         prompt = self._build_look_prompt(eff_brief, weather_line, gender)
         ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
-        raw_data = self._pick_template_if_invalid(ai_data)
+        raw_data = self._pick_template_if_invalid(ai_data, recent_titles=(ig_intel or {}).get("recent_titles"))
+        raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
 
-        if self.pdd.connection_mode not in ("official_api", "rapidapi"):
+        if self.pdd.connection_mode not in ("official_api", "onebound_pdd"):
             return self._build_generated_look(raw_data, eff_brief, weather_line)
 
         _, base_items = self._calculate_pricing(raw_data["items"])
