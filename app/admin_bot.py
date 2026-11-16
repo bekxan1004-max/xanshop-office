@@ -8,7 +8,7 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup, default_state
-from aiogram.types import BufferedInputFile, CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import BotCommand, BufferedInputFile, CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from .accountant import AccountantAgent, parse_bank_deposit_text
 from .config import Settings
@@ -25,28 +25,23 @@ from .texts import (CLIENT_STATUS_MESSAGES, NEXT_STATUS, STATUS_LABELS, admin_or
 log = logging.getLogger(__name__)
 PHOTO_DIR = os.path.join("data", "photos")
 
-HELP = """<b>👑 XAN SHOP — Admin Boshqaruv Paneli (v3.2)</b>
+HELP = """<b>📖 BARCHA BUYRUQLAR (Tezkor ro‘yxat)</b>
 
-⚡ <b>Avtonom AI Ofis (Ochiq o'rganuvchi tizim):</b>
-/ai_look — Hoziroq yangi 1080p Look yaratish
-/manba https://t.me/... — TG kanal / IG / Reel linkidan tizimni o'qitish
-/manbalar — O'rganilgan kanallar va jonli strategiyalar
-/tg_holat [yoq|toxtat] — IG yo'q paytda TG avtomatini boshqarish
-<i>Shuningdek, istalgan namuna .mp4 Reels videoni menga tashlasangiz, montaj va zvukini tizimga integratsiya qilaman!</i>
-/ofis — 7 ta AI agentning jonli holati
-/hisobchi — Karta tushumlari va to'lovlar
+🧠 <b>Ochiq O‘rganish & Kontent:</b>
+• Istalgan <b>TG/IG link</b> yoki <b>.mp4 video</b> tashlang — tizim o‘zi o‘rganadi!
+/manba <i>havola</i> — TG kanal, IG profil yoki Reelsdan o‘qitish
+/manbalar — O‘rganilgan kanallar va faol playbooklar
+/tg_holat [yoq|toxtat] — IG yo‘q paytda bo‘sh TG postni to‘xtatish/yoqish
+/ai_look — Hoziroq 1080p AI Look yaratish
+/ofis — 7 ta AI agent holati · /kanal_paket — Bio paket
 
-📦 <b>Buyurtmalar:</b>
-/buyurtmalar — Faol buyurtmalar ro'yxati
-/b 1 — #1 buyurtma kartochkasi
-/trek 1 YT123456 — Trek raqam kiritish
-/javob ID matn — Mijozga xabar yozish
+📦 <b>Buyurtmalar & Kargo:</b>
+/buyurtmalar · /b <i>ID</i> — Buyurtmalar kartochkasi
+/trek <i>ID kod</i> — Trek kiritish · /javob <i>ID matn</i> — Mijozga yozish
 
-👔 <b>Katalog va Moliya:</b>
-/looklar — Barcha looklar ro'yxati
-/narx 95+56+52 1.8 — Tez narx hisoblash
-/kurs — Valyuta kurslari · /foyda 65 — Foyda %
-/hisobot — Umumiy sotuv va foyda"""
+💰 <b>Katalog & Moliya:</b>
+/looklar · /look_qosh — Katalog
+/narx 80+60 1.8 · /kurs · /foyda · /hisobot · /hisobchi · /qayta_hisob"""
 
 
 class AddLook(StatesGroup):
@@ -60,6 +55,22 @@ class AddLook(StatesGroup):
 
 class AdminForm(StatesGroup):
     weight = State()
+    source_link = State()
+
+
+ADMIN_BOT_COMMANDS = [
+    BotCommand(command="start", description="👑 Minimalist Boshqaruv Markazi"),
+    BotCommand(command="ai_look", description="⚡ 1080p AI Look yaratish"),
+    BotCommand(command="manba", description="🧠 TG/IG/Reel linkidan tizimni o'qitish"),
+    BotCommand(command="manbalar", description="📘 O'rganilgan kanallar va strategiyalar"),
+    BotCommand(command="tg_holat", description="⏸/🟢 Bo'sh TG postni boshqarish"),
+    BotCommand(command="ofis", description="🏢 7 ta AI agent holati"),
+    BotCommand(command="buyurtmalar", description="📦 Faol buyurtmalar"),
+    BotCommand(command="looklar", description="👔 Katalog va havolalar"),
+    BotCommand(command="hisobot", description="💰 Tushum va sof foyda"),
+    BotCommand(command="kurs", description="💱 Valyuta kurslari"),
+    BotCommand(command="help", description="📖 Barcha buyruqlar"),
+]
 
 
 def ikb(rows: list[list[tuple[str, str]]]) -> InlineKeyboardMarkup:
@@ -100,17 +111,236 @@ def build_admin_router(s: Settings) -> Router:
     staff.message.filter(F.from_user.id.in_(staff_ids))
     root.include_routers(admin, staff)
 
-    # ---------------- umumiy ----------------
+    # ---------------- minimalist boshqaruv markazi ----------------
+    async def _build_home_hub(db: Database) -> tuple[str, InlineKeyboardMarkup]:
+        orders = await db.active_orders(limit=50)
+        looks = await db.list_looks(only_active=True)
+        sources = await db.list_tracked_sources(limit=50)
+        pbs = await db.get_all_playbooks()
+        rates, params = await get_rates(db, s), await get_params(db, s)
+        allow_tg = (await db.get_setting("allow_tg_without_ig")) == "1"
+        ig_paused = (await db.get_setting("ig_pause_alerted")) == "1"
+
+        if allow_tg:
+            tg_badge = "🟢 TG Erkin Yoqilgan"
+            tg_btn = "⏸ TG Avto: Yoqiq"
+        elif ig_paused:
+            tg_badge = "⏸ Pauzada (IG checkpoint — token tejalmoqda)"
+            tg_btn = "🟢 TG Avto: Pauzada"
+        else:
+            tg_badge = "🟢 IG + TG Avto Tayyor"
+            tg_btn = "⏸ TG Avto: Auto"
+
+        text = (
+            f"👑 <b>{escape(s.shop_name)} · Boshqaruv Markazi</b>\n\n"
+            f"📦 Buyurtma: <b>{len(orders)}</b> · 👔 Look: <b>{len(looks)}</b>\n"
+            f"🧠 Bilim: <b>{len(sources)}</b> manba · <b>{len(pbs)}</b> playbook\n"
+            f"📡 Avto-nashr: {tg_badge}\n"
+            f"💱 1¥ = <b>{rates.cny_uzs:.0f}</b> so'm · Foyda: <b>{params.profit_percent:g}%</b>\n\n"
+            "💡 <i>Istalgan <b>t.me / instagram.com</b> link yoki <b>.mp4 video</b> tashlasangiz — "
+            "tizim o‘zi o‘rganib rivojlanadi.</i>"
+        )
+        kb = ikb([
+            [("⚡ AI Look", "adm:ai_look"), ("🏢 AI Ofis", "adm:office")],
+            [("🧠 Manbalar", "adm:sources"), ("➕ Link O‘rgatish", "adm:add_src")],
+            [("📦 Buyurtmalar", "adm:orders"), ("👔 Katalog", "adm:looks")],
+            [("💰 Moliya & Kurs", "adm:finance"), (tg_btn, "adm:tg_toggle")],
+            [("🎬 Video Tahlil", "adm:video_help"), ("📖 Buyruqlar", "adm:cmds")],
+        ])
+        return text, kb
+
+    async def _edit_or_send(cb: CallbackQuery, text: str, kb: InlineKeyboardMarkup | None = None):
+        try:
+            await cb.message.edit_text(text, reply_markup=kb)
+        except Exception:
+            await cb.message.answer(text, reply_markup=kb)
+
     @admin.message(CommandStart())
     @admin.message(Command("help"))
-    async def start(message: Message, state: FSMContext):
+    async def start(message: Message, state: FSMContext, db: Database):
         await state.clear()
-        await message.answer(HELP)
+        txt, kb = await _build_home_hub(db)
+        await message.answer(txt, reply_markup=kb)
 
     @admin.message(Command("bekor"))
-    async def cancel_any(message: Message, state: FSMContext):
+    async def cancel_any(message: Message, state: FSMContext, db: Database):
         await state.clear()
-        await message.answer("Bekor qilindi.")
+        txt, kb = await _build_home_hub(db)
+        await message.answer("❌ Amal bekor qilindi.\n\n" + txt, reply_markup=kb)
+
+    @admin.callback_query(F.data == "adm:home")
+    async def cb_home(cb: CallbackQuery, state: FSMContext, db: Database):
+        await state.clear()
+        await cb.answer()
+        txt, kb = await _build_home_hub(db)
+        await _edit_or_send(cb, txt, kb)
+
+    @admin.callback_query(F.data == "adm:cmds")
+    async def cb_cmds(cb: CallbackQuery):
+        await cb.answer()
+        await _edit_or_send(cb, HELP, ikb([[("◀️ Bosh menyu", "adm:home")]]))
+
+    @admin.callback_query(F.data == "adm:video_help")
+    async def cb_video_help(cb: CallbackQuery):
+        await cb.answer()
+        await _edit_or_send(
+            cb,
+            "🎬 <b>Namuna Video Orqali Tizimni O‘qitish</b>\n\n"
+            "• Istalgan Reels <code>.mp4</code> videoni shu yerga tashlang (yoki forward qiling).\n"
+            "• Tizim kadrlarni, montaj tempini, matn uslubini va zvuk turini tahlil qilib, "
+            "<b>Video Montajchi</b> hamda <b>IG/TG Strategiya</b> bazasiga yozadi.",
+            ikb([[("◀️ Bosh menyu", "adm:home")]]),
+        )
+
+    @admin.callback_query(F.data == "adm:office")
+    async def cb_office(cb: CallbackQuery, db: Database):
+        await cb.answer()
+        agents = await db.list_agents()
+        lines = [f"🏢 <b>{escape(s.shop_name)} · 7 ta AI Agent</b>\n"]
+        for a in agents:
+            icon = "🟢" if a["status"] == "idle" else ("⚡" if a["status"] == "working" else "🔴")
+            lines.append(f"{icon} <b>{escape(a['name'])}</b> ({a['tasks_done']} ta)\n   └ <i>{escape(a['current_task'][:90])}</i>")
+        await _edit_or_send(cb, "\n".join(lines), ikb([[("🔄 Yangilash", "adm:office"), ("◀️ Bosh menyu", "adm:home")]]))
+
+    @admin.callback_query(F.data == "adm:sources")
+    async def cb_sources(cb: CallbackQuery, db: Database):
+        await cb.answer()
+        sources = await db.list_tracked_sources(limit=12)
+        pbs = await db.get_all_playbooks()
+        lines = ["🧠 <b>O‘rganilgan Kanallar & Playbooklar</b>\n"]
+        if not sources:
+            lines.append("Hali tashqi manba qo‘shilmagan. <b>➕ Link O‘rgatish</b> ni bosing.")
+        for src in sources[:8]:
+            lines.append(
+                f"• <b>[{escape(src['platform'])}]</b> <code>{escape((src['url'] or src['source_key'])[:55])}</code>\n"
+                f"  └ <i>{escape((src.get('style_summary') or '')[:95])}</i>"
+            )
+        if pbs:
+            lines.append(f"\n📘 Faol playbooklar: <code>{', '.join(pbs.keys())}</code>")
+        await _edit_or_send(
+            cb,
+            "\n".join(lines),
+            ikb([[("➕ Link O‘rgatish", "adm:add_src"), ("🔄 Yangilash", "adm:sources")], [("◀️ Bosh menyu", "adm:home")]]),
+        )
+
+    @admin.callback_query(F.data == "adm:add_src")
+    async def cb_add_src(cb: CallbackQuery, state: FSMContext):
+        await state.set_state(AdminForm.source_link)
+        await cb.answer()
+        await cb.message.answer(
+            "🔗 <b>Telegram kanal, Instagram sahifa yoki Reel havolasini yuboring:</b>\n"
+            "Masalan: <code>https://t.me/kanal_nomi</code> yoki link + izoh.\n\n"
+            "Bekor qilish: /bekor"
+        )
+
+    @admin.message(AdminForm.source_link, F.text)
+    async def fsm_source_link_got(message: Message, state: FSMContext, db: Database):
+        raw = (message.text or "").strip()
+        if raw.startswith("/"):
+            await state.clear()
+            await message.answer("Bekor qilindi. /help")
+            return
+        await state.clear()
+        parts = raw.split(maxsplit=1)
+        url_arg = parts[0]
+        note_arg = parts[1] if len(parts) > 1 else ""
+        wait_m = await message.answer("🕵️‍♂️ <b>Halol O‘g‘ri manbani o‘rganmoqda...</b>")
+        from .source_learner import ingest_and_learn_source
+        res = await ingest_and_learn_source(db, s, url_arg, user_instruction=note_arg)
+        if not res.get("ok"):
+            await wait_m.edit_text(f"❌ Xato: {escape(str(res.get('error', '')))}", reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
+            return
+        await wait_m.edit_text(
+            f"✅ <b>Manba o‘zlashtirildi ({escape(res['platform'].upper())})</b>\n"
+            f"🔗 <code>{escape(res['url'])}</code>\n"
+            f"🎨 <i>{escape(res.get('style_summary') or '')[:220]}</i>\n"
+            f"{'⏱ ' + escape(res['posting_pattern']) if res.get('posting_pattern') else ''}",
+            reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
+        )
+
+    @admin.callback_query(F.data == "adm:tg_toggle")
+    async def cb_tg_toggle(cb: CallbackQuery, db: Database):
+        cur = await db.get_setting("allow_tg_without_ig")
+        new_val = "0" if cur == "1" else "1"
+        await db.set_setting("allow_tg_without_ig", new_val)
+        await cb.answer("🟢 TG avto yoqildi" if new_val == "1" else "⏸ IG blokda bo'lsa TG pauzada")
+        txt, kb = await _build_home_hub(db)
+        await _edit_or_send(cb, txt, kb)
+
+    @admin.callback_query(F.data == "adm:orders")
+    async def cb_orders(cb: CallbackQuery, db: Database):
+        await cb.answer()
+        orders = await db.active_orders(limit=10)
+        if not orders:
+            await _edit_or_send(cb, "📦 Hozircha faol buyurtmalar yo‘q.", ikb([[("◀️ Bosh menyu", "adm:home")]]))
+            return
+        await cb.message.answer(f"📦 <b>So‘nggi {len(orders)} ta faol buyurtma:</b>")
+        for o in reversed(orders[:5]):
+            await send_card(cb.message, db, o)
+
+    @admin.callback_query(F.data == "adm:looks")
+    async def cb_looks(cb: CallbackQuery, db: Database, sales_username: str):
+        await cb.answer()
+        looks = await db.list_looks(only_active=False)
+        if not looks:
+            await _edit_or_send(cb, "👔 Katalog bo‘sh. /ai_look yoki /look_qosh bosing.", ikb([[("◀️ Bosh menyu", "adm:home")]]))
+            return
+        lines = [f"👔 <b>Katalog ({len(looks)} ta look):</b>\n"]
+        for lk in looks[:10]:
+            st = "✅" if lk["active"] else "⏸"
+            lines.append(f"{st} <b>#{lk['id']}</b> {escape(lk['title'][:40])} — {fmt(lk['prepay_uzs'])} so'm (50%: {fmt(lk.get('prepay_50_uzs') or 0)})")
+        lines.append("\nBatafsil /toggle uchun: /looklar")
+        await _edit_or_send(cb, "\n".join(lines), ikb([[("⚡ Yangi AI Look", "adm:ai_look"), ("◀️ Bosh menyu", "adm:home")]]))
+
+    @admin.callback_query(F.data == "adm:finance")
+    async def cb_finance(cb: CallbackQuery, db: Database):
+        await cb.answer()
+        orders = await db.all_orders()
+        paid = [o for o in orders if o["status"] not in ("awaiting_payment", "payment_review", "cancelled")]
+        cargo_paid = [o for o in paid if o["status"] in ("cargo_paid", "delivered") and o["cargo_due"]]
+        revenue = sum(o["prepay_due"] for o in paid) + sum(o["cargo_due"] for o in cargo_paid)
+        profit = sum(o["profit_uzs"] for o in paid) + sum(o["cargo_due"] - o["cargo_cost_uzs"] for o in cargo_paid)
+        rates, params = await get_rates(db, s), await get_params(db, s)
+        txs = await db.list_bank_transactions(limit=4)
+        tx_lines = [f"• +{fmt(t['amount_uzs'])} so'm (*{escape(t.get('card_last4') or '????')})" for t in txs] or ["Hozircha tushum yo‘q"]
+        txt = (
+            "💰 <b>Moliya & Kurslar</b>\n\n"
+            f"📦 Jami buyurtma: <b>{len(orders)}</b> (to‘langan: <b>{len(paid)}</b>)\n"
+            f"💵 Tushum: <b>{fmt(revenue)} so'm</b>\n"
+            f"💎 Taxminiy sof foyda: <b>{fmt(profit)} so'm</b>\n"
+            f"💱 Kurs: 1¥ = <b>{rates.cny_uzs:.1f}</b> so'm · 1$ = <b>{rates.usd_uzs:.0f}</b> so'm · Foyda: <b>{params.profit_percent:g}%</b>\n\n"
+            "🏦 <b>So‘nggi karta tushumlari:</b>\n" + "\n".join(tx_lines)
+        )
+        await _edit_or_send(cb, txt, ikb([[("🔄 CBU Kurs Yangilash", "adm:refresh_rates"), ("◀️ Bosh menyu", "adm:home")]]))
+
+    @admin.callback_query(F.data == "adm:refresh_rates")
+    async def cb_refresh_rates(cb: CallbackQuery, db: Database):
+        res = await refresh_rates(db, s)
+        await cb.answer("✅ CBU dan yangilandi" if res else "❌ CBU xatosi", show_alert=not bool(res))
+        await cb_finance(cb, db)
+
+    @admin.callback_query(F.data == "adm:ai_look")
+    async def cb_ai_look(cb: CallbackQuery, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+        await cb.answer("⚡ Ishga tushirildi...")
+        wait_msg = await cb.message.answer("⚡ <b>1080p AI Look tayyorlanmoqda...</b>")
+        office = AgentOffice(db=db, settings=s, sales_bot=sales_bot, admin_bot=admin_bot, sales_username=sales_username)
+        res = await office.run_look_pipeline(season="avtomatik ob-havo", delete_previous=False, notify_admin_on_publish=False)
+        try:
+            await wait_msg.delete()
+        except Exception:
+            pass
+        caption = (
+            f"✅ <b>Look #{res.look_id} ({res.piece_count} qism, 1080p)</b>\n"
+            f"👔 <b>{escape(res.title)}</b>\n"
+            f"💳 <b>50%: {fmt(res.prepay_50_uzs)} so'm</b> + kargo (100%: {fmt(res.prepay_uzs)} so'm)\n"
+            f"🎬 <code>{escape(res.video_style)}</code> · 🎵 <code>{escape(res.audio_vibe)}</code>"
+        )
+        if res.mp4_path and res.mp4_path.endswith(".mp4") and os.path.exists(res.mp4_path):
+            await cb.message.answer_video(FSInputFile(res.mp4_path), caption=caption, supports_streaming=True, reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
+        elif os.path.exists(res.photo_path):
+            await cb.message.answer_photo(FSInputFile(res.photo_path), caption=caption, reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
+        else:
+            await cb.message.answer(caption, reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
 
     async def send_card(message: Message, db: Database, order: dict, note: str = ""):
         look = await db.get_look(order["look_id"])
@@ -274,7 +504,31 @@ def build_admin_router(s: Settings) -> Router:
             f"🎬 Montaj/Ritm: <i>{escape(str(ed.get('pacing', ''))[:140])}</i>\n"
             f"🎵 Mos Zvuk: <code>{escape(str(ed.get('recommended_audio_vibe', 'luxury_chill')))}</code>\n"
             f"🔓 Ochiqlik darsi: <i>{escape(str(bp.get('tg_ig_openness_lesson', ''))[:160])}</i>\n\n"
-            "🧠 Keyingi video va kanallar shu blueprint asosida rivojlanadi!"
+            "🧠 Keyingi video va kanallar shu blueprint asosida rivojlanadi!",
+            reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
+        )
+
+    @admin.message(
+        StateFilter(default_state),
+        F.text,
+        ~F.text.startswith("/"),
+        F.text.regexp(r"https?://(?:t\.me|telegram\.me|(?:www\.)?instagram\.com|youtube\.com|youtu\.be)/"),
+    )
+    async def auto_learn_dropped_url(message: Message, db: Database):
+        parts = (message.text or "").strip().split(maxsplit=1)
+        url_arg = parts[0]
+        note_arg = parts[1] if len(parts) > 1 else ""
+        wait_m = await message.answer("🕵️‍♂️ <b>Havoladan o‘rganilmoqda...</b>")
+        from .source_learner import ingest_and_learn_source
+        res = await ingest_and_learn_source(db, s, url_arg, user_instruction=note_arg)
+        if not res.get("ok"):
+            await wait_m.edit_text(f"❌ Xato: {escape(str(res.get('error', '')))}")
+            return
+        await wait_m.edit_text(
+            f"✅ <b>Havola tizimga o‘rgatildi ({escape(res['platform'].upper())})</b>\n"
+            f"🔗 <code>{escape(res['url'])}</code>\n"
+            f"🎨 <i>{escape((res.get('style_summary') or '')[:220])}</i>",
+            reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
         )
 
     @admin.message(Command("ai_look"))

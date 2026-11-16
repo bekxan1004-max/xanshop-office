@@ -14,7 +14,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from app.admin_bot import build_admin_router
+from app.admin_bot import ADMIN_BOT_COMMANDS, build_admin_router
 from app.ai import SalesAI
 from app.config import load_settings
 from app.dashboard import start_dashboard_server
@@ -108,6 +108,10 @@ async def main() -> None:
     sales_dp.include_router(build_sales_router())
     admin_dp = Dispatcher(storage=MemoryStorage(), **shared)
     admin_dp.include_router(build_admin_router(s))
+    try:
+        await admin_bot.set_my_commands(ADMIN_BOT_COMMANDS)
+    except Exception:
+        pass
 
     async def alert(text: str) -> None:
         await notify_admins(admin_bot, s, text)

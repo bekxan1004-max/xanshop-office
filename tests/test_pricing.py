@@ -335,6 +335,13 @@ def test_open_source_learner_and_nonrigid_flexibility(tmp_path):
 
     asyncio.run(_check_db())
 
+    from app.admin_bot import ADMIN_BOT_COMMANDS, HELP, build_admin_router
+    assert any(c.command == "manba" for c in ADMIN_BOT_COMMANDS)
+    assert any(c.command == "tg_holat" for c in ADMIN_BOT_COMMANDS)
+    assert "/manba" in HELP and ".mp4" in HELP
+    router = build_admin_router(s)
+    assert router is not None
+
 
 if __name__ == "__main__":
     test_calculate_example()
