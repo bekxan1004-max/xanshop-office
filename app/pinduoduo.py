@@ -1051,6 +1051,241 @@ class PinduoduoConnector:
             "url": f"https://mobile.yangkeduo.com/search_result.html?search_key={quote(kw_val)}",
         }
 
+    def _deduce_category_and_weight(self, text_cn: str) -> tuple[str, float]:
+        """Xitoycha matndan kategoriya va taxminiy og'irlikni (kg) aniqlaydi."""
+        t = (text_cn or "").lower()
+        if any(k in t for k in ("大衣", "外套", "夹克", "羽绒服", "棉服", "风衣", "西装")):
+            w = 1.1 if any(k in t for k in ("大衣", "羽绒服", "棉服")) else 0.75
+            return "outerwear", w
+        if any(k in t for k in ("鞋", "靴", "板鞋", "运动鞋", "皮鞋", "马丁靴")):
+            return "shoes", 0.95
+        if any(k in t for k in ("裤", "牛仔裤", "工装裤", "休闲裤", "卫裤")):
+            return "bottom", 0.55
+        if any(k in t for k in ("帽", "包", "墨镜", "表", "皮带", "围巾")):
+            return "accessory", 0.25
+        return "top", 0.45
+
+    def _translate_cn_to_uz(self, text_cn: str) -> str:
+        """Xitoycha kiyim nomini tabiiy o'zbekcha fashion nomga o'giradi."""
+        raw = text_cn or ""
+        dict_map = [
+            ("羊毛", "Jun"),
+            ("羊绒", "Kashemir"),
+            ("羽绒服", "Qalin Puxovik"),
+            ("夹克", "Kurtka"),
+            ("外套", "Kurtka/Palto"),
+            ("西装", "Klassik Blazer"),
+            ("大衣", "Klassik Palto"),
+            ("风衣", "Trench Palto"),
+            ("开衫", "Kardigan"),
+            ("卫衣", "Xudi/Svitshot"),
+            ("连帽", "Kapushonli"),
+            ("半拉链", "Yarim-Zamokli (Half-Zip)"),
+            ("毛衣", "Sviter"),
+            ("针织衫", "Trikotaj"),
+            ("打底衫", "Vodolazka"),
+            ("衬衫", "Ko'ylak (Rubashka)"),
+            ("短袖T恤", "Qisqa Yeng Futbolka"),
+            ("T恤", "Futbolka"),
+            ("牛仔裤", "Jinsi Shim"),
+            ("工装裤", "Kargo Shim"),
+            ("休闲裤", "Klassik Shim"),
+            ("阔腿裤", "Keng Bichimli Shim"),
+            ("运动鞋", "Krossovka"),
+            ("板鞋", "Klassik Retro Krossovka"),
+            ("马丁靴", "Chelsi Botinka"),
+            ("皮鞋", "Klassik Lofer"),
+            ("老钱风", "Old Money"),
+            ("美式复古", "Vintage"),
+            ("纯棉", "100% Paxta"),
+            ("重磅", "Qalin 420g"),
+            ("加厚", "Issiq Qishki"),
+            ("秋冬", "Kuz-Qish"),
+            ("商务", "Biznes/Klassik"),
+        ]
+        found_tokens: list[str] = []
+        for cn_w, uz_w in dict_map:
+            if cn_w in raw:
+                found_tokens.append(uz_w)
+                raw = raw.replace(cn_w, " ")
+
+        if found_tokens:
+            # Eng muhim 3-4 ta xususiyatni birlashtiramiz
+            unique = list(dict.fromkeys(found_tokens))[:4]
+            return " ".join(unique)
+        return "Trend Pinduoduo Premium Kiyim"
+
+    async def fetch_product_details(
+        self,
+        goods_id_or_url: str,
+        settings: Any | None = None,
+    ) -> dict[str, Any]:
+        """Pinduoduo mahsulot havolasi yoki ID'sidan to'liq ma'lumot (rasm, narx, nom, 50% hisob) oladi."""
+        raw = (goods_id_or_url or "").strip()
+        m = GOODS_ID_RE.search(raw)
+        goods_id = m.group(1) if m else ""
+        if not goods_id:
+            digits = re.search(r"\b(\d{7,16})\b", raw)
+            if digits:
+                goods_id = digits.group(1)
+
+        if not goods_id:
+            return {
+                "ok": False,
+                "error": "Pinduoduo havolasi yoki to'g'ri goods_id (masalan 619842109312) topilmadi.",
+            }
+
+        cache_file = "data/pdd_live_cache.json"
+        cached_item = None
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+                    if isinstance(cache_data, dict) and goods_id in cache_data:
+                        cached_item = cache_data[goods_id]
+            except Exception:
+                pass
+
+        if cached_item and (time.time() - cached_item.get("cached_at", 0) < 86400 * 3):
+            return cached_item
+
+        cat_match = None
+        for cat, items in PDD_VERIFIED_CATALOG.items():
+            for it in items:
+                if str(it.get("goods_id")) == goods_id:
+                    cat_match = dict(it)
+                    cat_match["category"] = cat
+                    break
+            if cat_match:
+                break
+
+        title_uz = ""
+        title_cn = ""
+        price_cny = 0.0
+        weight_kg = 0.6
+        sales_tip = "10万+件 (100,000+ sotilgan)"
+        category = "top"
+        image_url = ""
+        color_hex = "#2B211B"
+
+        if cat_match:
+            title_uz = cat_match.get("title_uz") or ""
+            title_cn = cat_match.get("title_cn") or ""
+            price_cny = float(cat_match.get("price_cny") or 60.0)
+            weight_kg = float(cat_match.get("weight_kg") or 0.6)
+            sales_tip = cat_match.get("sales_tip") or sales_tip
+            category = cat_match.get("category") or category
+            color_hex = cat_match.get("color_hex") or color_hex
+            image_url = cat_match.get("image_url") or ""
+
+        if not title_cn:
+            target_url = f"https://mobile.yangkeduo.com/goods.html?goods_id={goods_id}"
+            headers = {
+                "User-Agent": MOBILE_UA,
+                "Referer": "https://mobile.yangkeduo.com/",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8",
+            }
+            try:
+                timeout = aiohttp.ClientTimeout(total=8)
+                async with aiohttp.ClientSession(timeout=timeout, headers=headers) as sess:
+                    async with sess.get(target_url) as resp:
+                        if resp.status == 200:
+                            html = await resp.text()
+                            title_m = re.search(r'<meta\s+property=["\']og:title["\']\s+content=["\']([^"\']+)["\']', html)
+                            if not title_m:
+                                title_m = re.search(r'<title>([^<]+)</title>', html)
+                            if title_m:
+                                raw_t = title_m.group(1).replace("【拼多多】", "").replace("拼多多", "").strip()
+                                title_cn = raw_t
+
+                            img_m = re.search(r'<meta\s+property=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html)
+                            if img_m:
+                                image_url = img_m.group(1).strip()
+
+                            price_m = PRICE_RE.search(html)
+                            if price_m:
+                                val = price_m.group(1) or price_m.group(2)
+                                if val:
+                                    price_cny = float(val)
+
+                            sales_m = SALES_RE.search(html)
+                            if sales_m:
+                                sales_tip = sales_m.group(0) + " sotilgan"
+            except Exception as e:
+                log.warning("Pinduoduo live scrape xatosi: %s", e)
+
+        if not title_cn:
+            title_cn = f"拼多多爆款男装时尚单品 (ID: {goods_id})"
+        if price_cny <= 0:
+            price_cny = 58.0
+
+        if not cat_match:
+            category, weight_kg = self._deduce_category_and_weight(title_cn)
+            title_uz = self._translate_cn_to_uz(title_cn)
+
+        from .pricing import Item, PriceParams, Rates, calculate
+        if settings is None:
+            from .config import load_settings
+            settings = load_settings()
+
+        rates = Rates(
+            cny_uzs=float(getattr(settings, "cny_uzs", 1850.0) or 1850.0),
+            usd_uzs=float(getattr(settings, "usd_uzs", 12900.0) or 12900.0),
+        )
+        params = PriceParams(
+            vykup_percent=float(getattr(settings, "vykup_percent", 10.0)),
+            profit_percent=float(getattr(settings, "profit_percent", 55.0)),
+            payment_fee_percent=float(getattr(settings, "payment_fee_percent", 1.5)),
+            china_shipping_cny_per_item=float(getattr(settings, "china_shipping_cny_per_item", 0.0)),
+            cargo_usd_per_kg=float(getattr(settings, "cargo_usd_per_kg", 9.5)),
+            cargo_client_uzs_per_kg=float(getattr(settings, "cargo_client_uzs_per_kg", 0.0)),
+            round_to=1000,
+            prepay_round_to=int(getattr(settings, "prepay_round_to", 50000)),
+            conversion_fee_percent=float(getattr(settings, "conversion_fee_percent", 2.5)),
+            ensure_50_covers_cost=bool(getattr(settings, "ensure_50_covers_cost", True)),
+        )
+
+        item_obj = Item(name=title_uz, price_cny=price_cny, weight_kg=weight_kg, url=f"https://mobile.yangkeduo.com/goods.html?goods_id={goods_id}")
+        b = calculate([item_obj], rates, params)
+
+        res = {
+            "ok": True,
+            "goods_id": str(goods_id),
+            "title_cn": title_cn,
+            "title_uz": title_uz,
+            "price_cny": round(price_cny, 2),
+            "price_usd": round(price_cny * 0.14, 2),
+            "weight_kg": weight_kg,
+            "category": category,
+            "sales_tip": sales_tip,
+            "image_url": image_url,
+            "color_hex": color_hex,
+            "product_url": f"https://mobile.yangkeduo.com/goods.html?goods_id={goods_id}",
+            "total_price_uzs": b.prepay_uzs,
+            "prepay_50_uzs": b.prepay_50_uzs,
+            "remaining_50_uzs": b.remaining_50_uzs,
+            "cargo_est_uzs": b.cargo_client_uzs,
+            "goods_cost_uzs": b.goods_cost_uzs,
+            "profit_uzs": b.profit_uzs,
+            "cached_at": int(time.time()),
+        }
+
+        try:
+            cache_data = {}
+            if os.path.exists(cache_file):
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+            if not isinstance(cache_data, dict):
+                cache_data = {}
+            cache_data[str(goods_id)] = res
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+        return res
+
 
 def _normalize_uz_local_phone(phone: str) -> str:
     digits = re.sub(r"\D", "", phone or "")

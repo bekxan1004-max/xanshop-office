@@ -29,7 +29,7 @@ from PIL import Image, ImageFilter
 log = logging.getLogger(__name__)
 
 CACHE_DIR = Path("data/cutout_cache")
-GENERAL_MODELS = ("u2netp", "silueta")
+GENERAL_MODELS = ("u2net", "silueta", "u2netp")
 _SESSIONS: dict[str, object] = {}
 _LOCK = threading.Lock()
 _DISABLED_MODELS: set[str] = set()

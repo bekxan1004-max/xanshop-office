@@ -36,3 +36,27 @@ def test_sourcing_fallback():
     assert look.prepay_uzs > 0
     assert look.cargo_est_uzs > 0
     assert len(look.raw_items) >= 3
+
+
+def test_pinduoduo_fetch_product_details(tmp_path):
+    import asyncio
+    from app.pinduoduo import PinduoduoConnector
+
+    async def _test():
+        conn = PinduoduoConnector(session_path=str(tmp_path / "sess.json"))
+        # 1. Catalog lookup
+        res = await conn.fetch_product_details("619842109312")
+        assert res["ok"] is True
+        assert res["goods_id"] == "619842109312"
+        assert res["total_price_uzs"] > 0
+        assert res["prepay_50_uzs"] > 0
+        assert res["remaining_50_uzs"] > 0
+        assert res["prepay_50_uzs"] + res["remaining_50_uzs"] == res["total_price_uzs"]
+
+        # 2. URL parsing
+        url = "https://mobile.yangkeduo.com/goods.html?goods_id=598271635490&page_from=39"
+        res_url = await conn.fetch_product_details(url)
+        assert res_url["ok"] is True
+        assert res_url["goods_id"] == "598271635490"
+
+    asyncio.run(_test())

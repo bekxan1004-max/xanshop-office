@@ -1,6 +1,7 @@
 """Sotuv bot: katalog, o'lcham tavsiyasi, buyurtma, chek qabul qilish, AI javoblar."""
 import logging
 import os
+import re
 from html import escape
 
 from aiogram import Bot, F, Router
@@ -360,6 +361,77 @@ def build_sales_router() -> Router:
                 else ""
             )
             await message.answer(escape(client_reply) + status_line)
+
+    # ---------------- Pinduoduo tovar havolalari ----------------
+    @r.message(
+        StateFilter(default_state),
+        F.text.func(lambda t: bool(re.search(r"https?://(?:mobile\.)?(?:yangkeduo\.com|pinduoduo\.com)/|goods_id=\d{7,16}", t or "")))
+    )
+    async def pdd_customer_link(message: Message, bot: Bot, db: Database, settings: Settings, admin_bot: Bot):
+        from .pinduoduo import PinduoduoConnector
+        conn = PinduoduoConnector(
+            client_id=settings.pdd_client_id,
+            client_secret=settings.pdd_client_secret,
+            rapidapi_key=settings.pdd_rapidapi_key,
+            session_path=settings.pdd_session_path,
+        )
+        wait_m = await message.answer("🇨🇳 <b>Pinduoduo mahsuloti ma'lumotlari yuklanmoqda...</b>")
+        data = await conn.fetch_product_details(message.text, settings=settings)
+        try:
+            await wait_m.delete()
+        except Exception:
+            pass
+        if not data.get("ok"):
+            await message.answer("Ushbu Pinduoduo havolasini o'qib bo'lmadi. Iltimos havola yoki tovar ID'sini tekshirib qayta yuboring.")
+            return
+
+        txt = (
+            f"🇨🇳 <b>Pinduoduo Mahsuloti Topildi!</b>\n\n"
+            f"🏷 <b>{escape(data['title_uz'])}</b>\n"
+            f"🇨🇳 <i>{escape(data['title_cn'])}</i>\n\n"
+            f"💵 <b>To'liq narxi:</b> {fmt(data['total_price_uzs'])} so'm\n"
+            f"💳 <b>50% Oldindan to'lov:</b> <b>{fmt(data['prepay_50_uzs'])} so'm</b>\n"
+            f"🛬 <b>Toshkentda to'lanadigan:</b> {fmt(data['remaining_50_uzs'])} so'm (+ kargo)\n"
+            f"✈️ <b>Yetkazish:</b> Avia 5–10 kun ichida Toshkentda ko'rib olasiz!\n\n"
+            f"<i>Ushbu tovar uchun buyurtma berishni xohlaysizmi?</i>"
+        )
+        kb = ikb([
+            [("🛍 50% To'lov bilan Buyurtma Berish", f"pdd_order:{data['goods_id']}")],
+            [("👤 Operator bilan bog'lanish", "op_ask")],
+        ])
+        if data.get("image_url"):
+            try:
+                await message.answer_photo(photo=data["image_url"], caption=txt, reply_markup=kb)
+                return
+            except Exception:
+                pass
+        await message.answer(txt, reply_markup=kb)
+
+    @r.callback_query(F.data.startswith("pdd_order:"))
+    async def pdd_customer_order(cb: CallbackQuery, state: FSMContext, settings: Settings):
+        await cb.answer()
+        gid = cb.data.split(":")[-1]
+        from .pinduoduo import PinduoduoConnector
+        conn = PinduoduoConnector(session_path=settings.pdd_session_path)
+        data = await conn.fetch_product_details(gid, settings=settings)
+        await state.update_data(
+            pdd_item=data,
+            look_title=data["title_uz"],
+            total_price_uzs=data["total_price_uzs"],
+            prepay_50_uzs=data["prepay_50_uzs"],
+        )
+        await state.set_state(OrderForm.size)
+        await cb.message.answer(
+            f"Tanlangan tovar: <b>{escape(data['title_uz'])}</b>\n"
+            f"50% oldindan to'lov: <b>{fmt(data['prepay_50_uzs'])} so'm</b>\n\n"
+            "Kiyim yoki oyoq kiyim razmeringizni tanlang:",
+            reply_markup=ikb([
+                [("S", "sz:S"), ("M", "sz:M"), ("L", "sz:L")],
+                [("XL", "sz:XL"), ("2XL", "sz:2XL"), ("3XL", "sz:3XL")],
+                [("40", "sz:40"), ("41", "sz:41"), ("42", "sz:42"), ("43", "sz:43")],
+                [("Bilmeyman, tavsiya bering", "sz:recommend")],
+            ]),
+        )
 
     # ---------------- erkin savollar -> AI ----------------
     @r.message(StateFilter(default_state), F.text)

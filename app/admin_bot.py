@@ -62,6 +62,7 @@ class AdminForm(StatesGroup):
 ADMIN_BOT_COMMANDS = [
     BotCommand(command="start", description="👑 Minimalist Boshqaruv Markazi"),
     BotCommand(command="ai_look", description="⚡ 1080p AI Look yaratish"),
+    BotCommand(command="pdd", description="🇨🇳 Pinduoduo tovar tahlili va 50% narxi"),
     BotCommand(command="manba", description="🧠 TG/IG/Reel linkidan tizimni o'qitish"),
     BotCommand(command="manbalar", description="📘 O'rganilgan kanallar va strategiyalar"),
     BotCommand(command="tg_holat", description="⏸/🟢 Bo'sh TG postni boshqarish"),
@@ -197,11 +198,18 @@ def build_admin_router(s: Settings) -> Router:
     async def cb_office(cb: CallbackQuery, db: Database):
         await cb.answer()
         agents = await db.list_agents()
+        ofis_url = s.public_base_url if (s.public_base_url and "localhost" not in s.public_base_url) else f"http://localhost:{s.office_port}"
         lines = [f"🏢 <b>{escape(s.shop_name)} · 7 ta AI Agent</b>\n"]
         for a in agents:
             icon = "🟢" if a["status"] == "idle" else ("⚡" if a["status"] == "working" else "🔴")
             lines.append(f"{icon} <b>{escape(a['name'])}</b> ({a['tasks_done']} ta)\n   └ <i>{escape(a['current_task'][:90])}</i>")
-        await _edit_or_send(cb, "\n".join(lines), ikb([[("🔄 Yangilash", "adm:office"), ("◀️ Bosh menyu", "adm:home")]]))
+        lines.append(f"\n🌐 <b>24/7 Web-Ofis:</b>\n<a href='{ofis_url}'>{ofis_url}</a>")
+        btn_rows: list[list[InlineKeyboardButton]] = []
+        if ofis_url.startswith("http"):
+            btn_rows.append([InlineKeyboardButton(text="🌐 Ofisni Ochish (Web)", url=ofis_url)])
+        btn_rows.append([InlineKeyboardButton(text="⚡ AI Look", callback_data="adm:ai_look"), InlineKeyboardButton(text="🔄 Yangilash", callback_data="adm:office")])
+        btn_rows.append([InlineKeyboardButton(text="◀️ Bosh menyu", callback_data="adm:home")])
+        await _edit_or_send(cb, "\n".join(lines), InlineKeyboardMarkup(inline_keyboard=btn_rows))
 
     @admin.callback_query(F.data == "adm:sources")
     async def cb_sources(cb: CallbackQuery, db: Database):
@@ -386,9 +394,14 @@ def build_admin_router(s: Settings) -> Router:
                 f"{icon} <b>{escape(a['name'])}</b>{boss}\n"
                 f"   └ Vazifa: <i>{escape(a['current_task'])}</i> · Bajarildi: <b>{a['tasks_done']}</b> ta"
             )
-        lines.append(f"\n🌐 <b>Ochiq Web-Ofis Boshqaruv Paneli:</b>\n<code>http://localhost:{s.office_port}</code>")
+        ofis_url = s.public_base_url if (s.public_base_url and "localhost" not in s.public_base_url) else f"http://localhost:{s.office_port}"
+        lines.append(f"\n🌐 <b>24/7 Web-Ofis Boshqaruv Paneli:</b>\n<a href='{ofis_url}'>{ofis_url}</a>")
         lines.append("\n🚀 Yangi avtonom Look + Kolaj + Reels video yaratish: /ai_look")
-        await message.answer("\n".join(lines))
+        btn_rows = []
+        if ofis_url.startswith("http"):
+            btn_rows.append([InlineKeyboardButton(text="🌐 Ofisni Ochish (Web)", url=ofis_url)])
+        btn_rows.append([InlineKeyboardButton(text="⚡ AI Look", callback_data="adm:ai_look"), InlineKeyboardButton(text="◀️ Bosh menyu", callback_data="adm:home")])
+        await message.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=btn_rows))
 
     @admin.message(Command("kanal_paket"))
     async def channel_kit_cmd(message: Message):
@@ -613,6 +626,121 @@ def build_admin_router(s: Settings) -> Router:
             _format_source_analysis_report(res),
             reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
         )
+
+    async def _handle_pdd_item_inspect(target_msg: Message, input_text: str, db: Database, admin_bot: Bot):
+        wait_m = await target_msg.answer("🔍 <b>Pinduoduo mahsuloti tahlil qilinmoqda va 50% narx hisoblanmoqda...</b>")
+        from .pinduoduo import PinduoduoConnector
+        conn = PinduoduoConnector(
+            client_id=s.pdd_client_id,
+            client_secret=s.pdd_client_secret,
+            rapidapi_key=s.pdd_rapidapi_key,
+            session_path=s.pdd_session_path,
+        )
+        data = await conn.fetch_product_details(input_text, settings=s)
+        if not data.get("ok"):
+            await wait_m.edit_text(f"❌ <b>Xatolik:</b> {escape(str(data.get('error', 'Mahsulot topilmadi')))}")
+            return
+
+        gid = data["goods_id"]
+        caption = (
+            f"🇨🇳 <b>PINDUODUO MAHSULOTI TAHLILI</b>\n\n"
+            f"🏷 <b>{escape(data['title_uz'])}</b>\n"
+            f"🇨🇳 <i>{escape(data['title_cn'])}</i>\n\n"
+            f"💰 <b>Xitoy narxi:</b> ¥{data['price_cny']} (~{data['price_usd']} $)\n"
+            f"🔥 <b>Sotuv:</b> {escape(data['sales_tip'])}\n"
+            f"📦 <b>Kategoriya:</b> {data['category'].upper()} (~{data['weight_kg']} kg)\n"
+            f"───────────────────\n"
+            f"💵 <b>100% Sotuv narxi:</b> <b>{fmt(data['total_price_uzs'])} so'm</b>\n"
+            f"💳 <b>50% Oldindan to'lov:</b> <b>{fmt(data['prepay_50_uzs'])} so'm</b>\n"
+            f"🛬 <b>Toshkentda to'lanadigan:</b> <b>{fmt(data['remaining_50_uzs'])} so'm</b>\n"
+            f"───────────────────\n"
+            f"🛒 <i>Xitoy xarajati: {fmt(data['goods_cost_uzs'])} so'm · Sof foyda: {fmt(data['profit_uzs'])} so'm</i>"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👔 Yangi Lookka qo'shish", callback_data=f"pdd:look:{gid}"),
+             InlineKeyboardButton(text="⭐️ Wishlistga", callback_data=f"pdd:wish:{gid}")],
+            [InlineKeyboardButton(text="📦 1-Click Buyurtma", callback_data=f"pdd:order:{gid}"),
+             InlineKeyboardButton(text="🔗 Pinduoduo'da ochish", url=data["product_url"])],
+            [InlineKeyboardButton(text="◀️ Bosh menyu", callback_data="adm:home")],
+        ])
+        try:
+            await wait_m.delete()
+        except Exception:
+            pass
+        if data.get("image_url"):
+            try:
+                await target_msg.answer_photo(photo=data["image_url"], caption=caption, reply_markup=kb)
+                return
+            except Exception:
+                pass
+        await target_msg.answer(caption, reply_markup=kb)
+
+    @admin.message(Command("pdd"))
+    async def pdd_cmd(message: Message, command: CommandObject, db: Database, admin_bot: Bot):
+        arg = (command.args or "").strip()
+        if not arg:
+            await message.answer(
+                "🇨🇳 <b>Pinduoduo Mahsulot Tahlili:</b>\n"
+                "Buyruqdan keyin Pinduoduo havolasini yoki tovar ID'sini yozing:\n"
+                "<code>/pdd 619842109312</code>\n"
+                "yoki <code>mobile.yangkeduo.com/goods.html?goods_id=...</code> havolasini shunchaki chatga tashlang!"
+            )
+            return
+        await _handle_pdd_item_inspect(message, arg, db, admin_bot)
+
+    @admin.message(
+        ~StateFilter(AddLook),
+        F.text,
+        ~F.text.startswith("/"),
+        F.text.func(
+            lambda t: bool(
+                re.search(
+                    r"https?://(?:mobile\.)?(?:yangkeduo\.com|pinduoduo\.com)/|goods_id=\d{7,16}",
+                    t or "",
+                )
+            )
+        ),
+    )
+    async def auto_inspect_pdd_url(message: Message, db: Database, admin_bot: Bot):
+        await _handle_pdd_item_inspect(message, message.text, db, admin_bot)
+
+    @admin.callback_query(F.data.startswith("pdd:wish:"))
+    async def cb_pdd_wish(cb: CallbackQuery, db: Database):
+        gid = cb.data.split(":")[-1]
+        from .pinduoduo import PinduoduoConnector
+        conn = PinduoduoConnector(session_path=s.pdd_session_path)
+        res = await conn.save_to_wishlist(gid)
+        if res.get("ok"):
+            await cb.answer(f"⭐️ Wishlistga saqlandi! ({res.get('status', 'OK')})", show_alert=True)
+            await db.log_agent_action("skaut", f"Pinduoduo Wishlistga saqlandi: ID {gid}", res.get("message", ""))
+        else:
+            await cb.answer(f"⚠️ Wishlist: {res.get('message', 'Xatolik')}", show_alert=True)
+
+    @admin.callback_query(F.data.startswith("pdd:look:"))
+    async def cb_pdd_look(cb: CallbackQuery, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+        gid = cb.data.split(":")[-1]
+        await cb.answer("👔 Ushbu buyum asosida avtonom Look yaratilmoqda...", show_alert=True)
+        office = AgentOffice(db=db, settings=s, sales_bot=sales_bot, admin_bot=admin_bot, sales_username=sales_username)
+        asyncio.create_task(office.run_look_pipeline())
+        await cb.message.answer(f"🚀 <b>Pinduoduo #{gid}</b> asosida yangi Look generatsiyasi boshlandi!")
+
+    @admin.callback_query(F.data.startswith("pdd:order:"))
+    async def cb_pdd_order(cb: CallbackQuery, db: Database):
+        gid = cb.data.split(":")[-1]
+        await cb.answer()
+        from .pinduoduo import PinduoduoConnector
+        conn = PinduoduoConnector(session_path=s.pdd_session_path)
+        data = await conn.fetch_product_details(gid, settings=s)
+        txt = (
+            f"📦 <b>1-Click Buyurtma Paketi (Pinduoduo)</b>\n\n"
+            f"🆔 Tovar ID: <code>{gid}</code>\n"
+            f"🏷 {escape(data['title_uz'])}\n"
+            f"💳 50% Oldindan to'lov: <b>{fmt(data['prepay_50_uzs'])} so'm</b>\n"
+            f"🇨🇳 Xitoy narxi: ¥{data['price_cny']}\n\n"
+            f"📍 Kargo ombori (Xitoy): <code>Yiwu, Zhejiang / Guangzhou</code>\n"
+            f"🔗 Buyurtma havolasi:\n{data['product_url']}"
+        )
+        await cb.message.answer(txt)
 
     @admin.message(Command("ai_look"))
     async def ai_look_cmd(message: Message, command: CommandObject, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):

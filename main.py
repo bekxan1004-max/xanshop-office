@@ -126,14 +126,16 @@ async def main() -> None:
         s.office_port,
         "yoqilgan" if ai.enabled else "o'chiq (GEMINI_API_KEY yo'q)",
     )
+    ofis_url = s.public_base_url if (s.public_base_url and "localhost" not in s.public_base_url) else f"http://localhost:{s.office_port}"
     try:
         await notify_admins(
             admin_bot,
             s,
             f"🟢 <b>{s.shop_name} — 24/7 AI AGENT OFFICE (v3.3)</b> ishga tushdi!\n"
             f"🛍 Sotuv bot: @{sales_username}\n"
-            f"🧠 Ochiq o‘rganish: <code>.mp4</code> video yoki <code>t.me / instagram.com</code> link tashlang!\n"
-            f"Menyu: /start · /help",
+            f"🌐 Virtual Ofis: {ofis_url}\n"
+            f"🧠 Ochiq o‘rganish: <code>.mp4</code> video yoki <code>t.me / instagram.com / pinduoduo</code> link tashlang!\n"
+            f"Menyu: /start · /help · /ofis · /pdd",
         )
     except Exception as e:
         logging.warning("Boshlanish xabarini adminlarga yuborishda vaqtinchalik xato: %s", e)

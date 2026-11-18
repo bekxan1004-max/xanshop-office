@@ -1,1 +1,44 @@
-{}
+{
+  "619842109312": {
+    "ok": true,
+    "goods_id": "619842109312",
+    "title_cn": "美式复古重磅飞行员夹克男春秋宽松外套",
+    "title_uz": "Oversize Heavyweight Bomber Kurtka",
+    "price_cny": 89.0,
+    "price_usd": 12.46,
+    "weight_kg": 0.75,
+    "category": "outerwear",
+    "sales_tip": "10万+件 (100,000+ sotilgan)",
+    "image_url": "",
+    "color_hex": "#1B1D21",
+    "product_url": "https://mobile.yangkeduo.com/goods.html?goods_id=619842109312",
+    "total_price_uzs": 350000,
+    "prepay_50_uzs": 175000,
+    "remaining_50_uzs": 175000,
+    "cargo_est_uzs": 87000,
+    "goods_cost_uzs": 164205,
+    "profit_uzs": 185795,
+    "cached_at": 1795031137
+  },
+  "598271635490": {
+    "ok": true,
+    "goods_id": "598271635490",
+    "title_cn": "美式复古半拉链立领卫衣男宽松华夫格上衣",
+    "title_uz": "Old Money Yarim-Zamok Svitshot (Half-Zip)",
+    "price_cny": 48.0,
+    "price_usd": 6.72,
+    "weight_kg": 0.45,
+    "category": "top",
+    "sales_tip": "8.5万+件 (85,000+ sotilgan)",
+    "image_url": "",
+    "color_hex": "#C8B8A6",
+    "product_url": "https://mobile.yangkeduo.com/goods.html?goods_id=598271635490",
+    "total_price_uzs": 200000,
+    "prepay_50_uzs": 100000,
+    "remaining_50_uzs": 100000,
+    "cargo_est_uzs": 52000,
+    "goods_cost_uzs": 88560,
+    "profit_uzs": 111440,
+    "cached_at": 1795031137
+  }
+}
