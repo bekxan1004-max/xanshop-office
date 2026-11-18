@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import io
+import logging
 import math
 import os
 import re
@@ -27,6 +28,19 @@ import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 BG_COLOR = (244, 243, 239)          # Soft Alabaster Studio (#F4F3EF)
+log = logging.getLogger(__name__)
+
+
+def _item_display_name(raw: Any, idx: int = 0) -> str:
+    """Buyum nomini toza matnga aylantiradi (dict/JSON bo'lsa faqat 'name' maydoni — xom dict ekranga chiqmasin)."""
+    if isinstance(raw, dict):
+        return str(raw.get("name") or raw.get("title") or f"Kiyim {idx + 1}")
+    txt = str(raw or "").strip()
+    if txt.startswith("{") and "'name'" in txt or txt.startswith('{"name"'):
+        m = re.search(r"""['"]name['"]\s*:\s*['"]([^'"]+)['"]""", txt)
+        if m:
+            return m.group(1)
+    return txt or f"Kiyim {idx + 1}"
 OBSIDIAN = (14, 16, 22)             # Chuqur Obsidian fon (yuqori kontrast uchun)
 DARK_CARD = (22, 25, 34)            # Qora kapsula
 DARK_ELEVATED = (30, 35, 46)        # Ikkinchi qavat kapsula
@@ -97,34 +111,29 @@ def _load_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
 
 
 def _auto_crop_studio_subject(img: Image.Image) -> Image.Image:
-    """Studiya rasmidagi ortiqcha bo'sh fonni qirqib, kiyimning o'zini yirik va tiniq qiladi."""
-    rgb = img.convert("RGB")
-    w, h = rgb.size
-    bg_sample = rgb.getpixel((4, 4))
-    bg = Image.new("RGB", (w, h), bg_sample)
-    diff = ImageChops.difference(rgb, bg).convert("L")
-    # 14 dan baland farqlarni kiyim obyekti deb olamiz
-    mask = diff.point(lambda p: 255 if p > 14 else 0)
-    bbox = mask.getbbox()
-    if bbox:
-        x0, y0, x1, y1 = bbox
-        bw, bh = x1 - x0, y1 - y0
-        if bw > w * 0.20 and bh > h * 0.20:
-            pad_x = int(bw * 0.06)
-            pad_y = int(bh * 0.06)
-            x0 = max(0, x0 - pad_x)
-            y0 = max(0, y0 - pad_y)
-            x1 = min(w, x1 + pad_x)
-            y1 = min(h, y1 + pad_y)
-            cropped = img.crop((x0, y0, x1, y1))
-            # Kontrast va tiniqlikni biroz kuchaytiramiz
-            enh = ImageEnhance.Contrast(cropped.convert("RGB")).enhance(1.08)
-            enh = ImageEnhance.Sharpness(enh).enhance(1.18)
-            return enh.convert("RGBA")
-    return img.convert("RGBA")
+    """Studiya rasmining fonini va soyasini xavfsiz qirqib (hech qachon yeng yoki oq krossovkani kesib yubormasdan) qaytaradi."""
+    return _extract_garment_cutout_rgba(img)
 
 
-def _extract_garment_cutout_rgba(img: Image.Image) -> Image.Image:
+def _extract_garment_cutout_rgba(img: Image.Image, category: str = "") -> Image.Image:
+    """Asosiy buyumni ajratadi: 1) AI Cutout Agent (BiRefNet/ISNet/cloth-seg), 2) zaxira — klassik fon-qirqish."""
+    if img.mode == "RGBA":
+        a = np.asarray(img.split()[3])
+        if (a < 250).mean() > 0.05:  # allaqachon kesilgan (shaffof) rasm
+            bb = img.getbbox()
+            return img.crop(bb) if bb else img
+    try:
+        from .cutout_agent import extract_main_item
+
+        ai_cut = extract_main_item(img, category)
+        if ai_cut is not None:
+            return ai_cut
+    except Exception as exc:  # AI ishlamasa ham Reels to'xtamasin
+        log.warning("AI cutout zaxiraga o'tdi: %s", exc)
+    return _classic_garment_cutout_rgba(img)
+
+
+def _classic_garment_cutout_rgba(img: Image.Image) -> Image.Image:
     """Studiya rasmining yorqin/bej fonini va ostidagi yumshoq soyasini toza qirqib (transparent PNG cutout) qaytaradi."""
     from collections import deque
 
@@ -134,19 +143,37 @@ def _extract_garment_cutout_rgba(img: Image.Image) -> Image.Image:
     if h < 40 or w < 40:
         return img.convert("RGBA")
 
-    border = np.concatenate([arr[0, :, :], arr[-1, :, :], arr[:, 0, :], arr[:, -1, :]], axis=0)
-    border_lum = 0.299 * border[:, 0] + 0.587 * border[:, 1] + 0.114 * border[:, 2]
-    bright_border = border[border_lum > 140.0]
-    bg_col = np.median(bright_border if len(bright_border) > 10 else border, axis=0)
+    patch_h, patch_w = max(4, h // 20), max(4, w // 20)
+    top_corners = np.concatenate([
+        arr[:patch_h, :patch_w, :].reshape(-1, 3),
+        arr[:patch_h, w - patch_w:, :].reshape(-1, 3),
+    ], axis=0)
+    bg_col = np.median(top_corners, axis=0)
+
     dist = np.linalg.norm(arr - bg_col[None, None, :], axis=2)
     lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
     chroma = np.max(arr, axis=2) - np.min(arr, axis=2)
 
-    is_bg_cand = (dist < 48.0) | ((lum > 105.0) & (chroma < 45.0) & (dist < 115.0))
+    gx = np.zeros_like(lum)
+    gy = np.zeros_like(lum)
+    gx[:, 1:-1] = np.abs(lum[:, 2:] - lum[:, :-2])
+    gy[1:-1, :] = np.abs(lum[2:, :] - lum[:-2, :])
+    grad = np.hypot(gx, gy)
+
+    y_grid = np.linspace(0.0, 1.0, h)[:, None]
+    center_lum = float(np.median(lum[int(h * 0.25):int(h * 0.75), int(w * 0.25):int(w * 0.75)]))
+    upper_thr = 19.0 if center_lum > 120.0 else 28.0
+    is_neutral_wall_shadow = (lum > 175.0) & (chroma < 17.0) & (dist < 68.0)
+    is_upper_bg = (dist < upper_thr) | is_neutral_wall_shadow
+    is_lower_bg = (dist < (28.0 if center_lum > 120.0 else 44.0)) | is_neutral_wall_shadow | (
+        (center_lum <= 120.0) & (lum > 115.0) & (chroma < 38.0) & (dist < 100.0)
+    )
+    is_bg_cand = np.where(y_grid < 0.80, is_upper_bg, is_lower_bg)
+
     sh, sw = max(1, h // 2), max(1, w // 2)
     cand_s = is_bg_cand[::2, ::2]
-    vis_s = np.zeros(cand_s.shape, dtype=bool)
     sh_actual, sw_actual = cand_s.shape
+    vis_s = np.zeros((sh_actual, sw_actual), dtype=bool)
     qs: deque[tuple[int, int]] = deque()
 
     for x in range(sw_actual):
@@ -173,11 +200,18 @@ def _extract_garment_cutout_rgba(img: Image.Image) -> Image.Image:
 
     fg_small = ~vis_s
     lum_s = lum[::2, ::2]
-    if fg_small.any() and float(np.median(lum_s[fg_small])) < 95.0:
-        fg_small = fg_small & (lum_s < 158.0)
+    chroma_s = chroma[::2, ::2]
+    dist_s = dist[::2, ::2]
+
     # Agar sintetik test rasmi (bir xil tekis rangli kvadrat) bo'lsa, o'z holicha qaytaramiz
-    if int(fg_small.sum()) < int(sh_actual * sw_actual * 0.05):
+    if int(fg_small.sum()) < int(sh_actual * sw_actual * 0.04):
         return img.convert("RGBA")
+
+    # Yeng va tana orasidagi yopiq oq/kulrang devor soyasini tozalash (bej matoga tegmasdan)
+    if 120.0 < center_lum < 205.0:
+        fg_small = fg_small & ~((lum_s > 180.0) & (chroma_s < 16.5) & (dist_s < 65.0))
+    elif fg_small.any() and float(np.median(lum_s[fg_small])) < 95.0:
+        fg_small = fg_small & (lum_s < 158.0)
 
     comp_id = np.zeros((sh_actual, sw_actual), dtype=np.int32)
     comp_sizes: dict[int, int] = {}
@@ -267,7 +301,7 @@ def resolve_real_item_photo(name: str, idx: int = 0, category: str = "") -> Imag
     elif any(k in low for k in ("lofer", "zamsh", "tufli", "moccasin", "klassik poyabzal", "loafer")):
         candidates = ["studio_loafers.jpg", "studio_chelsea_boots.jpg"]
     elif any(k in low for k in ("krossovka", "sneaker", "runner", "oyoq", "poyabzal", "shoes")):
-        candidates = ["studio_sneakers.jpg", "studio_chelsea_boots.jpg"]
+        candidates = ["shoes_sneaker_retro.jpg", "studio_loafers.jpg", "studio_chelsea_boots.jpg"]
     elif any(k in low for k in ("kepka", "shapka", "aksessuar", "accessory", "cap", "hat", "sumka", "soat", "ko'zoynak")):
         candidates = ["studio_cap.jpg"]
 
@@ -293,7 +327,7 @@ def resolve_real_item_photo(name: str, idx: int = 0, category: str = "") -> Imag
         if fpath.is_file():
             try:
                 raw = Image.open(fpath)
-                return _auto_crop_studio_subject(raw)
+                return raw.convert("RGBA")
             except Exception:
                 continue
     return None
@@ -304,41 +338,11 @@ def _prepare_clean_product_card(
     target_size: tuple[int, int] = (780, 940),
     gold_border: bool = True,
 ) -> Image.Image:
-    """Haqiqiy kiyim studiya rasmini yirik, yorqin va oltin hoshiyali 1080p vitrina kartasiga joylaydi."""
+    """Kiyim studiya rasmini @_tima_shop uslubida fon-qirqilgan (transparent cutout + 3D soya) holatda qaytaradi."""
     tw, th = target_size
     card = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
-
-    # Chuqur 3D soya
-    shadow = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
-    s_draw = ImageDraw.Draw(shadow)
-    s_draw.rounded_rectangle([24, 28, tw - 24, th - 12], radius=44, fill=(0, 0, 0, 145))
-    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=16))
-    card.alpha_composite(shadow)
-
-    inner_w, inner_h = tw - 36, th - 36
-    cropped_subj = _auto_crop_studio_subject(raw_img)
-    bg_sample = cropped_subj.convert("RGB").getpixel((2, 2))
-    bg_card = Image.new("RGBA", (inner_w, inner_h), (*bg_sample, 255))
-
-    # Kiyim karta ichining 92% qismini egallaydi — juda katta va aniq ko'rinadi!
-    pad = max(14, int(min(inner_w, inner_h) * 0.04))
-    fitted = ImageOps.contain(cropped_subj, (inner_w - pad * 2, inner_h - pad * 2), Image.Resampling.LANCZOS)
-    px = (inner_w - fitted.width) // 2
-    py = (inner_h - fitted.height) // 2
-    bg_card.alpha_composite(fitted, (px, py))
-
-    mask = Image.new("L", (inner_w, inner_h), 0)
-    m_draw = ImageDraw.Draw(mask)
-    m_draw.rounded_rectangle([0, 0, inner_w - 1, inner_h - 1], radius=40, fill=255)
-
-    rounded = Image.new("RGBA", (inner_w, inner_h), (0, 0, 0, 0))
-    rounded.paste(bg_card, (0, 0), mask)
-
-    b_draw = ImageDraw.Draw(rounded)
-    border_col = (*GOLD_ACCENT, 255) if gold_border else (210, 206, 198, 255)
-    b_draw.rounded_rectangle([1, 1, inner_w - 2, inner_h - 2], radius=40, outline=border_col, width=4)
-
-    card.alpha_composite(rounded, (18, 14))
+    cutout = _extract_garment_cutout_rgba(raw_img)
+    _paste_cutout_with_shadow(card, cutout, (24, 24, tw - 48, th - 48))
     return card
 
 
@@ -350,11 +354,11 @@ def _load_raw_image(
 ) -> Image.Image:
     try:
         if isinstance(raw, (str, Path)) and os.path.exists(str(raw)):
-            return _auto_crop_studio_subject(Image.open(raw))
+            return Image.open(raw).convert("RGBA")
         if isinstance(raw, bytes):
-            return _auto_crop_studio_subject(Image.open(io.BytesIO(raw)))
+            return Image.open(io.BytesIO(raw)).convert("RGBA")
         if isinstance(raw, Image.Image):
-            return _auto_crop_studio_subject(raw)
+            return raw.convert("RGBA")
     except Exception:
         pass
     real_photo = resolve_real_item_photo(fallback_name, idx)
@@ -615,10 +619,12 @@ def create_look_collage(
     cutouts: list[Image.Image] = []
     max_items = min(max(len(images), 1), 5)
     for idx, item in enumerate(images[:max_items]):
-        nm = item_names[idx] if item_names and idx < len(item_names) else f"Kiyim {idx + 1}"
+        nm = _item_display_name(item_names[idx], idx) if item_names and idx < len(item_names) else f"Kiyim {idx + 1}"
         hx = palette_hex[idx % len(palette_hex)] if palette_hex else "#1E1E22"
         raw_im = _load_raw_image(item, nm, idx, hx)
-        cutouts.append(_extract_garment_cutout_rgba(raw_im))
+        from .cutout_agent import guess_category
+
+        cutouts.append(_extract_garment_cutout_rgba(raw_im, guess_category(nm)))
 
     count = len(cutouts)
     top_area = 136
@@ -768,155 +774,80 @@ def _render_1080p_styled_frame(
     video_style: str = "orbit_3d_turntable",
     frame_size: tuple[int, int] = (1080, 1920),
 ) -> Image.Image:
-    """4 xil 1080p Full HD video uslubida (`orbit_3d_turntable`, `persona_spotlight_deck`,
-    `editorial_split_showcase`, `bento_zoom_reveal`) kadr chizadi."""
+    """@_tima_shop ('RASMDA:' / 'TRENDA YURGAN LOOKGA OBZOR') uslubida 1080x1920 Dark Matte Cutout kadr chizadi."""
     w, h = frame_size
     n = max(len(product_cards), 1)
-
-    # Yuqori kontrastli Obsidian-Slate studiya foni (kiyimlar yorqin va tiniq ko'rinishi uchun)
-    bg_top = (18, 21, 30) if video_style != "persona_spotlight_deck" else (14, 15, 20)
-    bg_bot = (10, 12, 18)
-    frame = Image.new("RGBA", (w, h), (*bg_top, 255))
+    frame = Image.new("RGBA", (w, h), (46, 46, 49, 255))
     draw = ImageDraw.Draw(frame)
 
     for y in range(0, h, 8):
         u = y / max(h - 1, 1)
-        r = int(bg_top[0] * (1 - u) + bg_bot[0] * u)
-        g = int(bg_top[1] * (1 - u) + bg_bot[1] * u)
-        b = int(bg_top[2] * (1 - u) + bg_bot[2] * u)
-        draw.rectangle([0, y, w, y + 8], fill=(r, g, b, 255))
+        v = int(52 * (1 - u) + 32 * u)
+        draw.rectangle([0, y, w, y + 8], fill=(v, v, v + 2, 255))
 
-    cx, cy = w // 2, int(h * 0.465)
-    draw.ellipse([cx - 420, int(h * 0.69) - 54, cx + 420, int(h * 0.69) + 54], fill=(34, 40, 54, 185))
+    clean_title = _clean_canvas_text(look_title)
+    is_classic = any(k in clean_title.lower() for k in ("diplomat", "old money", "klassik"))
+    hdr_txt = "RASMDA:" if is_classic else "TRENDA YURGAN LOOKGA OBZOR"
 
-    if sub_u < 0.58:
-        rot_p = 0.06 * (sub_u / 0.58)
-    else:
-        t_rot = (sub_u - 0.58) / 0.42
-        rot_p = 0.06 + 0.94 * (0.5 - 0.5 * math.cos(math.pi * t_rot))
+    if progress < 0.45 and n >= 2:
+        # 1-qism: Barcha buyumlar toza Flat-Lay ko'rinishida ("RASMDA:" / "TRENDA YURGAN LOOKGA OBZOR")
+        f_hdr = _fit_font(draw, hdr_txt, w - 120, start_size=48, min_size=28, bold=True)
+        bbox = draw.textbbox((0, 0), hdr_txt, font=f_hdr)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) // 2 + 2, 160 + 3), hdr_txt, fill=(0, 0, 0, 170), font=f_hdr)
+        draw.text(((w - tw) // 2, 160), hdr_txt, fill=(255, 255, 255, 255), font=f_hdr)
 
-    if video_style == "editorial_split_showcase":
-        # USLUB 1: Yuqorida barcha kiyimlar jonli lenta bo'lib turadi, markazda asosiy kiyim ULKAN (840x960) chiqadi
-        strip_y = 252
-        strip_h = 210
-        thumb_w = (w - 120 - (n - 1) * 18) // n
-        for i, card_im in enumerate(product_cards):
-            tx = 60 + i * (thumb_w + 18)
-            tf = ImageOps.contain(card_im, (thumb_w, strip_h), Image.Resampling.LANCZOS)
-            frame.alpha_composite(tf, (tx + (thumb_w - tf.width) // 2, strip_y + (strip_h - tf.height) // 2))
-            if i == active_idx:
-                draw.rounded_rectangle(
-                    [tx, strip_y, tx + thumb_w, strip_y + strip_h],
-                    radius=24,
-                    outline=GOLD_ACCENT,
-                    width=4,
-                )
-
-        # Markaziy gigant kiyim kartasi (slayd almashinuvi bilan)
-        main_w, main_h = 780, 880
-        next_idx = (active_idx + 1) % n
-        if rot_p <= 0.12:
-            cur_card = product_cards[active_idx].resize((main_w, main_h), Image.Resampling.LANCZOS)
-            frame.alpha_composite(cur_card, (cx - main_w // 2, int(h * 0.49) - main_h // 2))
+        top_y = 260
+        stage_h = int(h * 0.68)
+        if n == 2:
+            slots = [(60, top_y, 460, stage_h), (560, top_y, 460, stage_h)]
+        elif n == 3:
+            slots = [
+                (60, top_y, 460, int(stage_h * 0.48)),
+                (550, top_y + 14, 460, int(stage_h * 0.46)),
+                (270, top_y + int(stage_h * 0.46), 540, int(stage_h * 0.54)),
+            ]
         else:
-            slide_t = (rot_p - 0.12) / 0.88
-            offset_x = int(w * 0.85 * slide_t)
-            cur_card = product_cards[active_idx].resize((main_w, main_h), Image.Resampling.LANCZOS)
-            nxt_card = product_cards[next_idx].resize((main_w, main_h), Image.Resampling.LANCZOS)
-            frame.alpha_composite(cur_card, (cx - main_w // 2 - offset_x, int(h * 0.49) - main_h // 2))
-            frame.alpha_composite(nxt_card, (cx - main_w // 2 + int(w * 0.85) - offset_x, int(h * 0.49) - main_h // 2))
-        front_idx = active_idx if rot_p < 0.55 else next_idx
-        pop_scale = 1.0 - abs(rot_p - 0.06)
-
-    elif video_style == "persona_spotlight_deck":
-        # USLUB 2: Persona Spotlight Deck — kartalar yelpig'ich kabi taxlanib, navbatdagi kiyim markazga (840x980) suzib chiqadi
-        angle_rad = (2.0 * math.pi * (active_idx + rot_p)) / n
-        deck_items: list[tuple[float, int, float, int, int]] = []
-        for i in range(n):
-            phi = angle_rad - (2.0 * math.pi * i / n)
-            z = math.cos(phi)
-            x_off = int(w * 0.24 * math.sin(phi))
-            y_off = int(-45 * (1.0 - z))
-            scale = 0.64 + 0.36 * ((z + 1.0) * 0.5) ** 1.2
-            deck_items.append((z, i, scale, cx + x_off, cy + y_off))
-        deck_items.sort(key=lambda x: x[0])
-        front_idx = deck_items[-1][1]
-        pop_scale = max(0.0, min(1.0, (deck_items[-1][0] - 0.2) / 0.8))
-
-        base_w, base_h = 820, 960
-        for z, idx, scale, ix, iy in deck_items:
-            cw, ch = int(base_w * scale), int(base_h * scale)
-            resized = product_cards[idx].resize((cw, ch), Image.Resampling.LANCZOS)
-            frame.alpha_composite(resized, (ix - cw // 2, iy - ch // 2))
-
-    elif video_style == "bento_zoom_reveal":
-        # USLUB 3: Bento Zoom — chap ustunda barcha kiyimlar, o'ng/markazda esa faol kiyim katta fokusda (740x920)
-        side_x = 52
-        side_w = 230
-        side_h = (880 - (n - 1) * 18) // n
-        for i, card_im in enumerate(product_cards):
-            sy = 270 + i * (side_h + 18)
-            tf = ImageOps.contain(card_im, (side_w, side_h), Image.Resampling.LANCZOS)
-            frame.alpha_composite(tf, (side_x + (side_w - tf.width) // 2, sy + (side_h - tf.height) // 2))
-            if i == active_idx:
-                draw.rounded_rectangle([side_x, sy, side_x + side_w, sy + side_h], radius=24, outline=GOLD_ACCENT, width=4)
-
-        zoom_scale = 1.0 + 0.04 * math.sin(sub_u * math.pi)
-        mw, mh = int(710 * zoom_scale), int(880 * zoom_scale)
-        main_card = product_cards[active_idx].resize((mw, mh), Image.Resampling.LANCZOS)
-        frame.alpha_composite(main_card, (306 + (720 - mw) // 2, 270 + (880 - mh) // 2))
-        front_idx = active_idx
-        pop_scale = 1.0
-
+            slots = [
+                (65, top_y + 10, 445, int(stage_h * 0.45)),
+                (520, top_y - 6, 490, int(stage_h * 0.48)),
+                (85, top_y + int(stage_h * 0.45), 430, int(stage_h * 0.55)),
+                (535, top_y + int(stage_h * 0.54), 460, int(stage_h * 0.36)),
+            ]
+        for card_im, (sx, sy, sw, sh) in zip(product_cards[:4], slots):
+            fitted = ImageOps.contain(card_im, (sw, sh), Image.Resampling.LANCZOS)
+            frame.alpha_composite(fitted, (sx + (sw - fitted.width) // 2, sy + (sh - fitted.height) // 2))
     else:
-        # USLUB 4 (Default): 1080p 3D Orbit Turntable — kiyimlar 3D aylanada katta va tiniq aylanadi
-        angle_rad = (2.0 * math.pi * (active_idx + rot_p)) / n
-        orbit_items: list[tuple[float, int, float, int, int]] = []
-        rx = int(w * 0.25)
-        ry = int(h * 0.042)
-        for i in range(n):
-            phi = angle_rad - (2.0 * math.pi * i / n)
-            z = math.cos(phi)
-            x_off = int(rx * math.sin(phi))
-            y_off = int(ry * z)
-            depth_01 = (z + 1.0) * 0.5
-            scale = 0.58 + 0.42 * (depth_01 ** 1.25)
-            orbit_items.append((z, i, scale, cx + x_off, cy + y_off))
+        # 2-qism: Har bir buyum ekran markazida yirik planda (proportsiyasi buzilmasdan!)
+        cur_name = _clean_canvas_text(item_names[active_idx] if active_idx < len(item_names) else f"Kiyim {active_idx + 1}")
+        f_hdr = _fit_font(draw, clean_title.upper(), w - 120, start_size=40, min_size=24, bold=True)
+        bbox = draw.textbbox((0, 0), clean_title.upper(), font=f_hdr)
+        tw = bbox[2] - bbox[0]
+        draw.text(((w - tw) // 2 + 2, 130 + 3), clean_title.upper(), fill=(0, 0, 0, 170), font=f_hdr)
+        draw.text(((w - tw) // 2, 130), clean_title.upper(), fill=(255, 255, 255, 255), font=f_hdr)
 
-        orbit_items.sort(key=lambda x: x[0])
-        front_idx = orbit_items[-1][1]
-        pop_scale = max(0.0, min(1.0, (orbit_items[-1][0] - 0.25) / 0.75))
+        zoom = 0.94 + 0.08 * math.sin(sub_u * math.pi)
+        max_w, max_h = int(860 * zoom), int(1160 * zoom)
+        fitted = ImageOps.contain(product_cards[active_idx], (max_w, max_h), Image.Resampling.LANCZOS)
+        frame.alpha_composite(fitted, ((w - fitted.width) // 2, 240 + (1200 - fitted.height) // 2))
 
-        base_w, base_h = 800, 940
-        for z, idx, scale, ix, iy in orbit_items:
-            cw, ch = int(base_w * scale), int(base_h * scale)
-            resized = product_cards[idx].resize((cw, ch), Image.Resampling.LANCZOS)
-            if z < 0.35:
-                # Orqadagi kiyimlar ham aniq ko'rinib turadi (82% shaffoflik)
-                r_c, g_c, b_c, a_c = resized.split()
-                a_c = a_c.point(lambda p: int(p * 0.82))
-                resized = Image.merge("RGBA", (r_c, g_c, b_c, a_c))
-            frame.alpha_composite(resized, (ix - cw // 2, iy - ch // 2))
+        f_nm = _fit_font(draw, cur_name, w - 140, start_size=36, min_size=22, bold=True)
+        nb = draw.textbbox((0, 0), cur_name, font=f_nm)
+        nw = nb[2] - nb[0]
+        draw.text(((w - nw) // 2 + 2, h - 250 + 2), cur_name, fill=(0, 0, 0, 180), font=f_nm)
+        draw.text(((w - nw) // 2, h - 250), cur_name, fill=(255, 255, 255, 255), font=f_nm)
 
-    cur_name = item_names[front_idx] if front_idx < len(item_names) else f"Kiyim {front_idx + 1}"
-    cur_price = item_prices_uzs[front_idx] if front_idx < len(item_prices_uzs) else (total_price_uzs // n)
-
-    _draw_1080p_header_and_footer(
-        draw=draw,
-        w=w,
-        h=h,
-        shop_brand=shop_brand,
-        persona_hook=persona_hook,
-        sub_hook=sub_hook,
-        look_title=look_title,
-        cur_name=cur_name,
-        cur_price_uzs=cur_price,
-        active_idx=front_idx,
-        total_items=n,
-        total_price_uzs=total_price_uzs,
-        prepay_50_uzs=prepay_50_uzs,
-        pop_scale=pop_scale,
-    )
+    # Pastki ixcham, ekranni to'smaydigan minimalistik satr
+    half_str = f"{prepay_50_uzs:,}".replace(",", " ") + " so'm"
+    tot_str = f"{total_price_uzs:,}".replace(",", " ") + " so'm"
+    bar_str = f"50% oldindan: {half_str}  •  To'liq: {tot_str}  •  Izohga «+»"
+    f_bar = _fit_font(draw, bar_str, w - 120, start_size=26, min_size=18, bold=True)
+    bb = draw.textbbox((0, 0), bar_str, font=f_bar)
+    bw = bb[2] - bb[0]
+    px0 = max(40, (w - bw) // 2 - 32)
+    px1 = min(w - 40, (w + bw) // 2 + 32)
+    draw.rounded_rectangle([px0, h - 140, px1, h - 72], radius=34, fill=(18, 18, 21, 220))
+    draw.text(((w - bw) // 2, h - 122), bar_str, fill=(242, 242, 245, 255), font=f_bar)
 
     return frame.convert("RGB")
 
@@ -937,16 +868,19 @@ def create_reels_frames(
     """True 1080x1920 Full HD Reels kadrlari va 3D/Multi-Style metadata tayyorlovchisi."""
     half_val = prepay_50_uzs or (total_price_uzs // 2)
     total_items = max(len(images), 1)
-    names = list(item_names) if item_names else [f"Kiyim {i + 1}" for i in range(total_items)]
+    names = [_item_display_name(n, i) for i, n in enumerate(item_names)] if item_names else [f"Kiyim {i + 1}" for i in range(total_items)]
 
     product_cards: list[Image.Image] = []
     cutout_cards: list[Image.Image] = []
+    from .cutout_agent import guess_category
+
     for idx, raw_img in enumerate(images):
         nm = names[idx] if idx < len(names) else f"Kiyim {idx + 1}"
         hx = palette_hex[idx % len(palette_hex)] if palette_hex else "#1E1E22"
         raw_loaded = _load_raw_image(raw_img, nm, idx, hx)
-        cutout_cards.append(_extract_garment_cutout_rgba(raw_loaded))
-        product_cards.append(_prepare_clean_product_card(raw_loaded, (800, 950), gold_border=True))
+        cut = _extract_garment_cutout_rgba(raw_loaded, guess_category(nm))
+        cutout_cards.append(cut)
+        product_cards.append(_prepare_clean_product_card(cut, (800, 950), gold_border=True))
 
     part_prices = _estimate_item_prices_uzs(total_price_uzs, total_items)
     hook_txt = str((creative_directive or {}).get("hook_headline") or viral_hook or look_title)

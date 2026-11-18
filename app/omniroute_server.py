@@ -25,17 +25,31 @@ log = logging.getLogger("xanshop.omniroute")
 
 OMNIROUTE_MODELS = [
     {"id": "auto", "provider": "omniroute-smart-router", "tier": "free-unlimited"},
+    {"id": "xanshop-auto", "provider": "omniroute-combo", "tier": "free-unlimited"},
     {"id": "gemini-3.6-flash", "provider": "google-ai-studio", "tier": "free-pool"},
     {"id": "gemini-3.5-flash", "provider": "google-ai-studio", "tier": "free-pool"},
+    {"id": "gemini-3.8-flash", "provider": "google-ai-studio", "tier": "free-pool"},
+    {"id": "gemini-3-flash-preview", "provider": "google-ai-studio", "tier": "free-pool"},
     {"id": "gemini-3.5-flash-lite", "provider": "google-ai-studio", "tier": "free-pool"},
     {"id": "gemini-3.1-flash-lite", "provider": "google-ai-studio", "tier": "free-pool"},
-    {"id": "gemini-2.5-flash", "provider": "google-ai-studio", "tier": "free-pool"},
-    {"id": "gemini-2.5-flash-lite", "provider": "google-ai-studio", "tier": "free-pool"},
-    {"id": "gemini-2.0-flash", "provider": "google-ai-studio", "tier": "free-pool"},
+    {"id": "llm7/default", "provider": "llm7-keyless", "tier": "free-unlimited"},
+    {"id": "llm7/fast", "provider": "llm7-keyless", "tier": "free-unlimited"},
+    {"id": "kilo-gateway/kilo-auto/free", "provider": "kilo-keyless", "tier": "free-unlimited"},
+    {"id": "kilo-gateway/openrouter/free", "provider": "kilo-keyless", "tier": "free-unlimited"},
+    {"id": "ovhcloud/Mistral-Small-3.2-24B-Instruct-2506", "provider": "ovhcloud-keyless", "tier": "free-unlimited"},
+    {"id": "ovhcloud/gpt-oss-20b", "provider": "ovhcloud-keyless", "tier": "free-unlimited"},
+    {"id": "ovhcloud/gpt-oss-120b", "provider": "ovhcloud-keyless", "tier": "free-unlimited"},
+    {"id": "ddgw/claude-haiku-4-5", "provider": "duckduckgo-web", "tier": "free-unlimited"},
+    {"id": "ddgw/gpt-5.4-mini", "provider": "duckduckgo-web", "tier": "free-unlimited"},
+    {"id": "ddgw/gpt-5.6-luna", "provider": "duckduckgo-web", "tier": "free-unlimited"},
+    {"id": "ddgw/tinfoil/gpt-oss-120b", "provider": "duckduckgo-web", "tier": "free-unlimited"},
+    {"id": "ddgw/mistral-small-2603", "provider": "duckduckgo-web", "tier": "free-unlimited"},
+    {"id": "cloudflare-playground/glm-5.2", "provider": "cloudflare-playground", "tier": "free-unlimited"},
+    {"id": "aihorde/google/gemma-4-31b", "provider": "aihorde-keyless", "tier": "free-unlimited"},
     {"id": "deepseek/deepseek-chat-v3-0324:free", "provider": "openrouter-free", "tier": "free-pool"},
-    {"id": "google/gemini-2.0-flash-exp:free", "provider": "openrouter-free", "tier": "free-pool"},
+    {"id": "deepseek/deepseek-r1:free", "provider": "openrouter-free", "tier": "free-pool"},
     {"id": "meta-llama/llama-3.3-70b-instruct:free", "provider": "openrouter-free", "tier": "free-pool"},
-    {"id": "pollinations/openai", "provider": "pollinations-keyless", "tier": "free-unlimited"},
+    {"id": "qwen/qwen3-235b-a22b:free", "provider": "openrouter-free", "tier": "free-pool"},
 ]
 
 _COOLDOWN_UNTIL: dict[str, float] = {}
@@ -113,17 +127,16 @@ def build_omniroute_app(settings: Any) -> web.Application:
         messages = body.get("messages") or []
         sys_txt, usr_txt, media_b64, mime_type = _extract_system_and_user(messages)
 
-        # 1. Google Gemini Multi-Model Pool (7 models with independent daily free quotas)
+        # 1. Google Gemini Active 2026 Models Pool (no deprecated 2.0/2.5 models)
         if gem_client and usr_txt:
             now = time.monotonic()
             gem_models = [
+                "gemini-3.6-flash",
+                "gemini-3.5-flash",
+                "gemini-3.8-flash",
+                "gemini-3-flash-preview",
                 "gemini-3.5-flash-lite",
                 "gemini-3.1-flash-lite",
-                "gemini-3.5-flash",
-                "gemini-2.5-flash",
-                "gemini-2.5-flash-lite",
-                "gemini-2.0-flash",
-                "gemini-3.6-flash",
             ]
             active_gem = [m for m in gem_models if _COOLDOWN_UNTIL.get(m, 0.0) <= now] or gem_models[:2]
             for gm in active_gem:
@@ -158,7 +171,7 @@ def build_omniroute_app(settings: Any) -> web.Application:
 
         # 2. OpenRouter Free Models Pool (if OPENROUTER_API_KEY configured)
         if openrouter_key and usr_txt and not media_b64:
-            for orm in ("deepseek/deepseek-chat-v3-0324:free", "google/gemini-2.0-flash-exp:free", "meta-llama/llama-3.3-70b-instruct:free"):
+            for orm in ("deepseek/deepseek-chat-v3-0324:free", "deepseek/deepseek-r1:free", "meta-llama/llama-3.3-70b-instruct:free", "qwen/qwen3-235b-a22b:free"):
                 try:
                     async with httpx.AsyncClient(timeout=14.0) as client:
                         r = await client.post(
@@ -176,35 +189,44 @@ def build_omniroute_app(settings: Any) -> web.Application:
                 except Exception:
                     continue
 
-        # 3. Keyless Free AI Pool (Pollinations OpenAI-compatible endpoint)
+        # 3. OmniRoute Keyless Free AI Pool (LLM7, Kilo Gateway, OVHcloud AI Endpoints)
         if usr_txt and not media_b64:
-            for pm in ("openai", "mistral"):
+            keyless_targets = [
+                ("llm7/default", "https://api.llm7.io/v1/chat/completions", "unused", "default"),
+                ("kilo-gateway/kilo-auto/free", "https://api.kilo.ai/api/gateway/chat/completions", "", "kilo-auto/free"),
+                ("ovhcloud/Mistral-Small-3.2-24B-Instruct-2506", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions", "", "Mistral-Small-3.2-24B-Instruct-2506"),
+                ("ovhcloud/gpt-oss-20b", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions", "", "gpt-oss-20b"),
+                ("kilo-gateway/openrouter/free", "https://api.kilo.ai/api/gateway/chat/completions", "", "openrouter/free"),
+            ]
+            for label, target_url, bearer_key, model_id in keyless_targets:
                 try:
-                    async with httpx.AsyncClient(timeout=15.0) as client:
+                    headers = {"Content-Type": "application/json"}
+                    if bearer_key:
+                        headers["Authorization"] = f"Bearer {bearer_key}"
+                    async with httpx.AsyncClient(timeout=12.0) as client:
                         r = await client.post(
-                            "https://text.pollinations.ai/openai",
+                            target_url,
+                            headers=headers,
                             json={
-                                "model": pm,
+                                "model": model_id,
                                 "messages": [
                                     {"role": "system", "content": sys_txt or "Sen XAN SHOP AI mutaxassisan."},
                                     {"role": "user", "content": usr_txt},
                                 ],
+                                "temperature": 0.4,
+                                "max_tokens": 1200,
                             },
                         )
                         if r.status_code == 200:
-                            txt = ""
-                            if r.headers.get("content-type", "").startswith("application/json"):
-                                d = r.json()
-                                txt = ((d.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
-                            else:
-                                txt = r.text.strip()
+                            d = r.json()
+                            txt = ((d.get("choices") or [{}])[0].get("message") or {}).get("content", "").strip()
                             if txt:
                                 _STATS["success_total"] += 1
-                                _STATS["last_model_used"] = f"pollinations/{pm}"
+                                _STATS["last_model_used"] = label
                                 return web.json_response({
                                     "id": f"omni-free-{int(time.time()*1000)}",
                                     "object": "chat.completion",
-                                    "model": f"pollinations/{pm}",
+                                    "model": label,
                                     "choices": [{"index": 0, "message": {"role": "assistant", "content": txt}, "finish_reason": "stop"}],
                                 })
                 except Exception:

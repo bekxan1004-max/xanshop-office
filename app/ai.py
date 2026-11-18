@@ -26,14 +26,22 @@ GEMINI_FALLBACK_MODELS = (
 )
 GEMINI_EXTENDED_POOL = (
     "gemini-3.5-flash",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
+    "gemini-3.6-flash",
+    "gemini-3.8-flash",
+    "gemini-3-flash-preview",
 )
 FREE_OPENROUTER_MODELS = (
     "deepseek/deepseek-chat-v3-0324:free",
-    "google/gemini-2.0-flash-exp:free",
+    "deepseek/deepseek-r1:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "qwen/qwen3-235b-a22b:free",
+)
+FREE_OMNIROUTE_KEYLESS_ENDPOINTS = (
+    ("LLM7 (gemma4:31b)", "https://api.llm7.io/v1", "unused", "default"),
+    ("KiloGateway (kilo-auto/free)", "https://api.kilo.ai/api/gateway", "", "kilo-auto/free"),
+    ("OVHcloud (Mistral-Small-3.2)", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "", "Mistral-Small-3.2-24B-Instruct-2506"),
+    ("OVHcloud (gpt-oss-20b)", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "", "gpt-oss-20b"),
+    ("KiloGateway (openrouter/free)", "https://api.kilo.ai/api/gateway", "", "openrouter/free"),
 )
 _MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
 
@@ -382,22 +390,23 @@ class SalesAI:
         if gem_out:
             return gem_out, gem_id
 
-        # Tier-4: Kalitsiz (Bepul Cheksiz) OpenAI-compatible shlyuz (barcha modellar band bo'lganda)
+        # Tier-4: OmniRoute Keyless Free Providers Pool (LLM7, Kilo Gateway, OVHcloud AI Endpoints)
         import os
         if not os.getenv("PYTEST_CURRENT_TEST") and not media_bytes:
-            free_resp = await self._call_openai_compat(
-                "https://text.pollinations.ai/openai",
-                "",
-                "openai",
-                system,
-                text,
-                None,
-                "",
-                timeout_sec=min(18.0, timeout_sec),
-            )
-            if free_resp and free_resp.strip():
-                self.last_provider_used = "FreeUnlimited (Pollinations-OpenAI)"
-                return free_resp.strip(), None
+            for label, base_u, key_u, mod_u in FREE_OMNIROUTE_KEYLESS_ENDPOINTS:
+                free_resp = await self._call_openai_compat(
+                    base_u,
+                    key_u,
+                    mod_u,
+                    system,
+                    text,
+                    None,
+                    "",
+                    timeout_sec=min(12.0, timeout_sec),
+                )
+                if free_resp and free_resp.strip():
+                    self.last_provider_used = f"OmniRouteFree ({label})"
+                    return free_resp.strip(), None
         return None, None
 
     async def ask_json(
