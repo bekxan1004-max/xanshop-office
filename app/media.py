@@ -888,6 +888,17 @@ def create_reels_frames(
     video_style = str((creative_directive or {}).get("video_style") or "orbit_3d_turntable")
     vibe = str((creative_directive or {}).get("audio_vibe") or "phonk_bass")
 
+    try:
+        col_im = create_look_collage(
+            images=images,
+            item_names=names,
+            total_price_uzs=total_price_uzs,
+            look_title=look_title,
+            shop_brand=shop_brand,
+        )
+    except Exception:
+        col_im = None
+
     orbit_meta = {
         "product_cards": product_cards,
         "cutout_cards": cutout_cards,
@@ -901,6 +912,7 @@ def create_reels_frames(
         "sub_hook": sub_hook,
         "video_style": video_style,
         "audio_vibe": vibe,
+        "collage_image": col_im,
     }
 
     frames: list[Image.Image] = []
@@ -1190,6 +1202,16 @@ def render_reels_with_remotion(
 
         v_style = str(orbit_meta.get("video_style") or "")
         theme_variant = "obsidian_gold" if "orbit" in v_style or "dark" in v_style else "editorial_light"
+        collage_rel = ""
+        col_im = orbit_meta.get("collage_image")
+        if col_im is not None:
+            try:
+                c_dest = job_public_dir / "collage.jpg"
+                col_im.convert("RGB").save(c_dest, format="JPEG", quality=95)
+                collage_rel = f"render_jobs/{job_id}/collage.jpg"
+            except Exception:
+                pass
+
         props = {
             "shopBrand": str(orbit_meta.get("shop_brand") or "XAN SHOP"),
             "lookTitle": str(orbit_meta.get("look_title") or "XAN SHOP Kapsula"),
@@ -1198,6 +1220,7 @@ def render_reels_with_remotion(
             "prepay50Uzs": int(orbit_meta.get("prepay_50_uzs") or 300000),
             "themeVariant": theme_variant,
             "audioFile": audio_rel,
+            "collageFile": collage_rel,
             "items": items_payload,
         }
         props_file = job_public_dir / "props.json"

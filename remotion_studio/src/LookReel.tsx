@@ -24,6 +24,7 @@ export interface LookReelProps {
   prepay50Uzs: number;
   themeVariant: "editorial_light" | "obsidian_gold";
   audioFile: string;
+  collageFile?: string;
   items: ReelItemProp[];
 }
 
@@ -37,6 +38,7 @@ export const LookReel: React.FC<LookReelProps> = ({
   totalPriceUzs,
   prepay50Uzs,
   audioFile,
+  collageFile,
   items,
 }) => {
   const frame = useCurrentFrame();
@@ -151,51 +153,79 @@ export const LookReel: React.FC<LookReelProps> = ({
         }}
       >
         {isFlatlayPhase ? (
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              maxHeight: 1220,
-              minHeight: 0,
-              overflow: "hidden",
-              display: "grid",
-              gridTemplateColumns: safeItems.length === 1 ? "1fr" : "1fr 1fr",
-              gridTemplateRows:
-                safeItems.length > 2
-                  ? "minmax(0, 1fr) minmax(0, 1fr)"
-                  : "minmax(0, 1fr)",
-              gap: 24,
-              transform: `scale(${flatlayZoom})`,
-            }}
-          >
-            {safeItems.slice(0, 4).map((it, idx) => (
-              <div
-                key={idx}
+          collageFile ? (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                maxHeight: 1220,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transform: `scale(${flatlayZoom})`,
+              }}
+            >
+              <Img
+                src={staticFile(collageFile)}
                 style={{
-                  minHeight: 0,
-                  overflow: "hidden",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 12,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  filter: "drop-shadow(0px 18px 26px rgba(0, 0, 0, 0.78))",
                 }}
-              >
-                {it.imageFile && (
-                  <Img
-                    src={staticFile(it.imageFile)}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      maxWidth: "100%",
-                      maxHeight: "100%",
-                      objectFit: "contain",
-                      filter: "drop-shadow(0px 18px 22px rgba(0, 0, 0, 0.75))",
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                maxHeight: 1220,
+                minHeight: 0,
+                overflow: "hidden",
+                display: "grid",
+                gridTemplateColumns: safeItems.length === 1 ? "1fr" : "1fr 1fr",
+                gridTemplateRows:
+                  safeItems.length > 2
+                    ? "minmax(0, 1fr) minmax(0, 1fr)"
+                    : "minmax(0, 1fr)",
+                gap: 24,
+                transform: `scale(${flatlayZoom})`,
+              }}
+            >
+              {safeItems.slice(0, 4).map((it, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    minHeight: 0,
+                    overflow: "hidden",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 12,
+                    gridColumn:
+                      safeItems.length === 3 && idx === 2
+                        ? "1 / span 2"
+                        : undefined,
+                  }}
+                >
+                  {it.imageFile && (
+                    <Img
+                      src={staticFile(it.imageFile)}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        objectFit: "contain",
+                        filter: "drop-shadow(0px 18px 22px rgba(0, 0, 0, 0.75))",
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           <div
             style={{
