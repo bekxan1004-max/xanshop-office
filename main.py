@@ -22,6 +22,7 @@ from app.db import Database
 from app.economy import rates_loop
 from app.notify import notify_admins
 from app.office import AgentOffice, office_scheduler_loop
+from app.omniroute_server import start_omniroute_server
 from app.sales_bot import build_sales_router
 from app.userbot import PersonalStylistUserbot
 
@@ -30,6 +31,7 @@ async def main() -> None:
     s = load_settings()
     db = Database(s.db_path)
     await db.connect()
+    omni_runner = await start_omniroute_server(s, port=20128)
     ai = SalesAI(s)
 
     has_tokens = (

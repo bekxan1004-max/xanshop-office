@@ -417,6 +417,10 @@ def test_agent_reach_deep_video_and_remotion():
     assert len(GEMINI_FALLBACK_MODELS) + len(GEMINI_EXTENDED_POOL) >= 5
     assert len(FREE_OPENROUTER_MODELS) >= 2
 
+    from app.omniroute_server import OMNIROUTE_MODELS, build_omniroute_app
+    assert len(OMNIROUTE_MODELS) >= 10
+    assert build_omniroute_app(None) is not None
+
 
 if __name__ == "__main__":
     test_calculate_example()

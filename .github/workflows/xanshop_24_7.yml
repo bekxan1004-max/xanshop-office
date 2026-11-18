@@ -67,10 +67,10 @@ jobs:
           CARD_NUMBER: "9860 3501 4182 4135"
           CARD_OWNER: "POLVONOV BEKMUROD"
           AUTO_POST_HOURS: "3.0"
-          PROFIT_PERCENT: "100"
+          PROFIT_PERCENT: "55"
           ENSURE_50_COVERS_COST: "1"
           PREPAY_ROUND_TO: "50000"
-          USE_OMNIROUTE: "0"
+          USE_OMNIROUTE: "1"
         run: |
           ./cloudflared tunnel --url http://localhost:8080 --no-autoupdate > tunnel.log 2>&1 &
           for i in $(seq 1 20); do
