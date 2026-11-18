@@ -124,6 +124,118 @@ def _auto_crop_studio_subject(img: Image.Image) -> Image.Image:
     return img.convert("RGBA")
 
 
+def _extract_garment_cutout_rgba(img: Image.Image) -> Image.Image:
+    """Studiya rasmining yorqin/bej fonini va ostidagi yumshoq soyasini toza qirqib (transparent PNG cutout) qaytaradi."""
+    from collections import deque
+
+    rgb = img.convert("RGB")
+    arr = np.asarray(rgb, dtype=np.float32)
+    h, w, _ = arr.shape
+    if h < 40 or w < 40:
+        return img.convert("RGBA")
+
+    border = np.concatenate([arr[0, :, :], arr[-1, :, :], arr[:, 0, :], arr[:, -1, :]], axis=0)
+    border_lum = 0.299 * border[:, 0] + 0.587 * border[:, 1] + 0.114 * border[:, 2]
+    bright_border = border[border_lum > 140.0]
+    bg_col = np.median(bright_border if len(bright_border) > 10 else border, axis=0)
+    dist = np.linalg.norm(arr - bg_col[None, None, :], axis=2)
+    lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+    chroma = np.max(arr, axis=2) - np.min(arr, axis=2)
+
+    is_bg_cand = (dist < 48.0) | ((lum > 105.0) & (chroma < 45.0) & (dist < 115.0))
+    sh, sw = max(1, h // 2), max(1, w // 2)
+    cand_s = is_bg_cand[::2, ::2]
+    vis_s = np.zeros(cand_s.shape, dtype=bool)
+    sh_actual, sw_actual = cand_s.shape
+    qs: deque[tuple[int, int]] = deque()
+
+    for x in range(sw_actual):
+        if cand_s[0, x]:
+            vis_s[0, x] = True
+            qs.append((0, x))
+        if cand_s[sh_actual - 1, x]:
+            vis_s[sh_actual - 1, x] = True
+            qs.append((sh_actual - 1, x))
+    for y in range(sh_actual):
+        if cand_s[y, 0] and not vis_s[y, 0]:
+            vis_s[y, 0] = True
+            qs.append((y, 0))
+        if cand_s[y, sw_actual - 1] and not vis_s[y, sw_actual - 1]:
+            vis_s[y, sw_actual - 1] = True
+            qs.append((y, sw_actual - 1))
+
+    while qs:
+        cy, cx = qs.popleft()
+        for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+            if 0 <= ny < sh_actual and 0 <= nx < sw_actual and not vis_s[ny, nx] and cand_s[ny, nx]:
+                vis_s[ny, nx] = True
+                qs.append((ny, nx))
+
+    fg_small = ~vis_s
+    lum_s = lum[::2, ::2]
+    if fg_small.any() and float(np.median(lum_s[fg_small])) < 95.0:
+        fg_small = fg_small & (lum_s < 158.0)
+    # Agar sintetik test rasmi (bir xil tekis rangli kvadrat) bo'lsa, o'z holicha qaytaramiz
+    if int(fg_small.sum()) < int(sh_actual * sw_actual * 0.05):
+        return img.convert("RGBA")
+
+    comp_id = np.zeros((sh_actual, sw_actual), dtype=np.int32)
+    comp_sizes: dict[int, int] = {}
+    cid = 0
+    for y in range(sh_actual):
+        for x in range(sw_actual):
+            if fg_small[y, x] and comp_id[y, x] == 0:
+                cid += 1
+                cnt = 0
+                comp_id[y, x] = cid
+                qc: deque[tuple[int, int]] = deque([(y, x)])
+                while qc:
+                    yy, xx = qc.popleft()
+                    cnt += 1
+                    for nyy, nxx in ((yy - 1, xx), (yy + 1, xx), (yy, xx - 1), (yy, xx + 1)):
+                        if 0 <= nyy < sh_actual and 0 <= nxx < sw_actual and fg_small[nyy, nxx] and comp_id[nyy, nxx] == 0:
+                            comp_id[nyy, nxx] = cid
+                            qc.append((nyy, nxx))
+                comp_sizes[cid] = cnt
+
+    if comp_sizes:
+        max_sz = max(comp_sizes.values())
+        keep_ids = {k for k, v in comp_sizes.items() if v >= max_sz * 0.12}
+        fg_small = np.isin(comp_id, list(keep_ids))
+
+    mask_im = Image.fromarray((fg_small.astype(np.uint8) * 255), mode="L").resize((w, h), Image.Resampling.BILINEAR)
+    mask_im = mask_im.filter(ImageFilter.MinFilter(5)).filter(ImageFilter.MedianFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
+
+    mask_np = np.asarray(mask_im, dtype=np.float32) / 255.0
+    rgb_defringed = arr.copy()
+    edge_zone = (mask_np > 0.01) & (mask_np < 0.96)
+    rgb_defringed[edge_zone] = rgb_defringed[edge_zone] * (mask_np[edge_zone, None] ** 0.85)
+
+    bbox = mask_im.point(lambda p: 255 if p > 25 else 0).getbbox()
+    rgba = Image.fromarray(np.clip(rgb_defringed, 0, 255).astype(np.uint8), mode="RGB").convert("RGBA")
+    rgba.putalpha(mask_im)
+    if bbox:
+        rgba = rgba.crop(bbox)
+    return rgba
+
+
+def _paste_cutout_with_shadow(canvas: Image.Image, cutout: Image.Image, box: tuple[int, int, int, int]) -> None:
+    """Kesilgan kiyimni (@_tima_shop uslubida) yumshoq tabiiy soya bilan to'q mat fonga joylashtiradi."""
+    sx, sy, sw, sh = box
+    fitted = ImageOps.contain(cutout, (sw, sh), Image.Resampling.LANCZOS)
+    px = sx + (sw - fitted.width) // 2
+    py = sy + (sh - fitted.height) // 2
+
+    alpha = fitted.split()[3]
+    shadow = Image.new("RGBA", (fitted.width + 64, fitted.height + 64), (0, 0, 0, 0))
+    sh_mask = alpha.point(lambda p: int(p * 0.78))
+    shadow.paste((5, 5, 7, 255), (34, 34), sh_mask)
+    shadow = shadow.filter(ImageFilter.GaussianBlur(18))
+
+    canvas.alpha_composite(shadow, (px - 18, py - 12))
+    canvas.alpha_composite(fitted, (px, py))
+
+
 def resolve_real_item_photo(name: str, idx: int = 0, category: str = "") -> Image.Image | None:
     """Buyum nomi yoki kategoriyasiga mos HAQIQIY studiya kiyim rasmini (`data/pdd_assets/`) qaytaradi."""
     if not ASSET_DIR.is_dir():
@@ -317,13 +429,17 @@ def synthesize_reels_beat_wav(
     custom_dir = Path("data/audio")
     if custom_dir.is_dir():
         vibe_clean = re.sub(r"[^a-zA-Z0-9_-]", "", vibe or "").lower()
+        viral_vibe_matches: list[Path] = []
         vibe_matches: list[Path] = []
+        viral_all: list[Path] = []
         all_tracks: list[Path] = []
-        for ext in ("mp3", "wav", "m4a"):
+        for ext in ("wav", "mp3", "m4a"):
             if vibe_clean:
+                viral_vibe_matches.extend(sorted(custom_dir.glob(f"{vibe_clean}*viral*.{ext}")))
                 vibe_matches.extend(sorted(custom_dir.glob(f"{vibe_clean}*.{ext}")))
+            viral_all.extend(sorted(custom_dir.glob(f"*viral*.{ext}")))
             all_tracks.extend(sorted(custom_dir.glob(f"*.{ext}")))
-        pool = vibe_matches or all_tracks
+        pool = viral_vibe_matches or viral_all or vibe_matches or all_tracks
         if pool:
             picked = pool[int(duration_sec * 10) % len(pool)]
             ff = find_ffmpeg_binary()
@@ -475,103 +591,86 @@ def create_look_collage(
     palette_name: str = "",
     persona_hook: str = "",
 ) -> Image.Image:
-    """Yuqori kontrastli 1080x1350 HD Lookbook Kolaj: katta va tiniq kiyim rasmlari + alohida narxlar + 50% + kargo."""
-    canvas = Image.new("RGBA", canvas_size, (*OBSIDIAN, 255))
-    draw = ImageDraw.Draw(canvas)
+    """@_tima_shop ('RASMDA:' / 'TRENDA YURGAN LOOKGA OBZOR') uslubidagi toza Dark Matte Flat-Lay Lookbook Kolaj."""
     width, height = canvas_size
+    canvas = Image.new("RGBA", canvas_size, (46, 46, 49, 255))
+    draw = ImageDraw.Draw(canvas)
+    for y in range(0, height, 4):
+        u = y / max(height - 1, 1)
+        v = int(52 * (1 - u) + 32 * u)
+        draw.rectangle([0, y, width, y + 4], fill=(v, v, v + 2, 255))
 
     half_val = prepay_50_uzs or (total_price_uzs // 2)
     half_str = f"{half_val:,}".replace(",", " ") + " so'm"
     price_str = f"{total_price_uzs:,}".replace(",", " ") + " so'm"
-
-    clean_brand = _clean_canvas_text(shop_brand).upper()
     clean_title = _clean_canvas_text(look_title)
-    clean_persona = _clean_canvas_text(persona_hook or look_title).upper()
 
-    # Yuqori sarlavha (ortiqcha texnik yozuvlarsiz va so'zlarni kesmasdan)
-    draw.text((48, 34), f"{clean_brand}  •  AVIA 5–10 KUN", fill=GOLD_ACCENT, font=_load_font(20, bold=True))
-    f_pers = _fit_font(draw, clean_persona, width - 96, start_size=28, min_size=18, bold=True)
-    draw.text((48, 66), clean_persona, fill=(255, 255, 255), font=f_pers)
-    f_tit = _fit_font(draw, clean_title, width - 96, start_size=20, min_size=15, bold=False)
-    draw.text((48, 104), clean_title, fill=(185, 192, 206), font=f_tit)
+    hdr_text = "RASMDA:" if ("diplomat" in clean_title.lower() or "klassik" in clean_title.lower() or "old money" in clean_title.lower()) else "TRENDA YURGAN LOOKGA OBZOR"
+    f_hdr = _fit_font(draw, hdr_text, width - 120, start_size=44, min_size=26, bold=True)
+    bbox = draw.textbbox((0, 0), hdr_text, font=f_hdr)
+    tw = bbox[2] - bbox[0]
+    draw.text(((width - tw) // 2 + 2, 58 + 3), hdr_text, fill=(0, 0, 0, 170), font=f_hdr)
+    draw.text(((width - tw) // 2, 58), hdr_text, fill=(255, 255, 255, 255), font=f_hdr)
 
-    loaded_imgs: list[Image.Image] = []
+    cutouts: list[Image.Image] = []
     max_items = min(max(len(images), 1), 5)
     for idx, item in enumerate(images[:max_items]):
         nm = item_names[idx] if item_names and idx < len(item_names) else f"Kiyim {idx + 1}"
         hx = palette_hex[idx % len(palette_hex)] if palette_hex else "#1E1E22"
-        loaded_imgs.append(_load_raw_image(item, nm, idx, hx))
+        raw_im = _load_raw_image(item, nm, idx, hx)
+        cutouts.append(_extract_garment_cutout_rgba(raw_im))
 
-    count = len(loaded_imgs)
-    part_prices = _estimate_item_prices_uzs(total_price_uzs, count)
-
-    top_area = 142
-    bottom_area = height - 188
+    count = len(cutouts)
+    top_area = 136
+    bottom_area = height - 118
     usable_h = bottom_area - top_area
-    usable_w = width - 72
+    usable_w = width - 96
 
     if count == 1:
-        slots = [(36, top_area, usable_w, usable_h)]
+        slots = [(48, top_area, usable_w, usable_h)]
     elif count == 2:
-        slot_w = (usable_w - 20) // 2
+        slot_w = (usable_w - 24) // 2
         slots = [
-            (36, top_area, slot_w, usable_h),
-            (36 + slot_w + 20, top_area, slot_w, usable_h),
+            (48, top_area, slot_w, usable_h),
+            (48 + slot_w + 24, top_area, slot_w, usable_h),
         ]
     elif count == 3:
-        left_w = int(usable_w * 0.52)
-        right_w = usable_w - left_w - 20
-        right_h = (usable_h - 20) // 2
         slots = [
-            (36, top_area, left_w, usable_h),
-            (36 + left_w + 20, top_area, right_w, right_h),
-            (36 + left_w + 20, top_area + right_h + 20, right_w, right_h),
+            (54, top_area, 460, int(usable_h * 0.50)),
+            (546, top_area + 14, 460, int(usable_h * 0.48)),
+            (270, top_area + int(usable_h * 0.47), 540, int(usable_h * 0.53)),
         ]
     elif count == 4:
-        col_w = (usable_w - 20) // 2
-        row_h = (usable_h - 20) // 2
         slots = [
-            (36, top_area, col_w, row_h),
-            (36 + col_w + 20, top_area, col_w, row_h),
-            (36, top_area + row_h + 20, col_w, row_h),
-            (36 + col_w + 20, top_area + row_h + 20, col_w, row_h),
+            (60, top_area + 10, 450, int(usable_h * 0.45)),
+            (520, top_area - 6, 490, int(usable_h * 0.49)),
+            (85, top_area + int(usable_h * 0.45), 430, int(usable_h * 0.55)),
+            (535, top_area + int(usable_h * 0.54), 460, int(usable_h * 0.36)),
         ]
     else:
         top_w = (usable_w - 20) // 2
         bot_w = (usable_w - 40) // 3
         row_h = (usable_h - 20) // 2
         slots = [
-            (36, top_area, top_w, row_h),
-            (36 + top_w + 20, top_area, top_w, row_h),
-            (36, top_area + row_h + 20, bot_w, row_h),
-            (36 + bot_w + 20, top_area + row_h + 20, bot_w, row_h),
-            (36 + (bot_w + 20) * 2, top_area + row_h + 20, bot_w, row_h),
+            (48, top_area, top_w, row_h),
+            (48 + top_w + 20, top_area, top_w, row_h),
+            (48, top_area + row_h + 20, bot_w, row_h),
+            (48 + bot_w + 20, top_area + row_h + 20, bot_w, row_h),
+            (48 + (bot_w + 20) * 2, top_area + row_h + 20, bot_w, row_h),
         ]
 
-    for idx, (img, (sx, sy, sw, sh)) in enumerate(zip(loaded_imgs, slots)):
-        card_im = _prepare_clean_product_card(img, (sw, sh), gold_border=True)
-        canvas.alpha_composite(card_im, (sx, sy))
+    for cut, slot in zip(cutouts, slots):
+        _paste_cutout_with_shadow(canvas, cut, slot)
 
-        label = _clean_canvas_text(item_names[idx] if item_names and idx < len(item_names) else f"Kiyim {idx + 1}")
-        p_txt = f"{part_prices[idx]:,}".replace(",", " ") + " so'm"
-        pill_w = min(sw - 36, 440)
-        pill_x = sx + (sw - pill_w) // 2
-        pill_y = sy + sh - 74
-        draw.rounded_rectangle([pill_x, pill_y, pill_x + pill_w, pill_y + 52], radius=26, fill=(14, 16, 22, 244), outline=GOLD_ACCENT, width=2)
-        pill_str = f"{label}  •  {p_txt}"
-        f_pill = _fit_font(draw, pill_str, pill_w - 36, start_size=18, min_size=13, bold=True)
-        draw.text((pill_x + 18, pill_y + 14), pill_str, fill=(255, 255, 255), font=f_pill)
-
-    # Pastki 50% + kargo va ishonch bloki
-    draw.rounded_rectangle([36, height - 174, width - 36, height - 24], radius=30, fill=DARK_CARD, outline=GOLD_ACCENT, width=2)
-    draw.text((68, height - 156), f"Hozirgi narx (50%): {half_str}", fill=GOLD_ACCENT, font=_load_font(32, bold=True))
-    draw.text((68, height - 112), "+ kargo (qolgan 50% + kargo kiyim Toshkentga kelganda)", fill=EMERALD_OK, font=_load_font(21, bold=True))
-    draw.text(
-        (68, height - 74),
-        f"To'liq narxi: {price_str}  •  Kiyimni Toshkentda ko'rib olganda to'laysiz!",
-        fill=(240, 242, 248),
-        font=_load_font(19, bold=False),
-    )
+    # Pastda faqat ixcham, minimalistik ma'lumot chizig'i (ekranni to'sib qo'ymaydigan)
+    bar_str = f"{clean_title}  •  50% oldindan: {half_str}  (To'liq: {price_str})"
+    f_bar = _fit_font(draw, bar_str, width - 120, start_size=24, min_size=16, bold=True)
+    b_box = draw.textbbox((0, 0), bar_str, font=f_bar)
+    bw = b_box[2] - b_box[0]
+    pill_x0 = max(36, (width - bw) // 2 - 28)
+    pill_x1 = min(width - 36, (width + bw) // 2 + 28)
+    draw.rounded_rectangle([pill_x0, height - 88, pill_x1, height - 28], radius=30, fill=(20, 20, 23, 215))
+    draw.text(((width - bw) // 2, height - 73), bar_str, fill=(242, 242, 245), font=f_bar)
 
     return canvas.convert("RGB")
 
@@ -841,10 +940,12 @@ def create_reels_frames(
     names = list(item_names) if item_names else [f"Kiyim {i + 1}" for i in range(total_items)]
 
     product_cards: list[Image.Image] = []
+    cutout_cards: list[Image.Image] = []
     for idx, raw_img in enumerate(images):
         nm = names[idx] if idx < len(names) else f"Kiyim {idx + 1}"
         hx = palette_hex[idx % len(palette_hex)] if palette_hex else "#1E1E22"
         raw_loaded = _load_raw_image(raw_img, nm, idx, hx)
+        cutout_cards.append(_extract_garment_cutout_rgba(raw_loaded))
         product_cards.append(_prepare_clean_product_card(raw_loaded, (800, 950), gold_border=True))
 
     part_prices = _estimate_item_prices_uzs(total_price_uzs, total_items)
@@ -855,6 +956,7 @@ def create_reels_frames(
 
     orbit_meta = {
         "product_cards": product_cards,
+        "cutout_cards": cutout_cards,
         "item_names": names,
         "item_prices_uzs": part_prices,
         "look_title": look_title,
@@ -1122,11 +1224,13 @@ def render_reels_with_remotion(
     try:
         names = orbit_meta.get("item_names") or []
         prices = orbit_meta.get("item_prices_uzs") or []
+        cutouts = orbit_meta.get("cutout_cards") or []
         items_payload: list[dict[str, Any]] = []
         for idx, card in enumerate(cards):
             img_name = f"item_{idx}.png"
             card_path = job_public_dir / img_name
-            card.convert("RGB").save(card_path, format="PNG")
+            src_im = cutouts[idx] if idx < len(cutouts) and cutouts[idx] is not None else _extract_garment_cutout_rgba(card)
+            src_im.convert("RGBA").save(card_path, format="PNG")
             items_payload.append({
                 "name": str(names[idx] if idx < len(names) else f"Kiyim #{idx + 1}"),
                 "priceUzs": int(prices[idx] if idx < len(prices) else 250000),

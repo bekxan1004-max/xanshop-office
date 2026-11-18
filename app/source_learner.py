@@ -242,6 +242,16 @@ async def scrape_public_telegram_channel(channel_handle: str, limit: int = 25) -
             else:
                 template_style = "clean_minimal"
 
+            # Raqobatchi postlaridagi haqiqiy narxlarni (narxlar nisbati uchun) ajratib olish
+            found_prices: list[int] = []
+            for p in posts:
+                txt_p = p.get("text") or ""
+                for m_pr in re.finditer(r"(\d{2,3})[.\s](\d{3})\s*(?:so'm|soʻm|so‘m|sum|ming)", txt_p, flags=re.I):
+                    val = int(m_pr.group(1)) * 1000
+                    if 80_000 <= val <= 3_500_000 and val != 13_000:
+                        found_prices.append(val)
+            avg_comp_price = int(sum(found_prices) / len(found_prices)) if found_prices else 650_000
+
             return {
                 "ok": True,
                 "handle": clean,
@@ -256,6 +266,8 @@ async def scrape_public_telegram_channel(channel_handle: str, limit: int = 25) -
                 "dominant_format": dominant_format,
                 "pricing_style": pricing_style,
                 "template_style": template_style,
+                "competitor_prices_uzs": sorted(set(found_prices))[:10],
+                "avg_competitor_price_uzs": avg_comp_price,
                 "peak_hours_uzt": peak_hours,
                 "sample_posts": recent[-6:],
                 "top_video_posts": video_posts_sorted[:4],
@@ -271,19 +283,27 @@ async def _download_and_analyze_channel_media(
     scraped: dict[str, Any],
     max_videos: int = 2,
 ) -> list[dict[str, Any]]:
-    """Kanal ichidagi haqiqiy videolarni (.mp4/.mov) yuklab olib, har birining kadr va audiosini birma-bir tahlil qiladi."""
+    """Kanal ichidagi haqiqiy videolarni (.mp4/.mov) yuklab olib, har birining kadr va audiosini birma-bir tahlil qiladi hamda viral zvukni saqlaydi."""
     import os
+    import subprocess
     import tempfile
+    from pathlib import Path
+    from app.media import find_ffmpeg_binary
 
     top_videos = scraped.get("top_video_posts") or []
     results: list[dict[str, Any]] = []
     if not top_videos:
         return results
 
+    ff = find_ffmpeg_binary()
+    audio_dir = Path("data/audio")
+    audio_dir.mkdir(parents=True, exist_ok=True)
+
     async with httpx.AsyncClient(timeout=22, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}) as client:
         for vp in top_videos[:max_videos]:
             vurl = vp.get("video_url") or ""
             pid = vp.get("post_id") or "channel_video"
+            safe_pid = re.sub(r"[^a-zA-Z0-9_]", "_", pid)
             if not vurl:
                 continue
             try:
@@ -291,7 +311,7 @@ async def _download_and_analyze_channel_media(
                 if resp.status_code != 200 or len(resp.content) < 10_000:
                     continue
                 with tempfile.TemporaryDirectory() as td:
-                    local_v = os.path.join(td, f"{pid.replace('/', '_')}.mp4")
+                    local_v = os.path.join(td, f"{safe_pid}.mp4")
                     with open(local_v, "wb") as f:
                         f.write(resp.content)
                     v_res = await analyze_video_file_blueprint(
@@ -301,6 +321,20 @@ async def _download_and_analyze_channel_media(
                         source_label=pid,
                         caption_hint=vp.get("text", ""),
                     )
+                    # Agar videoda musiqa/audio bo'lsa, haqiqiy viral zvuk sifatida data/audio/ ga saqlab boramiz
+                    saved_viral_audio = ""
+                    if ff and v_res.get("has_audio") and float(v_res.get("duration_sec") or 0) >= 5.0:
+                        viral_wav = audio_dir / f"viral_{safe_pid.lower()}.wav"
+                        if not viral_wav.exists():
+                            subprocess.run(
+                                [ff, "-y", "-i", local_v, "-vn", "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le", str(viral_wav)],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                timeout=18,
+                            )
+                        if viral_wav.exists() and viral_wav.stat().st_size > 20_000:
+                            saved_viral_audio = viral_wav.name
+
                     if v_res.get("ok"):
                         bp = v_res.get("blueprint") or {}
                         ed = bp.get("editing_blueprint") or {}
@@ -314,6 +348,7 @@ async def _download_and_analyze_channel_media(
                             "scene_by_scene": str(bp.get("scene_by_scene") or "0-4s Flat-Lay ('RASMDA:' / 'TRENDA YURGAN LOOKGA OBZOR') -> 4-5s Beat-drop o'tish -> 5-11s Jonli kiyilgan ko'rinish / yaqin plan mato va zamok isboti")[:280],
                             "audio_style": str(bp.get("audio_style_and_music") or ed.get("recommended_audio_vibe") or "Slowed vocal beat-drop yoki ASMR mato/zamok ovozi (TTS ovozsiz)")[:200],
                             "hook_first_1_5s": str(ed.get("hook_first_1_5s") or "To'q kulrang fonda barcha kiyimlar flat-lay jamlanmasi yoki makro furnitura/zamok kadri")[:200],
+                            "harvested_audio_file": saved_viral_audio,
                         })
             except Exception as exc:
                 logger.debug("Channel video download/analyze skip (%s): %s", pid, exc)

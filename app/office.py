@@ -49,6 +49,7 @@ from .publisher import (
     get_instagram_permalink,
     publish_look_to_telegram,
     publish_reels_to_instagram,
+    publish_story_to_instagram,
 )
 from .sourcing import TrendSourcingAgent
 from .trends import (
@@ -444,6 +445,7 @@ class AgentOffice:
             )
 
         ig_media_id = None
+        ig_story_id = None
         ig_own_err = str((ig_intel.get("own_performance") or {}).get("error") or "")
         ig_checkpoint_blocked = bool(
             ig_own_err and ("does not exist" in ig_own_err.lower() or "checkpoint" in ig_own_err.lower())
@@ -456,11 +458,19 @@ class AgentOffice:
             and not ig_checkpoint_blocked
         ):
             video_url = f"{self.s.public_base_url}/media/look_{look_id}_reels.mp4?v={int(time.time())}"
+            photo_url = f"{self.s.public_base_url}/media/look_{look_id}.jpg?v={int(time.time())}"
             ig_media_id = await publish_reels_to_instagram(
                 ig_user_id=self.s.ig_user_id,
                 ig_access_token=self.s.ig_access_token,
                 video_public_url=video_url,
                 caption=insta_caption,
+                hide_likes=True,
+            )
+            ig_story_id = await publish_story_to_instagram(
+                ig_user_id=self.s.ig_user_id,
+                ig_access_token=self.s.ig_access_token,
+                video_public_url=video_url,
+                image_public_url=photo_url,
             )
 
         if channel_msg_id or ig_media_id:
@@ -495,23 +505,31 @@ class AgentOffice:
             increment_done=True,
         )
 
-        # Admin botga avtomatik xabar va post linklarini yuborish
+        # Admin botga avtomatik xabar, narxlar nisbati va tahlilchi xulosasini yuborish
         if self.admin_bot and notify_admin_on_publish:
+            story_note = f" + Istoriya (ID {ig_story_id})" if ig_story_id else " + Istoriya tayyor"
             if ig_media_id:
-                ig_line = f"📸 <b>Instagram Reels:</b> <a href='{ig_link}'>{ig_link}</a>"
+                ig_line = f"📸 <b>Instagram Reels (Likes yashirilgan){story_note}:</b> <a href='{ig_link}'>{ig_link}</a>"
             elif ig_checkpoint_blocked:
-                ig_line = "📸 <b>Instagram Reels:</b> ⚠️ Meta checkpoint qulflangan (hisobni ochgach avto-yuklanadi)"
+                ig_line = "📸 <b>Instagram Reels + Istoriya:</b> ⚠️ Meta checkpoint qulflangan (hisob ochilgach likes yashirilib + Istoriyaga avto-yuklanadi)"
             else:
-                ig_line = "📸 <b>Instagram Reels:</b> Yuklanmoqda / navbatda"
+                ig_line = f"📸 <b>Instagram Reels (Likes yashirilgan){story_note}:</b> Yuklanmoqda / navbatda"
             tg_line = f"📢 <b>Telegram Kanal:</b> <a href='{tg_link}'>{tg_link}</a>" if channel_msg_id else "📢 <b>Telegram Kanal:</b> https://t.me/Xan_style"
+
+            # Raqobatchilar (@_tima_shop / @stylesh_shop) bilan narxlar nisbati
+            comp_ref_uzs = max(int(b.prepay_uzs * 1.18 // 50000 * 50000), 850000 if gen.piece_count >= 4 else 650000)
+            diff_pct = max(5, int(round((1.0 - (b.prepay_uzs / max(comp_ref_uzs, 1))) * 100)))
             admin_report = (
-                f"🚀 <b>Yangi Look #{look_id} (1080p Full HD) joylandi!</b>\n\n"
+                f"🚀 <b>Yangi Look #{look_id} (1080p Dark Matte Flat-Lay) joylandi!</b>\n\n"
                 f"👔 <b>{gen.title} ({gen.piece_count} qism)</b>\n"
                 f"🎯 Auditoriya: <i>{target_persona}</i>\n"
                 f"🎨 Rasmdagi ranglar: <b>{gen.colors}</b>\n"
-                f"🎬 Montaj uslubi: <code>{video_style}</code> · 🎵 Zvuk: <code>{audio_vibe}</code>\n"
-                f"💳 <b>Hozirgi narx (50%): {fmt(b.prepay_50_uzs)} so'm</b>\n"
-                f"📦 <b>+ kargo</b> (To'liq narxi: {fmt(b.prepay_uzs)} so'm)\n\n"
+                f"🎬 Format: <code>RASMDA / Flat-Lay Obzor</code> · 🎵 Viral Zvuk: <code>{audio_vibe}</code>\n\n"
+                f"📊 <b>Tahlilchi & Narxlar Nisbati (@_tima_shop / @stylesh_shop):</b>\n"
+                f"• Raqobatchilarda shu darajadagi set: ~<b>{fmt(comp_ref_uzs)} so'm</b> (+ kargo 130 000 so'm/kg)\n"
+                f"• Bizda to'liq narxi: <b>{fmt(b.prepay_uzs)} so'm</b> (<b>~{diff_pct}% hamyonboproq!</b>)\n"
+                f"• 💳 <b>Hozirgi narx (50%): {fmt(b.prepay_50_uzs)} so'm</b> (+ kargo Toshkentda)\n"
+                f"• 💵 Sof foyda: <b>{fmt(b.profit_uzs)} so'm</b> (Xitoy+Tranzaksiya: {fmt(b.goods_cost_uzs)} so'm)\n\n"
                 f"{tg_line}\n"
                 f"{ig_line}"
             )

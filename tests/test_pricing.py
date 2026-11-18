@@ -406,6 +406,17 @@ def test_agent_reach_deep_video_and_remotion():
     )
     assert "…………………………….." in post_tima and "400 000" in post_tima
 
+    from app.publisher import publish_reels_to_instagram, publish_story_to_instagram
+    from app.media import _extract_garment_cutout_rgba
+    from app.ai import GEMINI_FALLBACK_MODELS, GEMINI_EXTENDED_POOL, FREE_OPENROUTER_MODELS
+    import inspect
+
+    assert callable(publish_story_to_instagram)
+    assert callable(_extract_garment_cutout_rgba)
+    assert "hide_likes" in inspect.signature(publish_reels_to_instagram).parameters
+    assert len(GEMINI_FALLBACK_MODELS) + len(GEMINI_EXTENDED_POOL) >= 5
+    assert len(FREE_OPENROUTER_MODELS) >= 2
+
 
 if __name__ == "__main__":
     test_calculate_example()

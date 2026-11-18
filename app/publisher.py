@@ -324,8 +324,9 @@ async def publish_reels_to_instagram(
     ig_access_token: str,
     video_public_url: str,
     caption: str,
+    hide_likes: bool = True,
 ) -> str | None:
-    """Rasmiy Meta / Instagram Graph API orqali 1080p Reels videoni Instagram sahifaga joylaydi."""
+    """Rasmiy Meta / Instagram Graph API orqali 1080p Reels videoni (likes yashirilgan holda) Instagram sahifaga joylaydi."""
     if not (ig_user_id and ig_access_token and video_public_url.startswith("http")):
         return None
 
@@ -333,13 +334,16 @@ async def publish_reels_to_instagram(
     try:
         timeout = aiohttp.ClientTimeout(total=40)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            create_payload = {
+            create_payload: dict[str, str] = {
                 "media_type": "REELS",
                 "video_url": video_public_url,
                 "caption": caption,
                 "share_to_feed": "true",
                 "access_token": ig_access_token,
             }
+            if hide_likes:
+                create_payload["hide_like_and_view_counts"] = "true"
+                create_payload["like_and_view_counts_disabled"] = "true"
             async with session.post(f"{base}/media", data=create_payload) as r1:
                 res1 = await r1.json(content_type=None)
             creation_id = res1.get("id")
@@ -365,4 +369,55 @@ async def publish_reels_to_instagram(
             return str(res2.get("id") or "") or None
     except Exception as e:
         log.warning("Instagram Graph API xatosi: %s", e)
+        return None
+
+
+async def publish_story_to_instagram(
+    ig_user_id: str,
+    ig_access_token: str,
+    video_public_url: str = "",
+    image_public_url: str = "",
+) -> str | None:
+    """Yangi chiqqan Look videoni yoki flat-lay rasmni avtomatik ravishda Instagram Istoriyaga (STORIES) ham joylaydi."""
+    if not (ig_user_id and ig_access_token and (video_public_url.startswith("http") or image_public_url.startswith("http"))):
+        return None
+
+    base = f"https://graph.facebook.com/v21.0/{ig_user_id}"
+    try:
+        timeout = aiohttp.ClientTimeout(total=40)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            story_payload: dict[str, str] = {
+                "media_type": "STORIES",
+                "access_token": ig_access_token,
+            }
+            if video_public_url.startswith("http"):
+                story_payload["video_url"] = video_public_url
+            else:
+                story_payload["image_url"] = image_public_url
+
+            async with session.post(f"{base}/media", data=story_payload) as r1:
+                res1 = await r1.json(content_type=None)
+            creation_id = res1.get("id")
+            if not creation_id:
+                log.debug("Instagram Story container skip: %s", res1)
+                return None
+
+            for _ in range(12):
+                await asyncio.sleep(3)
+                async with session.get(
+                    f"https://graph.facebook.com/v21.0/{creation_id}",
+                    params={"fields": "status_code", "access_token": ig_access_token},
+                ) as st_resp:
+                    st_data = await st_resp.json(content_type=None)
+                if st_data.get("status_code") == "FINISHED":
+                    break
+
+            async with session.post(
+                f"{base}/media_publish",
+                data={"creation_id": creation_id, "access_token": ig_access_token},
+            ) as r2:
+                res2 = await r2.json(content_type=None)
+            return str(res2.get("id") or "") or None
+    except Exception as e:
+        log.debug("Instagram Story API skip: %s", e)
         return None

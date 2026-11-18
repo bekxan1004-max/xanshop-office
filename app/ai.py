@@ -20,7 +20,21 @@ from .texts import STATUS_LABELS, look_50_values, look_items
 
 log = logging.getLogger(__name__)
 ADMIN_TAG = "[ADMIN]"
-GEMINI_FALLBACK_MODELS = ("gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
+GEMINI_FALLBACK_MODELS = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+)
+GEMINI_EXTENDED_POOL = (
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash",
+)
+FREE_OPENROUTER_MODELS = (
+    "deepseek/deepseek-chat-v3-0324:free",
+    "google/gemini-2.0-flash-exp:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+)
 _MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
 
 
@@ -276,6 +290,9 @@ class SalesAI:
         candidates = self._gemini_model_candidates()
         is_real_client = isinstance(self.client, genai.Client)
         if is_real_client:
+            for ext_m in GEMINI_EXTENDED_POOL:
+                if ext_m not in candidates:
+                    candidates.append(ext_m)
             now = time.monotonic()
             active = [c for c in candidates if _MODEL_COOLDOWN_UNTIL.get(c, 0.0) <= now]
             if active:
@@ -337,21 +354,24 @@ class SalesAI:
                 return omni_resp.strip(), None
 
         if self.openrouter_api_key:
-            or_resp = await self._call_openai_compat(
-                self.openrouter_base_url,
-                self.openrouter_api_key,
-                self.openrouter_model,
-                system,
-                text,
-                media_bytes,
-                mime_type,
-                timeout_sec=timeout_sec,
-            )
-            if or_resp and or_resp.strip():
-                self.last_provider_used = f"OpenRouter ({self.openrouter_model})"
-                return or_resp.strip(), None
+            for or_m in (self.openrouter_model, *FREE_OPENROUTER_MODELS):
+                if not or_m:
+                    continue
+                or_resp = await self._call_openai_compat(
+                    self.openrouter_base_url,
+                    self.openrouter_api_key,
+                    or_m,
+                    system,
+                    text,
+                    media_bytes,
+                    mime_type,
+                    timeout_sec=min(16.0, timeout_sec),
+                )
+                if or_resp and or_resp.strip():
+                    self.last_provider_used = f"OpenRouter ({or_m})"
+                    return or_resp.strip(), None
 
-        return await self._call_gemini_models(
+        gem_out, gem_id = await self._call_gemini_models(
             system,
             text,
             previous_id=previous_id,
@@ -359,6 +379,26 @@ class SalesAI:
             mime_type=mime_type,
             timeout_sec=timeout_sec,
         )
+        if gem_out:
+            return gem_out, gem_id
+
+        # Tier-4: Kalitsiz (Bepul Cheksiz) OpenAI-compatible shlyuz (barcha modellar band bo'lganda)
+        import os
+        if not os.getenv("PYTEST_CURRENT_TEST") and not media_bytes:
+            free_resp = await self._call_openai_compat(
+                "https://text.pollinations.ai/openai",
+                "",
+                "openai",
+                system,
+                text,
+                None,
+                "",
+                timeout_sec=min(18.0, timeout_sec),
+            )
+            if free_resp and free_resp.strip():
+                self.last_provider_used = "FreeUnlimited (Pollinations-OpenAI)"
+                return free_resp.strip(), None
+        return None, None
 
     async def ask_json(
         self,
