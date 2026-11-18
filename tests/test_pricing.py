@@ -376,6 +376,35 @@ def test_agent_reach_deep_video_and_remotion():
     look_tsx = (studio / "src" / "LookReel.tsx").read_text(encoding="utf-8")
     assert "minHeight: 0" in look_tsx
     assert "minmax(0, 1fr)" in look_tsx
+    assert Path("GEMINI.md").is_file()
+
+    from app.source_learner import resolve_linked_telegram_channel
+    from app.publisher import format_channel_post
+    assert callable(resolve_linked_telegram_channel)
+
+    dummy_look = {
+        "id": 99,
+        "title": "Diplomat Old Money Kapsulasi",
+        "items_json": json.dumps([{"name": "Kashemir Palto", "color_uz": "Qora"}]),
+        "prepay_uzs": 800000,
+        "prepay_50_uzs": 400000,
+        "remaining_50_uzs": 400000,
+        "sizes": "M, L, XL, 2XL",
+        "colors": "Qora, Bej",
+    }
+    post_stylesh = format_channel_post(
+        dummy_look,
+        "XanShopBot",
+        playbooks={"tg_channel_strategy": {"template_style": "stylesh_dash"}},
+    )
+    assert "-|" in post_stylesh and "400 000" in post_stylesh
+
+    post_tima = format_channel_post(
+        dummy_look,
+        "XanShopBot",
+        playbooks={"tg_channel_strategy": {"template_style": "tima_minimal"}},
+    )
+    assert "…………………………….." in post_tima and "400 000" in post_tima
 
 
 if __name__ == "__main__":

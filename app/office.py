@@ -287,8 +287,16 @@ class AgentOffice:
         photo_path = os.path.join(self.media_dir, f"look_{look_id}.jpg")
         video_path = os.path.join(self.media_dir, f"look_{look_id}_reels.gif")
         mp4_path = os.path.join(self.media_dir, f"look_{look_id}_reels.mp4")
+        item_photo_paths: list[str] = []
 
         def _render_media() -> None:
+            for idx, im_obj in enumerate(imgs_to_use[:4]):
+                try:
+                    ip = os.path.join(self.media_dir, f"look_{look_id}_item_{idx + 1}.jpg")
+                    im_obj.convert("RGB").save(ip, format="JPEG", quality=92)
+                    item_photo_paths.append(ip)
+                except Exception:
+                    pass
             collage = create_look_collage(
                 images=imgs_to_use,
                 look_title=gen.title,
@@ -409,11 +417,13 @@ class AgentOffice:
                     await self.db.update_look(prev["id"], active=0, channel_msg_id=None)
 
         look_row = await self.db.get_look(look_id)
+        learned_playbooks = await self.db.get_all_playbooks()
         insta_caption = format_instagram_caption(
             look_row,
             self.sales_username,
             self.s.shop_name,
             manager_username=self.s.manager_username,
+            playbooks=learned_playbooks,
         )
         insta_path = os.path.join(self.media_dir, f"look_{look_id}_insta.txt")
         with open(insta_path, "w", encoding="utf-8") as f:
@@ -429,6 +439,8 @@ class AgentOffice:
                 shop_name=self.s.shop_name,
                 video_path=final_video_path,
                 manager_username=self.s.manager_username,
+                playbooks=learned_playbooks,
+                item_photo_paths=[photo_path, *item_photo_paths],
             )
 
         ig_media_id = None

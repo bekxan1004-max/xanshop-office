@@ -8,11 +8,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from typing import Any
 
 import aiohttp
 from aiogram import Bot
-from aiogram.types import BufferedInputFile, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    BufferedInputFile,
+    FSInputFile,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+)
 
 from .pricing import fmt
 from .texts import look_50_values, look_items
@@ -26,8 +33,9 @@ def format_channel_post(
     sales_bot_username: str,
     shop_name: str = "XAN SHOP",
     manager_username: str = "",
+    playbooks: dict[str, dict[str, Any]] | None = None,
 ) -> str:
-    """Telegram kanal uchun ixcham, sodda va bir qarashda tushunarli sotuv posti."""
+    """Telegram kanal uchun o'rganilgan manba (@stylesh_shop / @_tima_shop) shabloniga avtomatik moslashuvchi sotuv posti."""
     items = look_items(look)
     n_items = len(items)
     items_text = "\n".join(
@@ -38,9 +46,45 @@ def format_channel_post(
     persona = select_persona_archetype(look.get("title", ""), look.get("audio_vibe", ""), idx=int(look.get("id") or 0))
     colors_line = look.get("colors") or "Och bej, To'q kulrang (grafit), To'q jigarrang"
 
-    mgr = manager_username.lstrip("@") if manager_username else ""
-    mgr_line = f"👤 Stilist-menejer: @{mgr}\n" if mgr else ""
+    mgr = (manager_username or "Bekshop_style").lstrip("@")
+    tg_pb = (playbooks or {}).get("tg_channel_strategy") or {}
+    tpl_style = str(tg_pb.get("template_style") or "").lower()
 
+    if tpl_style == "tima_minimal":
+        lines = [
+            f"- <b>Hozirgi narx (50%): {fmt(p50)} so'm</b> 🇺🇿",
+            f"- To'liq narxi: {fmt(look.get('prepay_uzs', 0))} so'm",
+            f"- <b>{look.get('title', 'LOOK')} ({n_items} qism)</b> ❄️",
+            f"🎯 <i>{persona['target_persona']} uchun</i>",
+            f"{items_text}",
+            "……………………………..",
+            f"- Razmer: <b>{look.get('sizes') or 'M, L, XL, 2XL'}</b> | Rang: {colors_line}",
+            f"- 50% oldindan to'lov (+ kargo va qolgan {fmt(rem50)} so'm Toshkentda ko'rganingizda)",
+            "- Dastavka UZB bo'ylab: <b>5–10 kun (Avia)</b>",
+            "………………………………",
+            f"- Zakaz uchun: @{mgr} 👍",
+        ]
+        return "\n".join(lines)
+
+    if tpl_style == "stylesh_dash":
+        lines = [
+            f"👔 <b>{look.get('title', 'Yangi Obraz')} ({n_items} qism)</b> 🇺🇿",
+            f"🎯 <i>{persona['target_persona']} uchun</i>",
+            f"{items_text}",
+            "———————————————",
+            f"-| <b>Hozirgi narx (50%): {fmt(p50)} so'm</b>",
+            f"-| To'liq narxi: {fmt(look.get('prepay_uzs', 0))} so'm",
+            f"-| Razmer: <b>{look.get('sizes') or 'M - 2XL'}</b> ({colors_line})",
+            "———————————————",
+            "-| Oldindan to'lov: 50%",
+            "-| Yetkazib berish: <b>5–10 kun (Avia)</b>",
+            f"-| + kargo (qolgan {fmt(rem50)} so'm + kargo Toshkentga kelganda)",
+            "-| Dastafka UZB bo'ylab\n",
+            f"-| Buyurtma: @{mgr}",
+        ]
+        return "\n".join(lines)
+
+    mgr_line = f"👤 Stilist-menejer: @{mgr}\n" if manager_username else ""
     lines = [
         f"👔 <b>{look.get('title', 'Yangi Obraz')} ({n_items} qism)</b>",
         f"🎯 <i>{persona['target_persona']} uchun</i>\n",
@@ -61,8 +105,9 @@ def format_instagram_caption(
     sales_bot_username: str,
     shop_name: str = "XAN SHOP",
     manager_username: str = "",
+    playbooks: dict[str, dict[str, Any]] | None = None,
 ) -> str:
-    """Instagram Reels uchun ixcham, sodda va auditoriyaga mos opisaniya."""
+    """Instagram Reels uchun o'rganilgan manba uslubiga mos opisaniya."""
     items = look_items(look)
     n_items = len(items)
     items_text = "\n".join(
@@ -73,18 +118,20 @@ def format_instagram_caption(
     persona = select_persona_archetype(look.get("title", ""), look.get("audio_vibe", ""), idx=int(look.get("id") or 0))
     colors_line = look.get("colors") or "Och bej, To'q kulrang (grafit), To'q jigarrang"
     mgr_clean = (manager_username or "Bekshop_style").lstrip("@")
+    ig_pb = (playbooks or {}).get("ig_reels_strategy") or {}
+    custom_cta = re.sub(r"@[A-Za-z0-9_]+", f"@{mgr_clean}", str(ig_pb.get("caption_cta") or "").strip())
+    cta_line = custom_cta if custom_cta else "💬 Buyurtma, rang va razmer uchun izohda «+» yoki savolingizni yozing!"
 
     return (
         f"{persona['hook_headline']} 🔥\n"
         f"{look.get('title', 'Tayyor Obraz')} ({n_items} qism)\n\n"
         f"To'plamda:\n{items_text}\n\n"
-        f"🎨 Rasmdagi ranglar: {colors_line} (boshqa ranglari ham bor)\n"
-        f"📏 Razmer: M, L, XL, 2XL (bo'y/vazn yozing — tanlab beramiz)\n\n"
-        f"💳 Hozirgi narx (50%): {fmt(p50)} so'm\n"
-        f"📦 + kargo (qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelib, ko'rganingizda!)\n"
-        f"💰 To'liq narxi: {fmt(look.get('prepay_uzs', 0))} so'm\n"
-        f"✈️ Avia: 5–10 kun\n\n"
-        f"💬 Buyurtma, rang va razmer uchun izohda «+» yoki savolingizni yozing!\n"
+        f"-| Hozirgi narx (50%): {fmt(p50)} so'm\n"
+        f"-| + kargo (qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelib, ko'rganingizda!)\n"
+        f"-| To'liq narxi: {fmt(look.get('prepay_uzs', 0))} so'm\n"
+        f"-| Razmer: M, L, XL, 2XL ({colors_line})\n"
+        f"-| Yetkazib berish: 5–10 kun (Avia)\n\n"
+        f"{cta_line}\n"
         f"📲 Telegram: @{mgr_clean} (Kod: #{look['id']})\n\n"
         f"#xanshop #lookuz #mensfashionuz #tashkentstyle #kiyimuz"
     )
@@ -173,11 +220,38 @@ async def publish_look_to_telegram(
     photo_bytes: bytes | None = None,
     video_path: str | None = None,
     manager_username: str = "",
+    playbooks: dict[str, dict[str, Any]] | None = None,
+    item_photo_paths: list[str] | None = None,
 ) -> int | None:
-    caption = format_channel_post(look, sales_bot_username, shop_name, manager_username=manager_username)
+    caption = format_channel_post(
+        look,
+        sales_bot_username,
+        shop_name,
+        manager_username=manager_username,
+        playbooks=playbooks,
+    )
     kb = channel_order_kb(sales_bot_username, look["id"], manager_username=manager_username)
 
     try:
+        # Agar o'rganilgan kanal (@stylesh_shop / @_tima_shop) fotoalbom formatini qo'llasa va alohida buyum rasmlari bo'lsa,
+        # asosiy kolaj + har bir buyum rasmini karusel albom sifatida ham chiqaradi
+        tg_pb = (playbooks or {}).get("tg_channel_strategy") or {}
+        fmt_mode = str(tg_pb.get("format") or "").lower()
+        valid_album_paths = [p for p in (item_photo_paths or []) if p and os.path.exists(p)]
+        if "album" in fmt_mode and len(valid_album_paths) >= 2 and hasattr(bot, "send_media_group"):
+            try:
+                media_group = [
+                    InputMediaPhoto(
+                        media=FSInputFile(p),
+                        caption=f"📸 <b>{look.get('title', 'Tayyor Look')}</b> — barcha qismlar yaqin planda" if idx == 0 else None,
+                        parse_mode="HTML" if idx == 0 else None,
+                    )
+                    for idx, p in enumerate(valid_album_paths[:5])
+                ]
+                await bot.send_media_group(chat_id=channel_id, media=media_group)
+            except Exception as alb_exc:
+                log.debug("Telegram album yuborish skip: %s", alb_exc)
+
         mp4_candidate = ""
         if video_path:
             if video_path.endswith(".mp4") and os.path.exists(video_path):

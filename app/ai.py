@@ -156,11 +156,11 @@ async def check_omniroute_status(
 class SalesAI:
     def __init__(self, s: Settings):
         self.model = s.gemini_model
-        # Google SDK min deadline >= 10s; attempts=1 keeps 429/503 retries from hanging handlers
+        # Google SDK min deadline >= 10s; 35s allows multimodal audio+grid analysis without premature 12s cutoff
         self.client = (
             genai.Client(
                 api_key=s.gemini_api_key,
-                http_options={"timeout": 12000, "retry_options": {"attempts": 1}},
+                http_options={"timeout": 35000, "retry_options": {"attempts": 1}},
             )
             if s.gemini_api_key
             else None

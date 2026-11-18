@@ -401,6 +401,53 @@ def build_admin_router(s: Settings) -> Router:
             f"📌 <b>Telegram Kanal Zakrep (Pinned Post):</b>\n{kit['telegram_pinned_post']}"
         )
 
+    def _format_source_analysis_report(res: dict) -> str:
+        msg_lines = [
+            f"✅ <b>Manba va videolar chuqur tahlil qilindi ({escape(res['platform'].upper())})</b>",
+            f"🔗 <code>{escape(res['url'])}</code> · Holat: <b>{escape(res['status'])}</b>",
+        ]
+        if res.get("style_summary"):
+            msg_lines.append(f"📊 <b>Qamrov:</b> <i>{escape(res['style_summary'])}</i>")
+        if res.get("posting_pattern"):
+            msg_lines.append(f"⏱ <b>Nashr ritmi:</b> {escape(res['posting_pattern'])}")
+        if res.get("pricing_pattern"):
+            msg_lines.append(f"💰 <b>Narx & Post qolipi:</b> {escape(res['pricing_pattern'])}")
+
+        vids = res.get("analyzed_videos") or []
+        if vids:
+            msg_lines.append(f"\n🎬 <b>Kanal ichidan yuklab tahlil qilingan videolar ({len(vids)} ta):</b>")
+            for idx, v in enumerate(vids[:3], 1):
+                msg_lines.append(
+                    f"  {idx}) <code>{escape(str(v.get('post_id', '')))}</code> "
+                    f"(👁 {v.get('views', 0):,} · {v.get('duration_sec', 0)}s · {escape(str(v.get('resolution', '')))}):\n"
+                    f"     • <b>Montaj:</b> <i>{escape(str(v.get('scene_by_scene', ''))[:190])}</i>\n"
+                    f"     • <b>Zvuk:</b> <i>{escape(str(v.get('audio_style', ''))[:140])}</i>"
+                )
+
+        lp = res.get("learned_patch") or {}
+        tg_st = lp.get("tg_channel_strategy") if isinstance(lp.get("tg_channel_strategy"), dict) else {}
+        ig_st = lp.get("ig_reels_strategy") if isinstance(lp.get("ig_reels_strategy"), dict) else {}
+        ve_bp = lp.get("video_editing_blueprint") if isinstance(lp.get("video_editing_blueprint"), dict) else {}
+        if tg_st or ig_st or ve_bp:
+            msg_lines.append("\n🧠 <b>Agentlar o'zlashtirib amalda qo'llaydigan qoidalar:</b>")
+            if tg_st:
+                msg_lines.append(
+                    f"• <b>SMM Boshlig'i (TG):</b> Shablon=<code>{escape(str(tg_st.get('template_style', 'minimal')))}</code> · "
+                    f"Format=<code>{escape(str(tg_st.get('format', 'photo_album')))}</code> · "
+                    f"<i>{escape(str(tg_st.get('post_tone', ''))[:130])}</i>"
+                )
+            if ig_st:
+                msg_lines.append(
+                    f"• <b>Instagram Reels:</b> Hook=<i>{escape(str(ig_st.get('hook_style', ''))[:140])}</i> · "
+                    f"CTA=<i>{escape(str(ig_st.get('caption_cta', ''))[:110])}</i>"
+                )
+            if ve_bp:
+                msg_lines.append(
+                    f"• <b>Video Montajchi:</b> Stil=<code>{escape(str(ve_bp.get('video_style', 'tima_flatlay_obzor')))}</code> · "
+                    f"<i>{escape(str(ve_bp.get('pacing', ''))[:140])}</i>"
+                )
+        return "\n".join(msg_lines)[:3900]
+
     @admin.message(Command("manba"))
     @admin.message(Command("addsource"))
     async def add_source_cmd(message: Message, command: CommandObject, db: Database):
@@ -415,26 +462,16 @@ def build_admin_router(s: Settings) -> Router:
         parts = args_str.split(maxsplit=1)
         url_arg = parts[0]
         note_arg = parts[1] if len(parts) > 1 else ""
-        wait_m = await message.answer("🕵️‍♂️ <b>Halol O'g'ri manbani o'rganmoqda...</b>")
+        wait_m = await message.answer("🕵️‍♂️ <b>Manba postlari va ichidagi videolar birma-bir yuklab tahlil qilinmoqda...</b>")
         from .source_learner import ingest_and_learn_source
         res = await ingest_and_learn_source(db, s, url_arg, user_instruction=note_arg)
         if not res.get("ok"):
             await wait_m.edit_text(f"❌ Xato: {escape(str(res.get('error', 'noma`lum')))}")
             return
-        msg_lines = [
-            f"✅ <b>Manba tizimga qo'shildi ({escape(res['platform'].upper())})</b>",
-            f"🔗 <code>{escape(res['url'])}</code>",
-            f"📌 Holat: <b>{escape(res['status'])}</b>",
-        ]
-        if res.get("style_summary"):
-            msg_lines.append(f"🎨 Xulosa: <i>{escape(res['style_summary'])}</i>")
-        if res.get("posting_pattern"):
-            msg_lines.append(f"⏱ Ritm: {escape(res['posting_pattern'])}")
-        if res.get("pricing_pattern"):
-            msg_lines.append(f"💰 Narx uslubi: {escape(res['pricing_pattern'])}")
-        if res.get("learned_patch"):
-            msg_lines.append("🧠 <b>Playbook yangilandi!</b> Keyingi look va videolar endi shu uslubdan foydalanadi.")
-        await wait_m.edit_text("\n".join(msg_lines))
+        await wait_m.edit_text(
+            _format_source_analysis_report(res),
+            reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
+        )
 
     @admin.message(Command("manbalar"))
     @admin.message(Command("sources"))
@@ -566,16 +603,14 @@ def build_admin_router(s: Settings) -> Router:
         m_url = re.search(r"(https?://\S+)", raw_txt)
         url_arg = m_url.group(1) if m_url else raw_txt.split(maxsplit=1)[0]
         note_arg = raw_txt.replace(url_arg, "").strip()
-        wait_m = await message.answer("🕵️‍♂️ <b>Havoladan o‘rganilmoqda...</b>")
+        wait_m = await message.answer("🕵️‍♂️ <b>Kanal postlari va videolari birma-bir yuklab tahlil qilinmoqda...</b>")
         from .source_learner import ingest_and_learn_source
         res = await ingest_and_learn_source(db, s, url_arg, user_instruction=note_arg)
         if not res.get("ok"):
             await wait_m.edit_text(f"❌ Xato: {escape(str(res.get('error', '')))}")
             return
         await wait_m.edit_text(
-            f"✅ <b>Havola tizimga o‘rgatildi ({escape(res['platform'].upper())})</b>\n"
-            f"🔗 <code>{escape(res['url'])}</code>\n"
-            f"🎨 <i>{escape((res.get('style_summary') or '')[:220])}</i>",
+            _format_source_analysis_report(res),
             reply_markup=ikb([[("🧠 Manbalar", "adm:sources"), ("◀️ Bosh menyu", "adm:home")]]),
         )
 
