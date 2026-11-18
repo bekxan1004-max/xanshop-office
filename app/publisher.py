@@ -195,7 +195,7 @@ def build_telegram_post_link(channel_id: str | int, msg_id: int | None) -> str:
 async def get_instagram_permalink(ig_media_id: str, ig_access_token: str) -> str:
     """Yuklangan Instagram Reels videoning aniq havolasini (permalink) oladi."""
     if not (ig_media_id and ig_access_token):
-        return "https://www.instagram.com/xan_styles/reels/"
+        return "https://www.instagram.com/xans_styles/reels/"
     try:
         timeout = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -208,7 +208,7 @@ async def get_instagram_permalink(ig_media_id: str, ig_access_token: str) -> str
                     return str(data["permalink"])
     except Exception:
         pass
-    return "https://www.instagram.com/xan_styles/reels/"
+    return "https://www.instagram.com/xans_styles/reels/"
 
 
 async def publish_look_to_telegram(

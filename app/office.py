@@ -481,7 +481,7 @@ class AgentOffice:
             )
 
         tg_link = build_telegram_post_link(self.s.channel_id, channel_msg_id) if channel_msg_id else "https://t.me/Xan_style"
-        ig_link = await get_instagram_permalink(ig_media_id or "", self.s.ig_access_token) if ig_media_id else "https://www.instagram.com/xan_styles/reels/"
+        ig_link = await get_instagram_permalink(ig_media_id or "", self.s.ig_access_token) if ig_media_id else "https://www.instagram.com/xans_styles/reels/"
         await self.db.set_setting("last_auto_post_ts", int(time.time()))
 
         pub_parts = [f"Katalog #{look_id}"]
