@@ -82,13 +82,38 @@ def build_system_prompt(
 ) -> str:
     catalog = []
     for lk in looks:
-        items = ", ".join(i["name"] for i in look_items(lk))
+        lk_items = look_items(lk)
+        item_details: list[str] = []
+        for it in lk_items:
+            parts = [str(it.get("name") or "Buyum")]
+            st_cols = it.get("store_colors") or []
+            if st_cols:
+                parts.append(f"do'kon ranglari: {', '.join(st_cols)}")
+            st_sz = it.get("store_sizes") or []
+            if st_sz:
+                parts.append(f"do'kon razmerlari: {', '.join(st_sz)}")
+            if it.get("fit_note"):
+                parts.append(f"bichim izohi: {it['fit_note']}")
+            sch = it.get("size_chart") or []
+            if isinstance(sch, list) and sch:
+                rows_txt = "; ".join(
+                    f"{r.get('size')}: {r.get('height_cm','')}"
+                    + (f"sm/{r.get('weight_kg')}kg" if r.get("weight_kg") else "")
+                    + (f"/oyoq {r.get('foot_cm')}sm" if r.get("foot_cm") else "")
+                    for r in sch[:6]
+                    if isinstance(r, dict) and r.get("size")
+                )
+                if rows_txt:
+                    parts.append(f"do'kon jadvali [{rows_txt}]")
+            item_details.append(" (" + " | ".join(parts[1:]) + ")" if len(parts) > 1 else "")
+            item_details[-1] = parts[0] + item_details[-1]
         p50, rem50 = look_50_values(lk)
         catalog.append(
-            f"- Look #{lk['id']} \"{lk['title']}\": {items}. Jami narx (100%): {fmt(lk['prepay_uzs'])} so'm. "
+            f"- Look #{lk['id']} \"{lk['title']}\": {'; '.join(item_details)}. Jami narx (100%): {fmt(lk['prepay_uzs'])} so'm. "
             f"50% oldindan to'lov: {fmt(p50)} so'm (qolgan 50%: {fmt(rem50)} so'm). "
             f"Kargo taxminan {fmt(lk['cargo_est_uzs'])} so'm ({lk['weight_kg']} kg). "
-            f"O'lchamlar: {lk['sizes'] or 'M, L, XL, 2XL'}. Ranglar: {lk['colors'] or 'rasmdagidek'}."
+            f"Asosiy stilist ranglari (rasmdagidek): {lk['colors'] or 'rasmdagidek'}. "
+            f"Kiyim razmerlari: {lk['sizes'] or 'M, L, XL, 2XL'}."
         )
     my_orders = [
         f"- #{o['id']}: {STATUS_LABELS.get(o['status'], o['status'])}"
@@ -120,11 +145,14 @@ DO'KON, HALOL SIFAT VA TO'LOV TARTIBI (50% / 100% MODELI):
   1) 50% OLDINDAN TO'LOV (0% Xavf): Mijoz hozir faqat 50% to'laydi. Qolgan 50% tovar narxini + kargo pulini buyurtma Toshkentga yetib kelib, sifatini ko'rganda (real vazn bo'yicha {fmt(s.cargo_client_uzs_per_kg)} so'm/kg) to'laydi!
   2) 100% TO'LIQ TO'LOV: Mijoz hozir 100% tovar narxini to'laydi, yuk Toshkentga kelganda faqat kargo pulini to'laydi.
 - Yetkazish: {s.delivery_text} (Xitoy ichki 1–4 kun + Avia 3–7 kun = jami 5–10 kun). Har bir bosqich haqida avtomatik xabar beriladi.
-- O'lcham tanlash (Xitoy/Osiyo jadvali Yevropadan 1 razmer kichik yuradi — mijoz aldangan his qilmasligi uchun doim bo'yi va vaznini so'rab aniq tanla):
-  • 160–170 sm / 50–62 kg → M
-  • 170–176 sm / 63–72 kg → L
-  • 175–182 sm / 73–82 kg → XL
-  • 180–190 sm / 83–96 kg → 2XL (XXL)
+- O'LCHAM VA BICHIM QOIDASI (HAQIQIY DO'KON JADVALI VA INSONIY MASLAHAT):
+  • Birinchi navbatda yuqoridagi KATALOGda har bir kiyim va oyoq kiyim yonida berilgan aynan o'sha do'konning razmer jadvali (do'kon jadvali / do'kon razmerlari) va bichim izohiga tayan!
+  • Agar look tarkibida kiyim ham, oyoq kiyim ham bo'lsa — kiyim uchun bo'y-vaznini, oyoq kiyim uchun esa oyoq razmerini (yoki oyoq uzunligi sm ni) ALOHIDA so'ra va har biriga aniq tavsiya ber!
+  • QISHKI KIYIMLAR VA DO'KON ESLATMASI: Agar qishki qalin kurtka/palto/etik (ichi mo'ynali) bo'lsa yoki do'kon izohida "biroz tor / 1 razmer kattaroq oling" deyilgan bo'lsa, mijozga robotdek emas, haqiqiy g'amxo'r inson kabi tushuntir (masalan: "Bu qishki qalin model, tagidan sviter kiyishingizni hisobga olib 1 razmer kattaroq olsangiz yelkada siqmay, chiroyli turadi").
+  • Agar alohida do'kon jadvali berilmagan bo'lsa, Osiyo/Xitoy umumiy jadvalidan foydalan: 160–170 sm / 50–62 kg → M; 170–176 sm / 63–72 kg → L; 175–182 sm / 73–82 kg → XL; 180–190 sm / 83–96 kg → 2XL.
+- RANG TANLOVI VA 10 YILLIK COLOR-GRADING STILIST TAMOYILI:
+  • Har bir lookning rasmdagi rang uyg'unligi bizning 10 yillik tajribali color-grading stilistimiz tomonidan maxsus terilgan.
+  • Mijozga avval aynan stilistimiz tanlagan rasmdagi ranglar uyg'unligini birinchi raqamli tavsiya sifatida ayt; do'kondagi boshqa ranglarni esa faqat ixtiyoriy taklif sifatida bildir (masalan: "Stilistimiz rang uyg'unligi uchun aynan rasmdagi variantni tavsiya qilgan, lekin xohlasangiz do'konda shu buyumning boshqa ranglari ham bor").
 
 KATALOG (faqat shu looklar va narxlar mavjud):
 {chr(10).join(catalog) or "- Hozircha katalog bo'sh"}

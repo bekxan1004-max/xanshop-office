@@ -94,12 +94,26 @@ def order_summary(order: dict, look: dict | None) -> str:
 
 def admin_order_card(order: dict, look: dict | None) -> str:
     user = f"@{order['username']}" if order.get("username") else f"id {order['user_id']}"
-    return "\n".join([
+    lines = [
         order_summary(order, look),
         f"👤 {escape(order.get('full_name') or '')} ({escape(user)}) | 📞 {escape(order.get('phone') or '')}",
         f"🏠 {escape(order.get('address') or '')}",
         f"💵 Foyda: <b>{fmt(order['profit_uzs'])} so'm</b>",
-    ])
+    ]
+    if look:
+        items = look_items(look)
+        pdd_lines: list[str] = []
+        for idx, it in enumerate(items, 1):
+            gid = str(it.get("pdd_goods_id") or "").strip()
+            url = str(it.get("url") or (f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}" if gid else "")).strip()
+            cny = it.get("price_cny", it.get("cny", 0))
+            if url:
+                pdd_lines.append(f"{idx}. <a href='{escape(url)}'>{escape(it.get('name', 'Tovar'))}</a> (¥{cny})")
+            else:
+                pdd_lines.append(f"{idx}. {escape(it.get('name', 'Tovar'))} (¥{cny})")
+        if pdd_lines:
+            lines.append("\n🇨🇳 <b>Pinduoduo to'g'ridan-to'g'ri havolalar:</b>\n" + "\n".join(pdd_lines))
+    return "\n".join(lines)
 
 
 def agent_card(order: dict, look: dict) -> str:

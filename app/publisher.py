@@ -370,6 +370,36 @@ def _publish_via_instagrapi_sync(
     return None
 
 
+async def resolve_active_ig_user_id(ig_user_id: str, ig_access_token: str) -> str:
+    """Facebook Page'ga ulangan faol Instagram Business ID ni avtomatik aniqlaydi."""
+    if not ig_access_token:
+        return ig_user_id
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            if ig_user_id:
+                async with session.get(
+                    f"https://graph.facebook.com/v22.0/{ig_user_id}",
+                    params={"fields": "id,username", "access_token": ig_access_token},
+                ) as r0:
+                    d0 = await r0.json(content_type=None)
+                    if r0.status == 200 and d0.get("id"):
+                        return str(d0["id"])
+            async with session.get(
+                "https://graph.facebook.com/v22.0/me/accounts",
+                params={"fields": "id,name,instagram_business_account{id,username}", "access_token": ig_access_token},
+            ) as r1:
+                if r1.status == 200:
+                    d1 = await r1.json(content_type=None)
+                    for pg in (d1.get("data") or []):
+                        ig_biz = (pg.get("instagram_business_account") or {}) if isinstance(pg, dict) else {}
+                        if ig_biz.get("id"):
+                            return str(ig_biz["id"])
+    except Exception:
+        pass
+    return ig_user_id
+
+
 async def publish_reels_to_instagram(
     ig_user_id: str,
     ig_access_token: str,
@@ -378,12 +408,15 @@ async def publish_reels_to_instagram(
     hide_likes: bool = True,
     local_video_path: str = "",
 ) -> str | None:
-    """Rasmiy Meta Graph API yoki to'g'ridan-to'g'ri @xans_styles sessiyasi (Facebook siz) orqali 1080p Reels joylaydi."""
-    if ig_user_id and ig_access_token and video_public_url.startswith("http"):
-        base = f"https://graph.facebook.com/v21.0/{ig_user_id}"
+    """Rasmiy Meta Graph API yoki to'g'ridan-to'g'ri @xans_styles sessiyasi orqali 1080p Reels joylaydi."""
+    eff_ig_id = await resolve_active_ig_user_id(ig_user_id, ig_access_token) if ig_access_token else ig_user_id
+    if eff_ig_id and ig_access_token and video_public_url.startswith("http"):
+        base = f"https://graph.facebook.com/v22.0/{eff_ig_id}"
         try:
-            timeout = aiohttp.ClientTimeout(total=40)
+            timeout = aiohttp.ClientTimeout(total=45)
             async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Meta rasmiy Graph API faqat hujjatlashtirilgan parametrlarni qabul qiladi
+                # (like sonini yashirish Instagram profil sozlamasidan 1 marta yoqiladi, aks holda API Error 100 beradi)
                 create_payload: dict[str, str] = {
                     "media_type": "REELS",
                     "video_url": video_public_url,
@@ -391,21 +424,18 @@ async def publish_reels_to_instagram(
                     "share_to_feed": "true",
                     "access_token": ig_access_token,
                 }
-                if hide_likes:
-                    create_payload["hide_like_and_view_counts"] = "true"
-                    create_payload["like_and_view_counts_disabled"] = "true"
                 async with session.post(f"{base}/media", data=create_payload) as r1:
                     res1 = await r1.json(content_type=None)
                 creation_id = res1.get("id")
                 if creation_id:
-                    for _ in range(14):
+                    for _ in range(16):
                         await asyncio.sleep(3)
                         async with session.get(
-                            f"https://graph.facebook.com/v21.0/{creation_id}",
+                            f"https://graph.facebook.com/v22.0/{creation_id}",
                             params={"fields": "status_code", "access_token": ig_access_token},
                         ) as st_resp:
                             st_data = await st_resp.json(content_type=None)
-                        if st_data.get("status_code") == "FINISHED":
+                        if st_data.get("status_code") in ("FINISHED", "ERROR"):
                             break
 
                     async with session.post(
@@ -416,6 +446,8 @@ async def publish_reels_to_instagram(
                     pub_id = str(res2.get("id") or "") or None
                     if pub_id:
                         return pub_id
+                else:
+                    log.warning("Instagram Graph API Reels container xatosi: %s", str(res1)[:220])
         except Exception as e:
             log.warning("Instagram Graph API xatosi: %s", e)
 
@@ -440,10 +472,11 @@ async def publish_story_to_instagram(
     local_photo_path: str = "",
 ) -> str | None:
     """Yangi chiqqan Look videoni yoki flat-lay rasmni avtomatik ravishda Instagram Istoriyaga (STORIES) ham joylaydi."""
-    if ig_user_id and ig_access_token and (video_public_url.startswith("http") or image_public_url.startswith("http")):
-        base = f"https://graph.facebook.com/v21.0/{ig_user_id}"
+    eff_ig_id = await resolve_active_ig_user_id(ig_user_id, ig_access_token) if ig_access_token else ig_user_id
+    if eff_ig_id and ig_access_token and (video_public_url.startswith("http") or image_public_url.startswith("http")):
+        base = f"https://graph.facebook.com/v22.0/{eff_ig_id}"
         try:
-            timeout = aiohttp.ClientTimeout(total=40)
+            timeout = aiohttp.ClientTimeout(total=45)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 story_payload: dict[str, str] = {
                     "media_type": "STORIES",
@@ -458,14 +491,14 @@ async def publish_story_to_instagram(
                     res1 = await r1.json(content_type=None)
                 creation_id = res1.get("id")
                 if creation_id:
-                    for _ in range(12):
+                    for _ in range(14):
                         await asyncio.sleep(3)
                         async with session.get(
-                            f"https://graph.facebook.com/v21.0/{creation_id}",
+                            f"https://graph.facebook.com/v22.0/{creation_id}",
                             params={"fields": "status_code", "access_token": ig_access_token},
                         ) as st_resp:
                             st_data = await st_resp.json(content_type=None)
-                        if st_data.get("status_code") == "FINISHED":
+                        if st_data.get("status_code") in ("FINISHED", "ERROR"):
                             break
 
                     async with session.post(

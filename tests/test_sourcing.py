@@ -87,3 +87,55 @@ def test_pinduoduo_apify_poros_parser_and_mode(tmp_path):
     assert len(parsed) == 1
     assert parsed[0]["goods_id"] == 991664725516
     assert parsed[0]["min_on_sale_group_price"] == 18900
+
+
+def test_store_size_chart_winter_fit_and_admin_pdd_links():
+    import json
+    from app.sizes import recommend_for_look
+    from app.texts import admin_order_card
+
+    look = {
+        "id": 12,
+        "title": "Qishki Old Money Kapsula",
+        "colors": "To'q jigarrang, Qora",
+        "sizes": "M, L, XL, 2XL",
+        "items_json": json.dumps([
+            {
+                "category": "outerwear",
+                "name": "Qishki Jun Palto",
+                "price_cny": 239.0,
+                "pdd_goods_id": "307246992745",
+                "url": "https://mobile.yangkeduo.com/goods.html?goods_id=307246992745",
+                "store_sizes": ["48", "50", "52", "54"],
+                "size_chart": [
+                    {"size": "50", "height_cm": "175", "weight_kg": "70"},
+                    {"size": "52", "height_cm": "180", "weight_kg": "75"},
+                    {"size": "54", "height_cm": "185", "weight_kg": "80"},
+                ],
+            },
+            {
+                "category": "shoes",
+                "name": "Qishki Chelsea Etik",
+                "price_cny": 178.0,
+                "pdd_goods_id": "845650894237",
+                "url": "https://mobile.yangkeduo.com/goods.html?goods_id=845650894237",
+                "store_sizes": ["40", "41", "42", "43", "44"],
+            },
+        ], ensure_ascii=False),
+    }
+    rec = recommend_for_look(178, 75, look, foot_cm=26.0)
+    assert rec["primary_clothing_size"] == "54"  # winter +1 size up from 52
+    assert rec["has_shoes"] is True
+    assert rec["per_item"][1]["size"] == "43"  # winter shoe +0.5cm from 42 -> 43
+
+    card = admin_order_card(
+        {
+            "id": 5, "look_id": 12, "status": "paid", "size": "Kiyim: 54 | Oyoq: 43",
+            "color": "Rasmdagidek", "payment_plan": "50", "prepay_due": 500005,
+            "remaining_uzs": 500000, "profit_uzs": 250000, "full_name": "Ali",
+            "username": "ali_uz", "user_id": 1, "phone": "+998901112233", "address": "Toshkent",
+        },
+        look,
+    )
+    assert "https://mobile.yangkeduo.com/goods.html?goods_id=307246992745" in card
+    assert "https://mobile.yangkeduo.com/goods.html?goods_id=845650894237" in card

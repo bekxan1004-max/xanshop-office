@@ -705,7 +705,7 @@ FAQAT JSON QAYTAR:
         raw_data = self._pick_template_if_invalid(ai_data, recent_titles=(ig_intel or {}).get("recent_titles"))
         raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
 
-        if self.pdd.connection_mode not in ("official_api", "onebound_pdd"):
+        if self.pdd.connection_mode not in ("official_api", "apify_pdd_live", "onebound_pdd"):
             return self._build_generated_look(raw_data, eff_brief, weather_line)
 
         _, base_items = self._calculate_pricing(raw_data["items"])
@@ -738,11 +738,29 @@ FAQAT JSON QAYTAR:
                 updated["price_cny"] = picked_prod.price_cny
                 updated["cny"] = picked_prod.price_cny
                 updated["pdd_goods_id"] = picked_prod.goods_id or updated.get("pdd_goods_id", "")
+                updated["title_cn"] = picked_prod.title_cn or updated.get("cn_keyword", "")
                 updated["sales_tip"] = picked_prod.sales_tip
                 if picked_prod.product_url:
                     updated["url"] = picked_prod.product_url
                 if picked_prod.image_url:
                     updated["image_url"] = picked_prod.image_url
+
+                # Do'konning haqiqiy ranglari, razmerlari, qishki bichim eslatmasi va razmer jadvali (尺码表)
+                chart_info: dict[str, Any] = {}
+                if not picked_prod.size_chart and picked_prod.detail_images and self.ai.enabled:
+                    chart_info = await self.pdd.extract_store_size_chart(
+                        picked_prod.detail_images,
+                        picked_prod.title_cn,
+                        ai=self.ai,
+                    )
+                store_colors = list(dict.fromkeys([*(picked_prod.store_colors or []), *(chart_info.get("store_colors") or [])]))
+                store_sizes = list(chart_info.get("store_sizes") or picked_prod.store_sizes or [])
+                size_chart = list(chart_info.get("size_chart") or picked_prod.size_chart or [])
+                fit_parts = [p for p in (picked_prod.fit_note, chart_info.get("fit_note")) if p]
+                updated["store_colors"] = store_colors
+                updated["store_sizes"] = store_sizes
+                updated["size_chart"] = size_chart
+                updated["fit_note"] = " | ".join(dict.fromkeys(fit_parts))
                 downloaded_imgs.append(picked_bytes)
                 enriched_items.append(updated)
             else:

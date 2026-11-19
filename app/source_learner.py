@@ -67,21 +67,31 @@ def parse_source_url(raw_input: str) -> tuple[str, str, str]:
 
 
 async def check_ig_publish_ready(ig_user_id: str, ig_token: str) -> tuple[bool, str]:
-    """Check once whether Instagram Graph API publishing account is active (not checkpoint-locked)."""
-    if not ig_user_id or not ig_token:
-        return (False, "IG_USER_ID yoki IG_ACCESS_TOKEN ulanmagan")
+    """Instagram Graph API (yoki Facebook Page'ga ulangan IG Business hisobi) nashrga tayyorligini tekshiradi."""
+    if not ig_token:
+        return (False, "IG_ACCESS_TOKEN ulanmagan")
     try:
         async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.get(
-                f"{GRAPH_API_BASE}/{ig_user_id}",
-                params={"fields": "id,username", "access_token": ig_token},
+            if ig_user_id:
+                resp = await client.get(
+                    f"{GRAPH_API_BASE}/{ig_user_id}",
+                    params={"fields": "id,username", "access_token": ig_token},
+                )
+                data = resp.json()
+                if resp.status_code == 200 and data.get("id"):
+                    return (True, "")
+            # Facebook Page orqali yangi ulangan IG Business hisobini avtomatik tekshiramiz
+            r_acc = await client.get(
+                f"{GRAPH_API_BASE}/me/accounts",
+                params={"fields": "id,name,instagram_business_account{id,username}", "access_token": ig_token},
             )
-            data = resp.json()
-            if resp.status_code == 200 and data.get("id"):
-                return (True, "")
-            err = (data.get("error") or {}).get("message", f"HTTP {resp.status_code}")
-            if "does not exist" in err.lower() or "checkpoint" in err.lower():
-                return (False, f"Meta checkpoint / hisob vaqtincha bloklangan: {err[:120]}")
+            if r_acc.status_code == 200:
+                for pg in (r_acc.json().get("data") or []):
+                    ig_biz = (pg.get("instagram_business_account") or {}) if isinstance(pg, dict) else {}
+                    if ig_biz.get("id"):
+                        return (True, "")
+                return (False, "Instagram (@xans_styles) hali XAN SHOP Facebook sahifasiga ulanmagan")
+            err = (r_acc.json().get("error") or {}).get("message", f"HTTP {r_acc.status_code}")
             return (False, err[:160])
     except Exception as exc:
         return (False, f"IG tekshiruv tarmoq xatosi: {str(exc)[:100]}")

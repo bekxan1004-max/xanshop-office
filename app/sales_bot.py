@@ -17,9 +17,9 @@ from .config import Settings
 from .db import Database
 from .notify import admin_order_kb, notify_admins
 from .pricing import fmt, unique_amount
-from .sizes import recommend
-from .texts import (STATUS_LABELS, admin_order_card, look_50_values, look_caption, order_summary, payment_text,
-                    split_list)
+from .sizes import is_shoe_item, recommend, recommend_for_look
+from .texts import (STATUS_LABELS, admin_order_card, look_50_values, look_caption, look_items, order_summary,
+                    payment_text, split_list)
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ MAIN_KB = ReplyKeyboardMarkup(
 
 class OrderForm(StatesGroup):
     size = State()
+    shoe_size = State()
     height = State()
     weight = State()
     color = State()
@@ -174,20 +175,61 @@ def build_sales_router() -> Router:
             return
         await cb.answer()
         await state.clear()
-        await state.update_data(look_id=look["id"], sizes=split_list(look["sizes"]),
-                                colors=split_list(look["colors"]))
+        items = look_items(look)
+        has_shoes = any(is_shoe_item(it) for it in items)
+        shoe_sizes: list[str] = []
+        cloth_sizes: list[str] = []
+        store_alt_colors: list[str] = []
+        for it in items:
+            if is_shoe_item(it):
+                for s_val in (it.get("store_sizes") or []):
+                    if s_val not in shoe_sizes:
+                        shoe_sizes.append(str(s_val))
+            else:
+                for s_val in (it.get("store_sizes") or []):
+                    if s_val not in cloth_sizes:
+                        cloth_sizes.append(str(s_val))
+            for c_val in (it.get("store_colors") or []):
+                if c_val not in store_alt_colors:
+                    store_alt_colors.append(str(c_val))
+
+        if not cloth_sizes:
+            cloth_sizes = split_list(look["sizes"]) or ["M", "L", "XL", "2XL"]
+        if has_shoes and not shoe_sizes:
+            shoe_sizes = ["39", "40", "41", "42", "43", "44"]
+
+        stylist_palette = (look.get("colors") or "Rasmdagidek").strip()
+        color_options = [f"Rasmdagidek ({stylist_palette[:28]})"]
+        for c_opt in [*split_list(look["colors"]), *store_alt_colors]:
+            if c_opt and c_opt not in color_options and len(color_options) < 6:
+                color_options.append(c_opt)
+
+        await state.update_data(
+            look_id=look["id"],
+            sizes=cloth_sizes,
+            has_shoes=has_shoes,
+            shoe_sizes=shoe_sizes,
+            colors=color_options,
+            stylist_color=color_options[0],
+        )
         await ask_size(cb.message, state)
 
-    async def ask_size(message: Message, state: FSMContext, mark: str | None = None):
+    async def ask_size(message: Message, state: FSMContext, mark: str | None = None, advice_html: str = ""):
         data = await state.get_data()
         if not data["sizes"]:
             await state.update_data(size="")
-            await ask_color(message, state)
+            await ask_shoe_size(message, state)
             return
         await state.set_state(OrderForm.size)
-        text = "📏 O'lchamni tanlang:" if not mark else f"⭐️ Sizga <b>{escape(mark)}</b> mos keladi. Tanlang:"
+        if mark:
+            text = f"⭐️ Sizga kiyim uchun <b>{escape(mark)}</b> mos keladi."
+            if advice_html:
+                text += f"\n\n{advice_html}"
+            text += "\n\n📏 O'lchamni tasdiqlang yoki boshqasini tanlang:"
+        else:
+            text = "📏 Kiyim o'lchamini tanlang (do'kon jadvali bo'yicha aniq tanlab beramiz):"
         await message.answer(text, reply_markup=options_kb(
-            "size", data["sizes"], [("📏 O'lchamimni bilmayman", "size_help")], mark))
+            "size", data["sizes"], [("📏 Bo'y va vaznim bo'yicha hisoblash", "size_help")], mark))
 
     @r.callback_query(OrderForm.size, F.data == "size_help")
     async def size_help(cb: CallbackQuery, state: FSMContext):
@@ -208,7 +250,7 @@ def build_sales_router() -> Router:
         await message.answer("Vazningiz necha kg? (masalan: 70)")
 
     @r.message(OrderForm.weight)
-    async def got_weight(message: Message, state: FSMContext):
+    async def got_weight(message: Message, state: FSMContext, db: Database):
         try:
             w = float((message.text or "").replace(",", "."))
             assert 30 <= w <= 200
@@ -216,16 +258,45 @@ def build_sales_router() -> Router:
             await message.answer("Vaznni kg da raqam bilan yozing, masalan: 70")
             return
         data = await state.get_data()
-        rec = recommend(data["height"], w, data["sizes"])
+        look = await db.get_look(data["look_id"])
+        advice_html = ""
+        if look:
+            rec_info = recommend_for_look(data["height"], w, look)
+            rec = rec_info.get("primary_clothing_size")
+            advice_html = rec_info.get("advice_html") or ""
+        else:
+            rec = recommend(data["height"], w, data["sizes"])
         if rec is None:
             await message.answer("Bu lookda o'lchamlar maxsus jadval bo'yicha. Operator aniqlab beradi, "
                                  "hozircha taxminiy o'lchamni tanlang.")
-        await ask_size(message, state, rec)
+        await ask_size(message, state, rec, advice_html=advice_html)
 
     @r.callback_query(OrderForm.size, F.data.startswith("size:"))
     async def got_size(cb: CallbackQuery, state: FSMContext):
         data = await state.get_data()
         await state.update_data(size=data["sizes"][int(cb.data.split(":")[1])])
+        await cb.answer()
+        await ask_shoe_size(cb.message, state)
+
+    async def ask_shoe_size(message: Message, state: FSMContext):
+        data = await state.get_data()
+        if not data.get("has_shoes") or not data.get("shoe_sizes"):
+            await ask_color(message, state)
+            return
+        await state.set_state(OrderForm.shoe_size)
+        await message.answer(
+            "👞 Bu lookda oyoq kiyim ham bor — oyoq razmeringizni tanlang\n"
+            "<i>(Qishki ichi issiq/mo'ynali model bo'lsa, qalin paypoq bilan qisib qo'ymasligi uchun 1 razmer kattaroq tanlashingizni tavsiya qilamiz)</i>:",
+            reply_markup=options_kb("shoe", data["shoe_sizes"]),
+        )
+
+    @r.callback_query(OrderForm.shoe_size, F.data.startswith("shoe:"))
+    async def got_shoe_size(cb: CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        shoe_sz = data["shoe_sizes"][int(cb.data.split(":")[1])]
+        base_sz = data.get("size") or ""
+        combined = f"Kiyim: {base_sz} | Oyoq: {shoe_sz}" if base_sz else f"Oyoq: {shoe_sz}"
+        await state.update_data(size=combined, shoe_size=shoe_sz)
         await cb.answer()
         await ask_color(cb.message, state)
 
@@ -236,7 +307,13 @@ def build_sales_router() -> Router:
             await ask_name(message, state)
             return
         await state.set_state(OrderForm.color)
-        await message.answer("🎨 Rangni tanlang:", reply_markup=options_kb("color", data["colors"]))
+        stylist_pick = data.get("stylist_color") or data["colors"][0]
+        await message.answer(
+            "🎨 <b>Rang tanlovi (ixtiyoriy taklif):</b>\n"
+            "10 yillik tajribali stilistimiz ranglar uyg'unligi uchun aynan <b>rasmdagi variantni</b> maxsus tergan ⭐️.\n"
+            "Xohlasangiz do'kondagi boshqa ranglardan ham tanlashingiz mumkin:",
+            reply_markup=options_kb("color", data["colors"], mark=stylist_pick),
+        )
 
     @r.callback_query(OrderForm.color, F.data.startswith("color:"))
     async def got_color(cb: CallbackQuery, state: FSMContext):
@@ -374,6 +451,7 @@ def build_sales_router() -> Router:
             client_secret=settings.pdd_client_secret,
             rapidapi_key=settings.pdd_rapidapi_key,
             session_path=settings.pdd_session_path,
+            apify_token=settings.pdd_apify_token,
         )
         wait_m = await message.answer("🇨🇳 <b>Pinduoduo mahsuloti ma'lumotlari yuklanmoqda...</b>")
         data = await conn.fetch_product_details(message.text, settings=settings)
