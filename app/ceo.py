@@ -83,6 +83,7 @@ async def collect_business_telemetry(db: Database, settings: Settings) -> dict[s
 
     pdd_ok = bool(
         (settings.pdd_client_id and settings.pdd_client_secret)
+        or getattr(settings, "pdd_apify_token", "")
         or settings.pdd_rapidapi_key
         or has_valid_pdd_session(settings.pdd_session_path)
     )
@@ -276,7 +277,7 @@ async def run_ceo_strategy_cycle(
             settings,
             "chief-of-staff",
             prompt,
-            skill_ids=["team-agent-orchestration", "market-research", "finance-billing-ops", "customs-trade-compliance"],
+            skill_ids=["team-agent-orchestration", "market-research"],
             db=None,
         )
     except Exception as e:

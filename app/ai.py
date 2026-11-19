@@ -25,10 +25,12 @@ GEMINI_FALLBACK_MODELS = (
     "gemini-3.1-flash-lite",
 )
 GEMINI_EXTENDED_POOL = (
-    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
     "gemini-3.6-flash",
+    "gemini-3.7-flash",
     "gemini-3.8-flash",
-    "gemini-3-flash-preview",
+    "gemini-3.5-flash",
 )
 FREE_OPENROUTER_MODELS = (
     "deepseek/deepseek-chat-v3-0324:free",
@@ -37,11 +39,13 @@ FREE_OPENROUTER_MODELS = (
     "qwen/qwen3-235b-a22b:free",
 )
 FREE_OMNIROUTE_KEYLESS_ENDPOINTS = (
-    ("LLM7 (gemma4:31b)", "https://api.llm7.io/v1", "unused", "default"),
-    ("KiloGateway (kilo-auto/free)", "https://api.kilo.ai/api/gateway", "", "kilo-auto/free"),
-    ("OVHcloud (Mistral-Small-3.2)", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "", "Mistral-Small-3.2-24B-Instruct-2506"),
-    ("OVHcloud (gpt-oss-20b)", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "", "gpt-oss-20b"),
-    ("KiloGateway (openrouter/free)", "https://api.kilo.ai/api/gateway", "", "openrouter/free"),
+    ("kilo-gateway/kilo-auto/free", "https://api.kilo.ai/api/gateway", "", "kilo-auto/free"),
+    ("ovhcloud/Mistral-Small-3.2-24B-Instruct-2506", "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1", "", "Mistral-Small-3.2-24B-Instruct-2506"),
+    ("kilo-gateway/baidu/ernie-5.5-flash-preview:free", "https://api.kilo.ai/api/gateway", "", "baidu/ernie-5.5-flash-preview:free"),
+    ("llm7/default", "https://api.llm7.io/v1", "unused", "default"),
+    ("llm7/fast", "https://api.llm7.io/v1", "unused", "fast"),
+    ("llm7/gpt-oss:20b", "https://api.llm7.io/v1", "unused", "gpt-oss:20b"),
+    ("llm7/codestral-latest", "https://api.llm7.io/v1", "unused", "codestral-latest"),
 )
 _MODEL_COOLDOWN_UNTIL: dict[str, float] = {}
 
@@ -149,12 +153,16 @@ async def check_omniroute_status(
             health_resp = await client.get(f"{root}/api/health")
             if health_resp.status_code == 200:
                 models: list[str] = []
+                model_items: list[dict[str, Any]] = []
                 try:
                     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
                     m_resp = await client.get(f"{base}/models", headers=headers)
                     if m_resp.status_code == 200:
                         data = m_resp.json()
-                        models = [m.get("id", "") for m in data.get("data", []) if isinstance(m, dict)]
+                        for m in data.get("data", []):
+                            if isinstance(m, dict) and m.get("id"):
+                                models.append(str(m["id"]))
+                                model_items.append(m)
                 except Exception:
                     pass
                 return {
@@ -163,6 +171,7 @@ async def check_omniroute_status(
                     "dashboard_url": f"{root}/dashboard",
                     "models_count": len(models),
                     "sample_models": models[:8],
+                    "models": model_items,
                 }
     except Exception:
         pass
@@ -172,6 +181,7 @@ async def check_omniroute_status(
         "dashboard_url": f"{root}/dashboard",
         "models_count": 0,
         "sample_models": [],
+        "models": [],
     }
 
 
@@ -197,14 +207,16 @@ class SalesAI:
         self.openrouter_model = getattr(s, "openrouter_model", "deepseek/deepseek-chat").strip()
         self.openrouter_base_url = getattr(s, "openrouter_base_url", "https://openrouter.ai/api/v1").strip().rstrip("/")
         self.last_provider_used: str = "init"
+        self._last_compat_model: str = ""
 
     @property
     def enabled(self) -> bool:
         return (self.client is not None) or bool(self.openrouter_api_key) or self.use_omniroute
 
-    def _gemini_model_candidates(self) -> list[str]:
+    def _gemini_model_candidates(self, preferred: str | None = None) -> list[str]:
         candidates: list[str] = []
-        for m in (self.model, *GEMINI_FALLBACK_MODELS):
+        ordered = (preferred, self.model, *GEMINI_FALLBACK_MODELS) if preferred else (self.model, *GEMINI_FALLBACK_MODELS)
+        for m in ordered:
             name = (m or "").strip()
             if name and name not in candidates:
                 candidates.append(name)
@@ -246,13 +258,16 @@ class SalesAI:
             "max_tokens": 1500,
         }
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_sec, connect=2.0)) as http_client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_sec, connect=2.5)) as http_client:
                 resp = await http_client.post(url, json=payload, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
-                    choices = data.get("choices", [])
-                    if choices:
-                        return choices[0].get("message", {}).get("content", "")
+                    self._last_compat_model = str(data.get("model") or model)
+                    choices = data.get("choices") or []
+                    if choices and isinstance(choices[0], dict):
+                        content = str((choices[0].get("message") or {}).get("content") or "").strip()
+                        if content and not content.startswith("<|start|>"):
+                            return content
                 log.debug("Gateway %s status %s: %s", base_url, resp.status_code, resp.text[:160])
         except Exception as e:
             log.debug("Gateway %s ulanmadi: %s", base_url, e)
@@ -291,20 +306,21 @@ class SalesAI:
         media_bytes: bytes | None = None,
         mime_type: str = "",
         timeout_sec: float = 16.0,
+        preferred_model: str | None = None,
     ) -> tuple[str | None, str | None]:
         """Birlamchi va zaxira Gemini modellarini timeout va cooldown nazorati bilan sinaydi."""
         if not self.client:
             return None, None
-        candidates = self._gemini_model_candidates()
+        candidates = self._gemini_model_candidates(preferred=preferred_model)
         is_real_client = isinstance(self.client, genai.Client)
         if is_real_client:
             for ext_m in GEMINI_EXTENDED_POOL:
                 if ext_m not in candidates:
                     candidates.append(ext_m)
             now = time.monotonic()
-            active = [c for c in candidates if _MODEL_COOLDOWN_UNTIL.get(c, 0.0) <= now]
-            if active:
-                candidates = active
+            active = [c for c in candidates if _MODEL_COOLDOWN_UNTIL.get(c, 0.0) <= now or (preferred_model and c == preferred_model)]
+            candidates = active[:2] if active else []
+            timeout_sec = min(timeout_sec, 9.0)
 
         for idx, candidate in enumerate(candidates):
             use_prev = previous_id if idx == 0 else None
@@ -344,27 +360,53 @@ class SalesAI:
         media_bytes: bytes | None = None,
         mime_type: str = "",
         timeout_sec: float = 16.0,
+        model_override: str | None = None,
     ) -> tuple[str | None, str | None]:
-        """3 bosqichli avto-zaxira zanjiri: OmniRoute -> OpenRouter -> Google Gemini (multi-model)."""
+        """3 bosqichli avto-zaxira zanjiri: OmniRoute -> OpenRouter -> Google Gemini -> Keyless Pool."""
+        import os
+
+        req_model = (model_override or "").strip()
+        is_explicit = bool(req_model and req_model not in ("auto", "xanshop-auto"))
+
         if self.use_omniroute and self.omniroute_base_url:
+            omni_target = req_model or self.omniroute_model
             omni_resp = await self._call_openai_compat(
                 self.omniroute_base_url,
                 self.omniroute_api_key,
-                self.omniroute_model,
+                omni_target,
                 system,
                 text,
                 media_bytes,
                 mime_type,
-                timeout_sec=min(15.0, timeout_sec),
+                timeout_sec=max(26.0, timeout_sec),
             )
             if omni_resp and omni_resp.strip():
-                self.last_provider_used = f"OmniRoute ({self.omniroute_model})"
+                used_m = self._last_compat_model or omni_target
+                self.last_provider_used = f"OmniRoute ({used_m})"
                 return omni_resp.strip(), None
 
+        # Agar OmniRoute ishlamay turgan bo'lsa va foydalanuvchi aniq keyless model tanlagan bo'lsa, to'g'ridan-to'g'ri chaqiramiz
+        if is_explicit and not os.getenv("PYTEST_CURRENT_TEST") and not media_bytes:
+            for label, base_u, key_u, mod_u in FREE_OMNIROUTE_KEYLESS_ENDPOINTS:
+                if req_model == label or req_model == mod_u:
+                    free_resp = await self._call_openai_compat(
+                        base_u, key_u, mod_u, system, text, None, "", timeout_sec=min(15.0, timeout_sec)
+                    )
+                    if free_resp and free_resp.strip():
+                        self.last_provider_used = f"OmniRouteFree ({label})"
+                        return free_resp.strip(), None
+            if req_model.startswith("llm7/"):
+                sub_m = req_model.split("/", 1)[1]
+                free_resp = await self._call_openai_compat(
+                    "https://api.llm7.io/v1", "unused", sub_m, system, text, None, "", timeout_sec=min(15.0, timeout_sec)
+                )
+                if free_resp and free_resp.strip():
+                    self.last_provider_used = f"OmniRouteFree ({req_model})"
+                    return free_resp.strip(), None
+
         if self.openrouter_api_key:
-            for or_m in (self.openrouter_model, *FREE_OPENROUTER_MODELS):
-                if not or_m:
-                    continue
+            or_list = ([req_model] if is_explicit and "/" in req_model else []) + [self.openrouter_model, *FREE_OPENROUTER_MODELS]
+            for or_m in dict.fromkeys(m for m in or_list if m):
                 or_resp = await self._call_openai_compat(
                     self.openrouter_base_url,
                     self.openrouter_api_key,
@@ -379,6 +421,7 @@ class SalesAI:
                     self.last_provider_used = f"OpenRouter ({or_m})"
                     return or_resp.strip(), None
 
+        gem_pref = req_model if (is_explicit and req_model.startswith("gemini-")) else None
         gem_out, gem_id = await self._call_gemini_models(
             system,
             text,
@@ -386,27 +429,31 @@ class SalesAI:
             media_bytes=media_bytes,
             mime_type=mime_type,
             timeout_sec=timeout_sec,
+            preferred_model=gem_pref,
         )
         if gem_out:
             return gem_out, gem_id
 
-        # Tier-4: OmniRoute Keyless Free Providers Pool (LLM7, Kilo Gateway, OVHcloud AI Endpoints)
-        import os
+        # Tier-4: OmniRoute Keyless Free Providers Pool (parallel race across LLM7, Kilo Gateway, OVHcloud)
         if not os.getenv("PYTEST_CURRENT_TEST") and not media_bytes:
-            for label, base_u, key_u, mod_u in FREE_OMNIROUTE_KEYLESS_ENDPOINTS:
-                free_resp = await self._call_openai_compat(
-                    base_u,
-                    key_u,
-                    mod_u,
-                    system,
-                    text,
-                    None,
-                    "",
-                    timeout_sec=min(12.0, timeout_sec),
-                )
-                if free_resp and free_resp.strip():
-                    self.last_provider_used = f"OmniRouteFree ({label})"
-                    return free_resp.strip(), None
+            async def _race_one(lbl: str, b_u: str, k_u: str, m_u: str) -> tuple[str, str | None]:
+                r = await self._call_openai_compat(b_u, k_u, m_u, system, text, None, "", timeout_sec=min(11.0, timeout_sec))
+                return lbl, r
+
+            tasks = [asyncio.create_task(_race_one(l, b, k, m)) for l, b, k, m in FREE_OMNIROUTE_KEYLESS_ENDPOINTS[:5]]
+            try:
+                for fut in asyncio.as_completed(tasks):
+                    lbl, free_resp = await fut
+                    if free_resp and free_resp.strip():
+                        for t in tasks:
+                            if not t.done():
+                                t.cancel()
+                        self.last_provider_used = f"OmniRouteFree ({lbl})"
+                        return free_resp.strip(), None
+            finally:
+                for t in tasks:
+                    if not t.done():
+                        t.cancel()
         return None, None
 
     async def ask_json(
@@ -417,6 +464,7 @@ class SalesAI:
         media_bytes: bytes | None = None,
         mime_type: str = "",
         timeout_sec: float = 16.0,
+        model_override: str | None = None,
     ) -> dict[str, Any] | None:
         """Skaut, Tahlilchi va AI Hisobchi uchun OmniRoute/OpenRouter/Gemini orqali toza JSON oladi."""
         sys_prompt = system or (
@@ -430,6 +478,7 @@ class SalesAI:
             media_bytes=media_bytes,
             mime_type=mime_type,
             timeout_sec=timeout_sec,
+            model_override=model_override,
         )
         return extract_json_dict(raw or "")
 
@@ -440,6 +489,7 @@ class SalesAI:
         previous_id: str | None,
         media_bytes: bytes | None = None,
         mime_type: str = "",
+        model_override: str | None = None,
     ) -> tuple[str | None, str | None, bool]:
         """(javob matni HTML-xavfsiz, interaction_id, operator kerakmi).
         3 bosqichli avto-zaxira zanjiri: OmniRoute -> OpenRouter -> Google Gemini.
@@ -450,7 +500,8 @@ class SalesAI:
             previous_id=previous_id,
             media_bytes=media_bytes,
             mime_type=mime_type,
-            timeout_sec=16.0,
+            timeout_sec=18.0,
+            model_override=model_override,
         )
         if not raw:
             return None, None, True

@@ -396,10 +396,16 @@ def generate_item_studio_card(
 
 
 def find_ffmpeg_binary() -> str | None:
-    """Tizimdagi yoki lokal (CapCut / Winget / Docker) FFmpeg binar faylini topadi."""
+    """Tizimdagi yoki lokal (Remotion / CapCut / Winget / Docker) FFmpeg binar faylini topadi."""
     sys_ff = shutil.which("ffmpeg")
     if sys_ff:
         return sys_ff
+
+    remotion_ff = os.path.join(
+        "remotion_studio", "node_modules", "@remotion", "compositor-win32-x64-msvc", "ffmpeg.exe"
+    )
+    if os.path.isfile(remotion_ff):
+        return remotion_ff
 
     candidates = [
         r"C:\Users\user\CapCut\8.3.0.3497\ffmpeg.exe",

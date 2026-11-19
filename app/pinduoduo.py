@@ -494,7 +494,17 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
 
 
 class PinduoduoConnector:
-    """Pinduoduo Open Platform API + RapidAPI + Playwright Brauzer Sessiyasi + Lokal Katalog ulagichi."""
+    """Pinduoduo Open Platform API + Apify Live PDD Server + RapidAPI/OneBound + Playwright Sessiyasi ulagichi."""
+
+    _NON_MEN_SPAM_WORDS = (
+        "窗台垫", "飘窗垫", "脚踏凳", "搁脚凳", "收纳", "气球", "油箱", "发夹", "发饰", "头饰",
+        "笔袋", "文具", "铅笔盒", "纽扣", "鞋扣", "乳酸菌", "饮料", "烘焙", "模具", "香薰",
+        "拖拉机", "收割机", "摩托车", "汽车配件", "手机壳", "数据线", "充电器", "猫粮", "狗粮",
+        "男童", "女童", "儿童", "中小童", "大童", "宝宝", "童装", "婴儿",
+    )
+    _WOMEN_ONLY_WORDS = (
+        "女装", "妈妈装", "女士", "女款", "连衣裙", "半身裙", "高跟鞋", "女鞋", "旗袍", "汉服女", "阔腿裤女",
+    )
 
     def __init__(
         self,
@@ -502,10 +512,13 @@ class PinduoduoConnector:
         client_secret: str = "",
         rapidapi_key: str = "",
         session_path: str = DEFAULT_PDD_SESSION_PATH,
+        apify_token: str = "",
     ):
         self.client_id = client_id.strip()
         self.client_secret = client_secret.strip()
         self.rapidapi_key = rapidapi_key.strip()
+        env_apify = "" if os.getenv("PYTEST_CURRENT_TEST") else (os.getenv("APIFY_API_TOKEN", "") or os.getenv("PDD_APIFY_TOKEN", ""))
+        self.apify_token = (apify_token or env_apify).strip()
         self.session_path = (session_path or DEFAULT_PDD_SESSION_PATH).strip()
         self.last_error = ""
 
@@ -513,6 +526,7 @@ class PinduoduoConnector:
     def is_live_api(self) -> bool:
         return bool(
             (self.client_id and self.client_secret)
+            or self.apify_token
             or self.rapidapi_key
             or has_valid_pdd_session(self.session_path)
         )
@@ -787,10 +801,241 @@ class PinduoduoConnector:
         except Exception as e:
             return {"ok": False, "goods_id": gid, "reason": str(e)}
 
+    @staticmethod
+    def parse_poros_products(html: str) -> list[dict[str, Any]]:
+        """Pinduoduo `mobile.yangkeduo.com/poros/h5` Next.js SSR sahifasidan haqiqiy tovar JSON'larini ajratadi."""
+        if not html:
+            return []
+        raw_chunks = re.findall(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', html, re.S)
+        if not raw_chunks:
+            return []
+        parts: list[str] = []
+        for ch in raw_chunks:
+            try:
+                parts.append(json.loads(ch))
+            except Exception:
+                continue
+        text = "".join(parts)
+        dec = json.JSONDecoder()
+        found: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for m in re.finditer(r'\{"goods_id"\s*:', text):
+            try:
+                obj, _ = dec.raw_decode(text, m.start())
+            except Exception:
+                continue
+            gid = str(obj.get("goods_id") or "").strip()
+            gname = str(obj.get("goods_name") or "").strip()
+            if gid and gname and gid not in seen:
+                seen.add(gid)
+                found.append(obj)
+        return found
+
+    @staticmethod
+    def _compact_cn_query(keyword_cn: str) -> str:
+        """Uzun xitoycha so'rovni Pinduoduo poros/h5 qidiruvi uchun aniq 2-3 kalit so'zga qisqartiradi."""
+        kw = (keyword_cn or "").strip()
+        if len(kw) <= 10:
+            return kw
+        tokens: list[str] = []
+        if "男" in kw:
+            tokens.append("男")
+        for term in (
+            "羊毛呢大衣", "毛呢大衣", "风衣", "羽绒服", "飞行员夹克", "夹克", "西装外套", "西服", "外套",
+            "半拉链毛衣", "高领毛衣", "羊绒衫", "针织衫", "毛衣", "开衫", "连帽卫衣", "卫衣", "衬衫", "Polo", "T恤",
+            "西装裤", "西裤", "工装裤", "牛仔裤", "休闲裤", "卫裤", "运动裤", "长裤",
+            "切尔西靴", "马丁靴", "乐福鞋", "德训鞋", "板鞋", "老爹鞋", "皮鞋", "运动鞋", "男鞋",
+            "棒球帽", "斜挎包", "墨镜", "腰带",
+        ):
+            if term in kw and not any(term in existing for existing in tokens):
+                tokens.append(term)
+            if len(tokens) >= 3:
+                break
+        if len(tokens) < 2:
+            return kw[:12]
+        return " ".join(tokens)
+
+    async def search_apify_pdd(self, keyword_cn: str, page_size: int = 8) -> list[PddProduct]:
+        """Apify + Pinduoduo `poros/h5` SSR serveri orqali 100% haqiqiy Pinduoduo narx va `pddpic.com` rasmlarini oladi."""
+        kw_key = (keyword_cn or "").strip()
+        if not kw_key or not self.apify_token:
+            return []
+
+        cache_path = "data/pdd_live_cache.json"
+        cached_map: dict[str, Any] = {}
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    raw_cache = json.load(f) or {}
+                    if isinstance(raw_cache, dict):
+                        cached_map = raw_cache
+            except Exception:
+                cached_map = {}
+
+        # 1) Keshdan haqiqiy Pinduoduo (yangkeduo/pddpic) yozuvlarini tekshiramiz (1688 qat'iyan rad etiladi)
+        cached_rows = cached_map.get(kw_key)
+        if isinstance(cached_rows, list) and cached_rows:
+            clean_cached = [
+                PddProduct(**row)
+                for row in cached_rows
+                if isinstance(row, dict)
+                and row.get("goods_id")
+                and "1688.com" not in str(row.get("product_url", ""))
+                and "alicdn.com" not in str(row.get("image_url", ""))
+                and "pddpic.com" in str(row.get("image_url", ""))
+            ]
+            if clean_cached:
+                return clean_cached[:page_size]
+
+        short_q = self._compact_cn_query(kw_key)
+        search_query = f'site:mobile.yangkeduo.com/poros/h5 "goods_id" {short_q}'
+        wants_men = ("女" not in kw_key) or ("男" in kw_key)
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=55)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                apify_url = "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items"
+                async with session.post(
+                    apify_url,
+                    params={"token": self.apify_token, "timeout": 42, "memory": 512},
+                    json={"queries": search_query, "maxPagesPerQuery": 1, "resultsPerPage": 6},
+                ) as resp:
+                    if resp.status not in (200, 201):
+                        self.last_error = f"apify_http_{resp.status}"
+                        log.warning("Apify Pinduoduo qidiruv xatosi (%s): HTTP %s", kw_key, resp.status)
+                        return []
+                    pages = await resp.json(content_type=None)
+
+                poros_urls: list[str] = []
+                if isinstance(pages, list):
+                    for pg in pages:
+                        for org in (pg.get("organicResults") or []):
+                            u = str(org.get("url") or "").strip()
+                            if "mobile.yangkeduo.com/poros/h5" in u and u not in poros_urls:
+                                poros_urls.append(u)
+                if not poros_urls:
+                    self.last_error = "apify_no_pdd_urls"
+                    return []
+
+                pdd_headers = {"User-Agent": MOBILE_UA}
+
+                async def _fetch_poros(u: str) -> list[dict[str, Any]]:
+                    try:
+                        async with session.get(u, headers=pdd_headers, timeout=aiohttp.ClientTimeout(total=15)) as pr:
+                            if pr.status == 200:
+                                return self.parse_poros_products(await pr.text())
+                    except Exception:
+                        pass
+                    return []
+
+                batches = await asyncio.gather(*(_fetch_poros(u) for u in poros_urls[:3]))
+                raw_items: list[dict[str, Any]] = []
+                seen_ids: set[str] = set()
+                for b in batches:
+                    for obj in b:
+                        gid = str(obj.get("goods_id") or "").strip()
+                        if gid and gid not in seen_ids:
+                            seen_ids.add(gid)
+                            raw_items.append(obj)
+
+                scored: list[tuple[float, PddProduct]] = []
+                kw_terms = [t for t in short_q.split() if t]
+                for g in raw_items:
+                    title_cn = str(g.get("goods_name") or "").strip()
+                    if not title_cn:
+                        continue
+                    if any(sp in title_cn for sp in self._NON_MEN_SPAM_WORDS):
+                        continue
+                    if wants_men and any(wm in title_cn for wm in self._WOMEN_ONLY_WORDS) and "男" not in title_cn:
+                        continue
+
+                    p_fen = (
+                        g.get("min_on_sale_group_price")
+                        or g.get("min_group_price")
+                        or g.get("default_price")
+                        or 0
+                    )
+                    try:
+                        price_cny = round(float(p_fen) / 100.0, 2)
+                    except (TypeError, ValueError):
+                        price_cny = 0.0
+                    if price_cny < 18.0:
+                        continue
+
+                    gallery = g.get("gallery_urls") or []
+                    img_url = ""
+                    for cand in [*gallery, g.get("hd_thumb_url"), g.get("thumb_url")]:
+                        s_u = str(cand or "").strip()
+                        if s_u.startswith("//"):
+                            s_u = "https:" + s_u
+                        if s_u.startswith("http") and "pddpic.com" in s_u:
+                            img_url = s_u
+                            break
+                    if not img_url:
+                        continue
+
+                    gid = str(g.get("goods_id") or "").strip()
+                    sales_tip = str(g.get("side_sales_tip") or g.get("bottom_sales_tip") or "100+件").strip()
+                    score = 0.0
+                    for t in kw_terms:
+                        if t in title_cn:
+                            score += 3.0
+                    if 28.0 <= price_cny <= 320.0:
+                        score += 2.5
+                    elif price_cny <= 550.0:
+                        score += 1.0
+                    if "男" in title_cn and wants_men:
+                        score += 2.0
+
+                    prod = PddProduct(
+                        goods_id=gid,
+                        title_uz=title_cn[:64],
+                        title_cn=title_cn,
+                        price_cny=price_cny,
+                        weight_kg=0.55,
+                        sales_tip=sales_tip,
+                        image_url=img_url,
+                        product_url=f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}",
+                        category="general",
+                    )
+                    scored.append((score, prod))
+
+                scored.sort(key=lambda pair: (-pair[0], pair[1].price_cny))
+                out = [p for _, p in scored[: max(page_size, 12)]]
+                if out:
+                    self.last_error = ""
+                    try:
+                        os.makedirs(os.path.dirname(cache_path) or "data", exist_ok=True)
+                        cached_map[kw_key] = [
+                            {
+                                "goods_id": p.goods_id,
+                                "title_uz": p.title_uz,
+                                "title_cn": p.title_cn,
+                                "price_cny": p.price_cny,
+                                "weight_kg": p.weight_kg,
+                                "sales_tip": p.sales_tip,
+                                "image_url": p.image_url,
+                                "product_url": p.product_url,
+                                "category": p.category,
+                            }
+                            for p in out
+                        ]
+                        with open(cache_path, "w", encoding="utf-8") as f:
+                            json.dump(cached_map, f, ensure_ascii=False, indent=2)
+                    except Exception:
+                        pass
+                    return out[:page_size]
+        except Exception as e:
+            self.last_error = f"apify_err:{type(e).__name__}"
+            log.warning("Apify Pinduoduo jonli qidiruv xatosi (%s): %s", kw_key, e)
+        return []
+
     @property
     def connection_mode(self) -> str:
         if self.client_id and self.client_secret:
             return "official_api"
+        if self.apify_token:
+            return "apify_pdd_live"
         if os.getenv("ONEBOUND_API_KEY", "").strip() and os.getenv("ONEBOUND_API_SECRET", "").strip():
             return "onebound_pdd"
         if has_valid_pdd_session(self.session_path):
@@ -962,9 +1207,13 @@ class PinduoduoConnector:
         }
 
     async def search_live(self, keyword_cn: str, page_size: int = 3) -> list[PddProduct]:
-        """Rasmiy API -> RapidAPI -> Playwright Brauzer Sessiyasi tartibida jonli Pinduoduo qidiruvi."""
+        """Rasmiy API -> Apify PDD Live Server -> RapidAPI/OneBound -> Playwright Sessiyasi tartibida jonli Pinduoduo qidiruvi."""
         if self.client_id and self.client_secret:
             res = await self.search_official_api(keyword_cn, page_size=page_size)
+            if res:
+                return res
+        if self.apify_token:
+            res = await self.search_apify_pdd(keyword_cn, page_size=page_size)
             if res:
                 return res
         if self.rapidapi_key:

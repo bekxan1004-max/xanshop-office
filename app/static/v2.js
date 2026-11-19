@@ -6,11 +6,15 @@
     data: null,
     catalog: null,
     selectedAgentId: "marketing-agent",
+    selectedModel: "auto",
     selectedSkills: new Set(["marketing-campaign"]),
     inspectorDept: null,
+    inspectorSpecId: null,
     briefingOn: false,
     deptFilter: "all",
     calcMode: "competitive",
+    lastLooksSig: "",
+    lastModelsSig: "",
   };
 
   const $ = (id) => document.getElementById(id);
@@ -131,15 +135,39 @@
       $("ticker-msg").textContent = `[${top.agent_id}] ${top.action} ${top.detail ? "— " + top.detail : ""}`;
     }
 
-    // Update Inspector if open
+    // Update Inspector if open (refresh status only without wiping user inputs)
     if (state.inspectorDept) {
-      populateInspector(state.inspectorDept);
+      populateInspector(state.inspectorDept, true);
     }
 
+    renderModelSelectors(d.available_models || (omni && omni.models) || []);
     renderLooks(looks);
     renderCompetitorIntel(d);
     renderOrders(orders, d.bank_transactions || []);
     renderSettingsModal(d);
+  }
+
+  function renderModelSelectors(models) {
+    if (!Array.isArray(models) || !models.length) return;
+    const sig = models.map((m) => (typeof m === "string" ? m : m.id)).join("|");
+    if (sig === state.lastModelsSig) return;
+    state.lastModelsSig = sig;
+    const optsHtml = models
+      .map((m) => {
+        const id = typeof m === "string" ? m : m.id;
+        const label = (typeof m === "object" && m.label) ? m.label : id;
+        return `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+    ["insp-model-select", "ecc-model-select"].forEach((selId) => {
+      const sel = $(selId);
+      if (!sel) return;
+      const prev = sel.value || state.selectedModel || "auto";
+      sel.innerHTML = optsHtml;
+      if ([...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+      }
+    });
   }
 
   function renderCompetitorIntel(d, customAnalysis = null) {
@@ -247,7 +275,8 @@
     $("selected-agent-pill").textContent = curAgent ? curAgent.name : state.selectedAgentId;
   }
 
-  function populateInspector(deptId) {
+  function populateInspector(deptId, isRefresh = false) {
+    const deptChanged = state.inspectorDept !== deptId;
     state.inspectorDept = deptId;
     const drawer = $("inspector-drawer");
     drawer.classList.add("open");
@@ -272,6 +301,10 @@
     $("insp-task").textContent = core.current_task || "Vazifa kutilmoqda";
     $("insp-done").textContent = `${core.tasks_done || 0} ta vazifa • Lvl ${core.level || 10} (${core.xp || 1000} XP)`;
 
+    if (isRefresh && !deptChanged) {
+      return;
+    }
+
     const learnings = Array.isArray(core.learnings) ? core.learnings : [];
     const learningsHtml = learnings.length
       ? `<div style="padding:8px 10px;border-radius:9px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);margin-bottom:8px;">
@@ -283,28 +316,57 @@
          </div>`
       : "";
 
-    const specialists = ((state.catalog && state.catalog.agents) || []).filter((x) => x.department === deptId);
+    const allSpecs = (state.catalog && state.catalog.agents) || [];
+    const specialists = allSpecs.filter((x) => x.department === deptId);
+    const activeSpecId =
+      (specialists.some((s) => s.id === state.inspectorSpecId) ? state.inspectorSpecId : null) ||
+      (specialists[0] ? specialists[0].id : deptId);
+    state.inspectorSpecId = activeSpecId;
+
     $("insp-specialists").innerHTML =
       learningsHtml +
       (specialists.length
         ? specialists
             .map(
               (s) => `
-        <div style="padding:7px 9px;border-radius:9px;background:rgba(15,23,42,.75);border:1px solid var(--border);margin-bottom:6px;">
+        <div class="insp-spec-item" data-pick-spec="${escapeHtml(s.id)}" style="cursor:pointer;padding:7px 9px;border-radius:9px;background:${s.id === activeSpecId ? "rgba(56,189,248,.16)" : "rgba(15,23,42,.75)"};border:1px solid ${s.id === activeSpecId ? "var(--accent)" : "var(--border)"};margin-bottom:6px;">
           <div style="font-size:12px;font-weight:700">${escapeHtml(s.name)}</div>
           <div style="font-size:11px;color:var(--text-3)">${escapeHtml(s.description)}</div>
         </div>`
             )
             .join("")
         : `<div style="font-size:11.5px;color:var(--text-3)">Bo'lim V3 avtonom rejimda ishlamoqda</div>`);
-    $("insp-default-spec").value = specialists[0] ? specialists[0].id : "chief-of-staff";
+
+    const specSel = $("insp-spec-select");
+    if (specSel) {
+      const listForSelect = specialists.length ? specialists : allSpecs;
+      specSel.innerHTML = listForSelect.length
+        ? listForSelect.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`).join("")
+        : `<option value="${escapeHtml(deptId)}">${escapeHtml(def.label || deptId)}</option>`;
+      specSel.value = activeSpecId;
+    }
+
+    $("insp-specialists").querySelectorAll("[data-pick-spec]").forEach((el) => {
+      el.addEventListener("click", () => {
+        state.inspectorSpecId = el.dataset.pickSpec;
+        if (specSel) specSel.value = state.inspectorSpecId;
+        $("insp-specialists").querySelectorAll("[data-pick-spec]").forEach((card) => {
+          const isSel = card.dataset.pickSpec === state.inspectorSpecId;
+          card.style.borderColor = isSel ? "var(--accent)" : "var(--border)";
+          card.style.background = isSel ? "rgba(56,189,248,.16)" : "rgba(15,23,42,.75)";
+        });
+      });
+    });
   }
 
   function openLookModal(look) {
-    const rawVid = look.video_path || look.mp4_path || "";
+    const rawVid = look.video_file || look.video_path || look.mp4_path || "";
     const videoFile = rawVid ? rawVid.split(/[\\/]/).pop() : "";
-    const rawImg = look.photo_path || look.image_path || "";
+    const rawImg = look.photo_file || look.photo_path || look.image_path || "";
     const imgFile = rawImg ? rawImg.split(/[\\/]/).pop() : "";
+    const hasVideo = look.video_exists !== false && Boolean(videoFile);
+    const vUrl = look.video_url || (videoFile ? `/media/${encodeURIComponent(videoFile)}` : "");
+    const pUrl = look.photo_url || (imgFile ? `/media/${encodeURIComponent(imgFile)}` : "");
 
     let items = [];
     try {
@@ -313,13 +375,21 @@
       items = [];
     }
 
-    const mediaHtml = videoFile.toLowerCase().endsWith(".mp4")
-      ? `<video style="width:100%;max-height:360px;border-radius:12px;background:#020617" controls autoplay loop playsinline src="/media/${encodeURIComponent(videoFile)}"></video>`
-      : videoFile
-      ? `<img style="width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#020617" src="/media/${encodeURIComponent(videoFile)}" alt="${escapeHtml(look.title)}" />`
-      : imgFile
-      ? `<img style="width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#020617" src="/media/${encodeURIComponent(imgFile)}" alt="${escapeHtml(look.title)}" />`
-      : "";
+    const mediaHtml = hasVideo && videoFile.toLowerCase().endsWith(".mp4")
+      ? `<div style="position:relative;background:#020617;border-radius:12px;overflow:hidden">
+           <video id="modal-look-video" style="width:100%;max-height:420px;display:block;background:#020617" controls autoplay loop playsinline preload="auto" poster="${pUrl}">
+             <source src="${vUrl}?t=${look.created_at || 1}" type="video/mp4" />
+             Brauzeringiz MP4 videoni qo'llab-quvvatlamaydi.
+           </video>
+           <div id="modal-video-err" style="display:none;padding:12px;text-align:center;color:#fbbf24;font-size:12px">
+             ⚠️ Video yuklanmadi — <a href="${vUrl}" target="_blank" style="color:#38bdf8">to'g'ridan-to'g'ri ochish</a>
+           </div>
+         </div>`
+      : hasVideo && videoFile
+      ? `<img style="width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#020617" src="${vUrl}" alt="${escapeHtml(look.title)}" />`
+      : pUrl
+      ? `<img style="width:100%;max-height:360px;object-fit:contain;border-radius:12px;background:#020617" src="${pUrl}" alt="${escapeHtml(look.title)}" />`
+      : `<div style="padding:20px;text-align:center;color:var(--text-3)">Media topilmadi</div>`;
 
     const itemsHtml = items.length
       ? items
@@ -340,17 +410,26 @@
         ${mediaHtml}
         <div class="card"><b>To'plam tarkibi (${items.length} ta buyum):</b>${itemsHtml}</div>
         ${captionHtml}
-        <div style="display:flex;justify-content:flex-end;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          ${hasVideo ? `<a class="btn-primary btn-sm" href="${vUrl}" download>📥 .MP4 Videoni Yuklab Olish</a>` : `<span></span>`}
           <button type="button" class="btn-secondary" id="btn-modal-del-look">🗑️ Ushbu Lookni O'chirish</button>
         </div>
       </div>`
     );
+    const vidEl = $("modal-look-video");
+    if (vidEl) {
+      vidEl.addEventListener("error", () => {
+        const errBox = $("modal-video-err");
+        if (errBox) errBox.style.display = "block";
+      });
+    }
     const delBtn = $("btn-modal-del-look");
     if (delBtn) {
       delBtn.addEventListener("click", async () => {
         delBtn.disabled = true;
         await fetch(`/api/looks/${look.id}/delete`, { method: "POST" });
         $("v2-modal").classList.remove("open");
+        state.lastLooksSig = "";
         fetchState();
       });
     }
@@ -358,35 +437,51 @@
 
   function renderLooks(looks) {
     const grid = $("looks-grid");
+    const sig = looks.map((l) => `${l.id}:${l.photo_exists}:${l.video_exists}:${l.active}:${l.created_at}`).join("|");
+    if (sig === state.lastLooksSig && grid.children.length > 0) return;
+    state.lastLooksSig = sig;
+
     if (!looks.length) {
       grid.innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center;padding:28px;color:var(--text-2)">
         <div style="font-size:28px;margin-bottom:8px">📦</div>
         <div style="font-size:15px;font-weight:700;margin-bottom:4px">Ombor toza — Pinduoduo ulanishiga tayyor</div>
-        <div style="font-size:12.5px;color:var(--text-3)">Oldingi test looklar o'chirildi. Pinduoduo ulangandan keyin haqiqiy raqobatbardosh looklar shu yerda yig'iladi.</div>
+        <div style="font-size:12.5px;color:var(--text-3)">Oldingi test looklar o'chirildi. Yangi look yaratish uchun yuqoridagi tugmani bosing.</div>
       </div>`;
       return;
     }
     const visible = looks.slice(0, 12);
     grid.innerHTML = visible
       .map((l) => {
-        const rawVid = l.video_path || l.mp4_path || "";
+        const rawVid = l.video_file || l.video_path || l.mp4_path || "";
         const videoFile = rawVid ? rawVid.split(/[\\/]/).pop() : "";
-        const rawImg = l.photo_path || l.image_path || "";
+        const rawImg = l.photo_file || l.photo_path || l.image_path || "";
         const imgFile = rawImg ? rawImg.split(/[\\/]/).pop() : "";
-        const visualHtml = imgFile
-          ? `<img class="look-media" src="/media/${encodeURIComponent(imgFile)}" alt="${escapeHtml(l.title)}" loading="lazy" />`
+        const hasVideo = l.video_exists !== false && Boolean(videoFile) && videoFile.toLowerCase().endsWith(".mp4");
+        const hasImg = l.photo_exists !== false && Boolean(imgFile);
+        const vUrl = l.video_url || (videoFile ? `/media/${encodeURIComponent(videoFile)}` : "");
+        const pUrl = l.photo_url || (imgFile ? `/media/${encodeURIComponent(imgFile)}` : "");
+
+        const visualHtml = hasVideo
+          ? `<div style="position:relative;background:#020617">
+               <video class="look-media" controls playsinline preload="metadata" poster="${hasImg ? pUrl : ""}" style="width:100%;display:block;object-fit:contain;background:#020617">
+                 <source src="${vUrl}?t=${l.created_at || 1}" type="video/mp4" />
+               </video>
+             </div>`
+          : hasImg
+          ? `<img class="look-media" src="${pUrl}" alt="${escapeHtml(l.title)}" loading="lazy" />`
           : `<div class="look-media" style="display:grid;place-items:center;color:var(--text-3)">👔 ${escapeHtml(l.title)}</div>`;
+
         const badgeClass = l.active === 0 ? "warn" : "ok";
-        const badgeText = l.ig_media_id ? "IG Joylangan" : l.active === 0 ? "Arxiv" : "Tayyor Look";
-        const dlBtn = videoFile
-          ? `<a class="btn-secondary btn-sm" href="/media/${encodeURIComponent(videoFile)}" download>📥 Reels</a>`
+        const badgeText = l.ig_media_id ? "IG Joylangan" : hasVideo ? "🎬 MP4 Tayyor" : "Tayyor Look";
+        const dlBtn = hasVideo
+          ? `<a class="btn-secondary btn-sm" href="${vUrl}" download>📥 MP4</a>`
           : "";
         return `
         <div class="look-card">
           ${visualHtml}
           <div class="look-body">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
-              <strong style="font-size:13.5px;line-height:1.3">${escapeHtml(l.title)}</strong>
+              <strong style="font-size:13.5px;line-height:1.3">#${l.id} ${escapeHtml(l.title)}</strong>
               <span class="badge ${badgeClass}">${badgeText}</span>
             </div>
             <div style="font-size:11.5px;color:var(--text-3)">O'lcham: ${escapeHtml(l.sizes || "-")} • Rang: ${escapeHtml(l.colors || "-")}</div>
@@ -395,7 +490,7 @@
               <span style="color:var(--accent)">50%: <b>${fmtSum(l.prepay_50_uzs)}</b></span>
             </div>
             <div class="look-actions">
-              <button type="button" class="btn-primary btn-sm" data-view-look="${l.id}">🎬 Reels & Tarkib</button>
+              <button type="button" class="btn-primary btn-sm" data-view-look="${l.id}">🎬 Katta Ekran & Tarkib</button>
               ${dlBtn}
             </div>
           </div>
@@ -533,22 +628,27 @@
     }
   }
 
-  async function runEccTask(agentId, skillIds, prompt, btnEl, outEl) {
-    if (!prompt.trim()) return;
+  async function runEccTask(agentId, skillIds, prompt, model, btnEl, outEl) {
+    if (!prompt || !prompt.trim()) {
+      outEl.style.display = "block";
+      outEl.innerHTML = `<span class="badge warn">Diqqat</span> Iltimos, vazifa matnini yozing!`;
+      return;
+    }
     btnEl.disabled = true;
     const orig = btnEl.textContent;
     btnEl.textContent = "⏳ AI ishlamoqda...";
     outEl.style.display = "block";
-    outEl.textContent = "OmniRoute orqali AI mutaxassis javobi tayyorlanmoqda...";
+    outEl.textContent = `Tanlangan model (${model || "auto"}) va agent (${agentId}) ishga tushirildi...`;
     try {
       const r = await fetch("/api/ecc/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent_id: agentId, skills: skillIds, prompt }),
+        body: JSON.stringify({ agent_id: agentId, skills: skillIds, prompt, model: model || "auto" }),
       });
       const res = await r.json();
       if (res.ok) {
-        outEl.innerHTML = `<div style="margin-bottom:8px"><span class="badge ok">${escapeHtml(res.provider || "OmniRoute")}</span> <span class="badge">${escapeHtml(res.agent_id)}</span></div><div>${escapeHtml(res.answer)}</div>`;
+        const msTag = res.duration_ms ? ` <span class="badge">${(res.duration_ms / 1000).toFixed(1)}s</span>` : "";
+        outEl.innerHTML = `<div style="margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge ok">${escapeHtml(res.provider || "OmniRoute")}</span> <span class="badge">${escapeHtml(res.agent_name || res.agent_id)}</span>${msTag}</div><div style="white-space:pre-wrap">${escapeHtml(res.answer)}</div>`;
       } else {
         outEl.innerHTML = `<span class="badge warn">Xatolik</span> ${escapeHtml(res.error || "Javob olinmadi")}`;
       }
@@ -741,18 +841,45 @@
     // Inspector Drawer Events
     $("insp-close").addEventListener("click", () => {
       state.inspectorDept = null;
+      state.inspectorSpecId = null;
       $("inspector-drawer").classList.remove("open");
     });
-    $("insp-run-btn").addEventListener("click", () => {
-      const aid = $("insp-default-spec").value || "chief-of-staff";
-      runEccTask(aid, [], $("insp-prompt").value, $("insp-run-btn"), $("insp-output"));
+    const inspSpecSel = $("insp-spec-select");
+    if (inspSpecSel) {
+      inspSpecSel.addEventListener("change", () => {
+        state.inspectorSpecId = inspSpecSel.value;
+      });
+    }
+    const inspModelSel = $("insp-model-select");
+    if (inspModelSel) {
+      inspModelSel.addEventListener("change", () => {
+        state.selectedModel = inspModelSel.value;
+      });
+    }
+    const eccModelSel = $("ecc-model-select");
+    if (eccModelSel) {
+      eccModelSel.addEventListener("change", () => {
+        state.selectedModel = eccModelSel.value;
+      });
+    }
+    const triggerInspRun = () => {
+      const aid = ($("insp-spec-select") && $("insp-spec-select").value) || state.inspectorDept || "chief-of-staff";
+      const mod = ($("insp-model-select") && $("insp-model-select").value) || state.selectedModel || "auto";
+      runEccTask(aid, [], $("insp-prompt").value, mod, $("insp-run-btn"), $("insp-output"));
+    };
+    $("insp-run-btn").addEventListener("click", triggerInspRun);
+    $("insp-prompt").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        triggerInspRun();
+      }
     });
 
     // Department Filter in Mutaxassislar Tab
     document.querySelectorAll("[data-dept-filter]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.deptFilter = btn.dataset.deptFilter;
-        document.querySelectorAll("[data-dept-filter]").forEach((b) => b.classList.toggle("active", b === btn));
+        document.querySelectorAll("[data-dept-filter]").forEach((b) => b.classList.toggle("selected", b === btn));
         renderCatalog();
       });
     });
@@ -769,10 +896,12 @@
     });
 
     $("ecc-run-btn").addEventListener("click", () => {
+      const mod = ($("ecc-model-select") && $("ecc-model-select").value) || state.selectedModel || "auto";
       runEccTask(
         state.selectedAgentId,
         Array.from(state.selectedSkills),
         $("ecc-prompt-input").value,
+        mod,
         $("ecc-run-btn"),
         $("ecc-run-output")
       );
@@ -917,9 +1046,10 @@
               <div id="pdd-addr-out" style="font-size:11.5px;color:var(--text-2);margin-top:8px"></div>
             </div>
 
-            <details class="card" style="cursor:pointer">
-              <summary style="font-size:12.5px;font-weight:700">3. Ixtiyoriy: Rasmiy Duoduo Jinbao / RapidAPI Kalitlari</summary>
+            <details class="card" style="cursor:pointer" ${st.has_apify ? "open" : ""}>
+              <summary style="font-size:12.5px;font-weight:700">3. Jonli Pinduoduo Server API (Apify Live Server ${st.has_apify ? "✅ Ulangan" : ""} / Duoduo Jinbao)</summary>
               <div style="display:grid;gap:7px;margin-top:10px">
+                <input id="inp-pdd-apify" type="password" class="form-control" placeholder="${st.has_apify ? "APIFY_API_TOKEN (✅ ulangan — yangilash uchun yozing)" : "APIFY_API_TOKEN (jonli Pinduoduo qidiruv serveri)"}" />
                 <input id="inp-pdd-cid" class="form-control" placeholder="PDD_CLIENT_ID (ixtiyoriy)" />
                 <input id="inp-pdd-csec" type="password" class="form-control" placeholder="PDD_CLIENT_SECRET (ixtiyoriy)" />
                 <input id="inp-pdd-rapi" type="password" class="form-control" placeholder="PDD_RAPIDAPI_KEY (ixtiyoriy)" />
@@ -1047,9 +1177,11 @@
         if (saveKeysBtn) {
           saveKeysBtn.addEventListener("click", async () => {
             const payload = {};
+            const apify = $("inp-pdd-apify") ? $("inp-pdd-apify").value.trim() : "";
             const cid = $("inp-pdd-cid").value.trim();
             const csec = $("inp-pdd-csec").value.trim();
             const rapi = $("inp-pdd-rapi").value.trim();
+            if (apify) payload.apify_token = apify;
             if (cid) payload.client_id = cid;
             if (csec) payload.client_secret = csec;
             if (rapi) payload.rapidapi_key = rapi;

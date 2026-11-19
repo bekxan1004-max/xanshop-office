@@ -62,8 +62,9 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           PDD_RAPIDAPI_KEY: ${{ secrets.PDD_RAPIDAPI_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: "gemini-3.6-flash"
+          GEMINI_MODEL: "gemini-3.5-flash-lite"
           CARD_NUMBER: "9860 3501 4182 4135"
           CARD_OWNER: "POLVONOV BEKMUROD"
           AUTO_POST_HOURS: "3.0"
@@ -92,7 +93,7 @@ jobs:
         run: |
           git config user.name "xanshop-bot"
           git config user.email "bekxan1004@gmail.com"
-          git add -f data/shop.db data/pdd_live_cache.json || true
+          git add -f data/shop.db data/pdd_live_cache.json data/photos/look_*.jpg data/photos/look_*_reels.mp4 || true
           git diff --staged --quiet || git commit -m "chore: sync 24/7 shop.db state [skip ci]"
           git pull --rebase -X ours origin main || true
           git push origin main || true

@@ -1295,6 +1295,7 @@ def build_dashboard_app(
             settings.pdd_client_secret,
             settings.pdd_rapidapi_key,
             settings.pdd_session_path,
+            apify_token=settings.pdd_apify_token,
         )
 
     async def health(_request: web.Request) -> web.Response:
@@ -1332,6 +1333,23 @@ def build_dashboard_app(
         looks = []
         for lk in looks_raw:
             d = dict(lk)
+            raw_img = (d.get("photo_path") or "").replace("\\", "/")
+            raw_vid = (d.get("video_path") or "").replace("\\", "/")
+            img_name = os.path.basename(raw_img) if raw_img else f"look_{d['id']}.jpg"
+            vid_name = os.path.basename(raw_vid) if raw_vid else f"look_{d['id']}_reels.mp4"
+            img_full = os.path.join(office.media_dir, img_name) if img_name else ""
+            vid_full = os.path.join(office.media_dir, vid_name) if vid_name else ""
+            if vid_name and not os.path.isfile(vid_full):
+                alt_vid = f"look_{d['id']}_reel.mp4"
+                if os.path.isfile(os.path.join(office.media_dir, alt_vid)):
+                    vid_name = alt_vid
+                    vid_full = os.path.join(office.media_dir, alt_vid)
+            d["photo_file"] = img_name
+            d["video_file"] = vid_name
+            d["photo_exists"] = bool(img_full and os.path.isfile(img_full))
+            d["video_exists"] = bool(vid_full and os.path.isfile(vid_full))
+            d["photo_url"] = f"/media/{img_name}" if d["photo_exists"] else ""
+            d["video_url"] = f"/media/{vid_name}" if d["video_exists"] else ""
             d["insta_caption"] = format_instagram_caption(
                 d,
                 office.sales_username,
@@ -1339,6 +1357,9 @@ def build_dashboard_app(
                 manager_username=settings.manager_username,
             )
             looks.append(d)
+
+        from .omniroute_server import OMNIROUTE_MODELS
+        available_models = omni_status.get("models") or OMNIROUTE_MODELS
 
         logs = await db.list_agent_logs(limit=35)
         orders = await db.active_orders(limit=25)
@@ -1390,6 +1411,7 @@ def build_dashboard_app(
             "cargo_lines": {k: v.__dict__ for k, v in CARGO_LINES.items()},
             "connections": connections,
             "omniroute": omni_status,
+            "available_models": available_models,
             "latest_ceo_brief": latest_ceo_brief,
             "latest_insta_analysis": latest_insta_analysis,
             "graphify": {
@@ -1436,7 +1458,8 @@ def build_dashboard_app(
         except Exception:
             body = {}
         agent_id = str(body.get("agent_id") or "marketing-agent").strip()
-        prompt = str(body.get("prompt") or "").strip()
+        prompt = str(body.get("prompt") or body.get("task") or "").strip()
+        model = str(body.get("model") or "").strip()
         skills = body.get("skills") or []
         if not isinstance(skills, list):
             skills = [str(skills)]
@@ -1449,6 +1472,7 @@ def build_dashboard_app(
             task_prompt=prompt,
             skill_ids=[str(s) for s in skills if s],
             db=db,
+            model=model,
         )
         return web.json_response(res)
 
@@ -1700,6 +1724,7 @@ def build_dashboard_app(
                 "running": task_running,
             },
             "has_official_api": bool(settings.pdd_client_id and settings.pdd_client_secret),
+            "has_apify": bool(settings.pdd_apify_token),
             "has_rapidapi": bool(settings.pdd_rapidapi_key),
             "cargo_addresses": cargo_address_specs(),
             "addresses_sync": addr_status,
@@ -1813,6 +1838,7 @@ def build_dashboard_app(
         for field_name, attr_name, env_key in (
             ("client_id", "pdd_client_id", "PDD_CLIENT_ID"),
             ("client_secret", "pdd_client_secret", "PDD_CLIENT_SECRET"),
+            ("apify_token", "pdd_apify_token", "APIFY_API_TOKEN"),
             ("rapidapi_key", "pdd_rapidapi_key", "PDD_RAPIDAPI_KEY"),
         ):
             if field_name in body and body[field_name] is not None:
@@ -1927,9 +1953,55 @@ def build_dashboard_app(
     async def serve_media(request: web.Request) -> web.StreamResponse:
         name = os.path.basename(request.match_info["name"])
         full = os.path.join(office.media_dir, name)
-        if not os.path.exists(full):
-            raise web.HTTPNotFound()
-        return web.FileResponse(full)
+        if not os.path.isfile(full):
+            if name.endswith("_reels.mp4"):
+                alt = os.path.join(office.media_dir, name.replace("_reels.mp4", "_reel.mp4"))
+                if os.path.isfile(alt):
+                    full = alt
+                else:
+                    raise web.HTTPNotFound()
+            else:
+                raise web.HTTPNotFound()
+        low = full.lower()
+        headers = {"Cache-Control": "public, max-age=300", "Accept-Ranges": "bytes"}
+        if low.endswith(".mp4"):
+            headers["Content-Type"] = "video/mp4"
+        elif low.endswith(".jpg") or low.endswith(".jpeg"):
+            headers["Content-Type"] = "image/jpeg"
+        elif low.endswith(".png"):
+            headers["Content-Type"] = "image/png"
+        return web.FileResponse(full, headers=headers)
+
+    async def api_office_diagnostics(_request: web.Request) -> web.Response:
+        omni = await check_omniroute_status(
+            getattr(settings, "omniroute_base_url", "http://localhost:20128/v1"),
+            getattr(settings, "omniroute_api_key", "omniroute-local"),
+        )
+        agents = await db.list_agents()
+        looks_raw = await db.list_looks(only_active=False)
+        playable = 0
+        for lk in looks_raw:
+            vp = os.path.join(office.media_dir, os.path.basename((lk.get("video_path") or "").replace("\\", "/")))
+            if os.path.isfile(vp) and vp.lower().endswith(".mp4"):
+                playable += 1
+        cs = ecc_registry.summary_for_dashboard()
+        pdd = _current_pdd()
+        return web.json_response({
+            "ok": True,
+            "core_agents_count": len(agents),
+            "core_agents": [
+                {"id": a["agent_id"], "name": a["name"], "status": a["status"], "tasks_done": a["tasks_done"]}
+                for a in agents
+            ],
+            "specialists_count": cs["agents_count"],
+            "skills_count": cs["skills_count"],
+            "omniroute_online": omni["online"],
+            "omniroute_models": len(omni.get("models") or []),
+            "looks_total": len(looks_raw),
+            "looks_playable_mp4": playable,
+            "pdd_connected": pdd.is_live_api,
+            "pdd_mode": pdd.connection_mode,
+        })
 
     async def api_analyze_competitor(request: web.Request) -> web.Response:
         try:
@@ -1958,6 +2030,7 @@ def build_dashboard_app(
     app.router.add_post("/api/orders/{id}/prepare_pdd", api_order_prepare_pdd)
     app.router.add_get("/api/ecc/catalog", api_ecc_catalog)
     app.router.add_post("/api/ecc/run", api_ecc_run)
+    app.router.add_get("/api/office/diagnostics", api_office_diagnostics)
     app.router.add_post("/api/office/briefing", api_office_briefing)
     app.router.add_post("/api/ceo/analyze", api_ceo_analyze)
     app.router.add_post("/api/ceo/apply_pricing", api_ceo_apply_pricing)

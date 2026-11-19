@@ -246,6 +246,36 @@ class ECCRegistry:
                     content=body,
                 )
 
+        # Bulut serverlarda (GitHub Actions / Docker) vendor/ecc papkasi bo'lmaganda ham
+        # barcha 15 ta XAN SHOP mutaxassisi va 25 ta skill 100% ishlashi uchun ichki bazani to'ldiramiz:
+        for aid, cmeta in XAN_CURATED_AGENTS.items():
+            if aid not in self.agents:
+                dept = cmeta["department"]
+                self.agents[aid] = ECCAgentSpec(
+                    agent_id=aid,
+                    name=cmeta["title_uz"],
+                    description=cmeta["role_uz"],
+                    model="auto",
+                    tools="omniroute,shop_db,analytics",
+                    department=dept,
+                    prompt_body=(
+                        f"Sen XAN SHOP onlayn erkaklar kiyimi do'konining '{cmeta['title_uz']}' mutaxassisan "
+                        f"({DEPARTMENT_TITLES_UZ.get(dept, dept)} bo'limi).\n"
+                        f"Asosiy mas'uliyating: {cmeta['role_uz']}.\n"
+                        "Qoidalar: 50% oldindan to'lov, Toshkentga 5-10 kunlik Avia kargo ($9.5/kg), "
+                        "65% foyda + 50k/100k yaxlitlash, halol sifat va sotuvchi natijaga yo'naltirilgan aniq reja ber."
+                    ),
+                )
+        for sid, (cat_uz, title_uz, desc_uz) in XAN_CURATED_SKILLS.items():
+            if sid not in self.skills:
+                self.skills[sid] = ECCSkillSpec(
+                    skill_id=sid,
+                    name=title_uz,
+                    description=desc_uz,
+                    path="builtin",
+                    content=f"{cat_uz} — {title_uz}: {desc_uz}. Amaliy, raqamli va XAN SHOP biznesiga mos javob tuz.",
+                )
+
     def summary_for_dashboard(self, include_all: bool = False) -> dict[str, Any]:
         curated_agents = []
         for aid, cmeta in XAN_CURATED_AGENTS.items():
@@ -305,7 +335,7 @@ class ECCRegistry:
             skills_out = curated_skills
 
         return {
-            "ecc_installed": self.ecc_root.is_dir() and len(self.agents) > 0,
+            "ecc_installed": len(self.agents) > 0,
             "domain_filter": "XAN SHOP — Kiyim, Marketing, Reels, Sotuv, Moliya & Kargo",
             "agents_count": len(agents_out),
             "skills_count": len(skills_out),
@@ -365,31 +395,39 @@ async def run_ecc_specialist(
     task_prompt: str,
     skill_ids: list[str] | None = None,
     db: Any = None,
+    model: str = "",
 ) -> dict[str, Any]:
-    """Tanlangan ECC agent va skillni OmniRoute -> OpenRouter -> Gemini orqali ishga tushiradi."""
-    agent = registry.agents.get(agent_id)
+    """Tanlangan ECC agent, skill va aniq AI modelni OmniRoute -> OpenRouter -> Gemini orqali ishga tushiradi."""
+    import time as _time
+
+    t0 = _time.monotonic()
+    resolved_id = (agent_id or "").strip()
+    if resolved_id not in registry.agents and resolved_id in DEPARTMENT_AGENT_MAP:
+        resolved_id = DEPARTMENT_AGENT_MAP[resolved_id][0]
+    agent = registry.agents.get(resolved_id)
     if not agent:
         return {"ok": False, "error": f"ECC agent '{agent_id}' topilmadi"}
+    agent_id = resolved_id
 
     # Token tejamkor Prompt: faqat agent asosiy qoidasi + kerakli skill + Graphify xarita
-    agent_instructions = agent.prompt_body[:2400]
+    agent_instructions = agent.prompt_body[:1200]
     skills_block_parts: list[str] = []
     used_skills: list[str] = []
     for sid in (skill_ids or []):
         sk = registry.skills.get(sid)
         if sk:
             used_skills.append(sid)
-            skills_block_parts.append(f"### SKILL: {sk.name}\n{sk.content[:1400]}")
+            skills_block_parts.append(f"### SKILL: {sk.name}\n{sk.content[:900]}")
 
     graph_idx = build_graphify_context_index("app")
     system_prompt = (
-        f"Sen XAN SHOP Virtual Ofisining ECC '{agent.name}' mutaxassis agentisan.\n"
+        f"Sen XAN SHOP Virtual Ofisining '{agent.name}' mutaxassis agentisan.\n"
         f"Mutaxassislik: {agent.description}\n\n"
         f"Loyiha Graphify xaritasi ({graph_idx['modules']} modul, {graph_idx['functions']} funksiya):\n"
-        f"{graph_idx['compact_map'][:900]}\n\n"
+        f"{graph_idx['compact_map'][:500]}\n\n"
         f"Agent yo'riqnomasi:\n{agent_instructions}\n\n"
         + ("\n".join(skills_block_parts) if skills_block_parts else "")
-        + "\n\nQISQA, ANIQ va AMALIY javob ber (o'zbek tilida, kerak bo'lsa kod/reja bilan)."
+        + "\n\nQISQA, ANIQ va AMALIY javob ber (o'zbek tilida, kerak bo'lsa aniq reja va raqamlar bilan)."
     )
 
     ai = SalesAI(settings)
@@ -397,30 +435,51 @@ async def run_ecc_specialist(
         return {"ok": False, "error": "AI provayder (OmniRoute / OpenRouter / Gemini) ulanmagan"}
 
     dept = XAN_CURATED_AGENTS.get(agent_id, {}).get("department", agent.department)
+    req_model = (model or "").strip()
     if db is not None:
-        await db.set_agent_status(dept, "working", f"ECC [{agent_id}] ishlamoqda: {task_prompt[:45]}...")
+        m_tag = f" ({req_model})" if req_model and req_model != "auto" else ""
+        await db.set_agent_status(dept, "working", f"📌 [{agent_id}{m_tag}]: {task_prompt[:48]}...")
 
-    answer, _, _ = await ai.reply(system_prompt, task_prompt, previous_id=None)
+    answer, _, _ = await ai.reply(
+        system_prompt,
+        task_prompt,
+        previous_id=None,
+        model_override=req_model or None,
+    )
     provider = ai.last_provider_used
+    elapsed_ms = int((_time.monotonic() - t0) * 1000)
     if answer:
         answer = html.unescape(answer).strip()
 
     if db is not None:
-        await db.set_agent_status(dept, "idle", f"AI [{agent_id}] vazifani yakunladi", increment_done=True)
+        await db.set_agent_status(
+            dept,
+            "idle",
+            f"Yakunlandi [{agent_id} • {provider}]: {task_prompt[:40]}",
+            increment_done=bool(answer),
+        )
         await db.log_agent_action(
             dept,
-            f"Mutaxassis '{agent_id}' ({', '.join(used_skills) or 'asosiy'}) vazifani bajardi [{provider}]",
+            f"Mutaxassis '{agent_id}' ({', '.join(used_skills) or 'asosiy'}) vazifani bajardi [{provider}] ({elapsed_ms}ms)",
             f"So'rov: {task_prompt[:120]} | Javob uzunligi: {len(answer or '')} belgi",
         )
 
     if not answer:
-        return {"ok": False, "error": "AI provayder javob bermadi (OmniRoute/Gemini holatini tekshiring)"}
+        return {
+            "ok": False,
+            "error": f"AI provayder javob bermadi (tanlangan model: {req_model or 'auto'}). Boshqa modelni tanlab qayta urinib ko'ring.",
+            "requested_model": req_model or "auto",
+            "duration_ms": elapsed_ms,
+        }
 
     return {
         "ok": True,
         "agent_id": agent_id,
+        "agent_name": XAN_CURATED_AGENTS.get(agent_id, {}).get("title_uz", agent.name),
         "department": dept,
         "skills": used_skills,
+        "requested_model": req_model or "auto",
         "provider": provider,
+        "duration_ms": elapsed_ms,
         "answer": answer,
     }

@@ -295,6 +295,7 @@ class TrendSourcingAgent:
             client_secret=getattr(settings, "pdd_client_secret", ""),
             rapidapi_key=getattr(settings, "pdd_rapidapi_key", ""),
             session_path=getattr(settings, "pdd_session_path", "data/pdd_session.json"),
+            apify_token=getattr(settings, "pdd_apify_token", ""),
         )
         self._fallback_idx = 0
 

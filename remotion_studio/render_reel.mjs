@@ -47,6 +47,7 @@ async function main() {
     composition,
     serveUrl: bundleLocation,
     codec: "h264",
+    pixelFormat: "yuv420p",
     outputLocation: path.resolve(outputMp4),
     inputProps,
     crf: 18,

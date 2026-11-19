@@ -135,7 +135,7 @@ def test_pdd_endpoints_cargo_specs_and_order_prep(tmp_path):
         assert codes == {"TUJJOR-AVIA", "DOOR-AVIA"}
 
         from dataclasses import replace
-        s = replace(load_settings(), pdd_session_path=str(sess_path))
+        s = replace(load_settings(), pdd_session_path=str(sess_path), pdd_apify_token="", pdd_client_id="", pdd_client_secret="")
         db = Database(str(tmp_path / "pdd_dash.db"))
         await db.connect()
         try:
@@ -255,7 +255,7 @@ def test_pdd_cookie_editor_metadata_and_app_only_search_error(tmp_path, monkeypa
     monkeypatch.setattr(PinduoduoConnector, "search_live", _fake_search_live)
 
     async def _run():
-        s = replace(load_settings(), pdd_session_path=str(sess_path))
+        s = replace(load_settings(), pdd_session_path=str(sess_path), pdd_apify_token="", pdd_client_id="", pdd_client_secret="")
         db = Database(str(tmp_path / "pdd_err.db"))
         await db.connect()
         try:

@@ -50,10 +50,11 @@ class Settings:
     tg_phone: str = ""
     tg_session_string: str = ""
     manager_username: str = ""
-    # Rasmiy Pinduoduo API va Brauzer sessiyasi (Playwright)
+    # Rasmiy Pinduoduo API, Apify Live PDD Server va Brauzer sessiyasi (Playwright)
     pdd_client_id: str = ""
     pdd_client_secret: str = ""
     pdd_rapidapi_key: str = ""
+    pdd_apify_token: str = ""
     pdd_session_path: str = "data/pdd_session.json"
     # Rasmiy Instagram Graph API
     ig_user_id: str = ""
@@ -90,7 +91,7 @@ def load_settings() -> Settings:
         admin_ids=_ids(os.getenv("ADMIN_IDS", "")),
         agent_chat_id=int(agent) if agent else None,
         gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
         shop_name=os.getenv("SHOP_NAME", "XAN SHOP"),
         delivery_text=os.getenv("DELIVERY_TEXT", "5–10 kun (avia)"),
         return_policy=os.getenv("RETURN_POLICY", ""),
@@ -120,6 +121,7 @@ def load_settings() -> Settings:
         pdd_client_id=os.getenv("PDD_CLIENT_ID", "").strip(),
         pdd_client_secret=os.getenv("PDD_CLIENT_SECRET", "").strip(),
         pdd_rapidapi_key=os.getenv("PDD_RAPIDAPI_KEY", "").strip(),
+        pdd_apify_token=(os.getenv("APIFY_API_TOKEN", "") or os.getenv("PDD_APIFY_TOKEN", "")).strip(),
         pdd_session_path=os.getenv("PDD_SESSION_PATH", "data/pdd_session.json").strip(),
         ig_user_id=os.getenv("IG_USER_ID", "").strip(),
         ig_access_token=os.getenv("IG_ACCESS_TOKEN", "").strip(),
