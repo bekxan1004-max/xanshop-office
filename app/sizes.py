@@ -39,18 +39,57 @@ def is_shoe_item(item: dict[str, Any]) -> bool:
     return any(w in txt for w in ("etik", "lofer", "krossovka", "poyabzal", "tufli", "chelsea", "sneaker", "靴", "鞋", "皮鞋", "乐福"))
 
 
-def needs_size_up_hint(item: dict[str, Any]) -> tuple[bool, str]:
-    """Qishki qalin kiyim yoki do'kon tor bichim (偏小/修身) bo'lsa 1 razmer kattaroq tavsiya sababini qaytaradi."""
+def item_size_group(item: dict[str, Any]) -> str:
+    """Buyumni 3 ta alohida razmer turkumidan biriga ajratadi: 'shoes' | 'bottom' | 'top'."""
+    if is_shoe_item(item):
+        return "shoes"
+    cat = str(item.get("category") or "").lower()
+    if cat == "bottom":
+        return "bottom"
+    txt = f"{item.get('name', '')} {item.get('title_cn', '')} {item.get('cn_keyword', '')}".lower()
+    if any(w in txt for w in ("shim", "jinsi", "bryuk", "kargo", "joger", "裤", "西裤", "工装裤", "牛仔裤", "休闲裤")):
+        return "bottom"
+    return "top"
+
+
+def is_outerwear_item(item: dict[str, Any]) -> bool:
+    cat = str(item.get("category") or "").lower()
+    if cat == "outerwear":
+        return True
+    txt = f"{item.get('name', '')} {item.get('title_cn', '')} {item.get('cn_keyword', '')}".lower()
+    return any(w in txt for w in ("palto", "kurtka", "puxovik", "bomber", "trench", "vetrovka", "blazer", "大衣", "羽绒", "夹克", "外套", "棉衣", "风衣"))
+
+
+def needs_size_up_hint(item: dict[str, Any]) -> tuple[bool, bool, str]:
+    """(force_size_up, is_optional_hint, reason_uz) qaytaradi.
+
+    Qoida:
+    - Oyoq kiyimga bo'y/vazn yoki avtomatik +1 razmer qo'shilmaydi (faqat do'kon o'zi aniq '偏小' desa eslatiladi).
+    - Asosan kiyimlarda (ayniqsa qishki tashqi kiyimda) faqat DO'KON IZOHIDA yozilgan bo'lsa +1 razmer suriladi;
+      qishki qalin tashqi kiyimda do'kon izohi bo'lmasa ham yumshoq ixtiyoriy maslahat beriladi.
+    """
     fit_note = str(item.get("fit_note") or "")
-    txt = f"{item.get('name', '')} {item.get('title_cn', '')} {item.get('cn_keyword', '')} {fit_note}".lower()
-    if is_shoe_item(item) and any(w in txt for w in ("qishki", "mo'ynali", "加绒", "保暖", "冬季", "chelsea")):
-        return True, "qishki ichi issiq/mo'ynali oyoq kiyim — qalin paypoq bilan qisib qo'ymasligi uchun 1 razmer kattaroq olish qulay"
-    if any(w in txt for w in ("偏小", "修身", "tor bichim", "ixcham")):
-        return True, "do'kon izohida bichimi biroz tor/ixcham deyilgan — 1 razmer kattaroq olsangiz bemalol turadi"
-    if any(w in txt for w in ("palto", "kurtka", "puxovik", "qishki", "jun", "bomber", "羽绒", "加厚", "加绒", "大衣", "棉衣")):
-        if not any(w in txt for w in ("oversize", "宽松", "keng bichim")):
-            return True, "qishki qalin ustki kiyim — ichidan sviter yoki vodolazka kiyilganda yelkada siqmasligi uchun 1 razmer kattaroq olish yaxshiroq"
-    return False, ""
+    title_cn = str(item.get("title_cn") or item.get("cn_keyword") or "")
+    low_note = f"{fit_note} {title_cn}".lower()
+
+    # 1) Do'kon izohida aniq "tor bichim / 1 razmer katta oling" (偏小 / 拍大一码 / 修身) yozilgan bo'lsa:
+    if any(w in low_note for w in ("偏小", "拍大一码", "大一码", "tor bichim", "ixcham", "修身")):
+        if is_shoe_item(item):
+            return False, True, "do'kon izohida qolipi biroz torroq deyilgan — qulay turishi uchun 1 razmer kattasini olishingiz mumkin"
+        return True, False, "do'kon izohida bichimi sal torroq deyilgan, shuning uchun 1 razmer kattaroq olsangiz bemalol turadi"
+
+    # 2) Oyoq kiyim uchun o'z-o'zidan +1 qo'shmaymiz!
+    if is_shoe_item(item):
+        return False, False, ""
+
+    # 3) Qishki qalin tashqi kiyim (palto, kurtka, puxovik): majburiy emas, lekin insoniy ixtiyoriy eslatma
+    if is_outerwear_item(item) and any(
+        w in f"{item.get('name', '')} {low_note}".lower()
+        for w in ("qishki", "palto", "puxovik", "jun", "羽绒", "加厚", "加绒", "大衣", "棉衣", "冬季")
+    ):
+        if not any(w in low_note for w in ("oversize", "宽松", "keng bichim")):
+            return False, True, "qishki tashqi kiyim bo'lgani uchun tagidan qalin sviter kiysangiz, 1 razmer kattaroq olish ham qulayroq bo'lishi mumkin"
+    return False, False, ""
 
 
 def recommend_shoe_size(foot_cm: float, available: list[str] | None = None, winter_lined: bool = False) -> str:
@@ -96,26 +135,31 @@ def recommend_for_item(
     item: dict[str, Any],
     foot_cm: float | None = None,
 ) -> dict[str, Any]:
-    """Aynan bitta Pinduoduo tovarining o'z razmer jadvali (size_chart) va qishki bichim eslatmasiga qarab razmer topadi."""
-    name = str(item.get("name") or "Buyum")
-    avail = [str(s).strip() for s in (item.get("store_sizes") or []) if str(s).strip()]
-    size_up, size_up_reason = needs_size_up_hint(item)
+    """Aynan bitta Pinduoduo tovarining o'z razmer jadvali (size_chart) va do'kon bichim izohiga qarab razmer topadi.
 
-    if is_shoe_item(item):
+    MUHIM: Oyoq kiyim HECH QACHON bo'y-vaznga qarab hisoblanmaydi! Faqat oyoq uzunligi (sm) yoki mijozning o'z oyoq razmeri so'raladi.
+    """
+    name = str(item.get("name") or "Buyum")
+    group = item_size_group(item)
+    avail = [str(s).strip() for s in (item.get("store_sizes") or []) if str(s).strip()]
+    force_up, optional_hint, hint_reason = needs_size_up_hint(item)
+
+    if group == "shoes":
         if foot_cm:
-            sz = recommend_shoe_size(foot_cm, avail or ["39", "40", "41", "42", "43", "44"], winter_lined=size_up)
+            sz = recommend_shoe_size(foot_cm, avail or ["39", "40", "41", "42", "43", "44"], winter_lined=False)
             note = f"Oyoq uzunligi {foot_cm:g} sm bo'yicha {sz} razmer mos"
-            if size_up:
-                note += f" ({size_up_reason})"
-            return {"name": name, "is_shoe": True, "size": sz, "source": "shoe_cm_table", "reason_uz": note}
+            if hint_reason:
+                note += f" ({hint_reason})"
+            return {"name": name, "group": "shoes", "is_shoe": True, "size": sz, "source": "shoe_cm_table", "reason_uz": note}
         return {
             "name": name,
+            "group": "shoes",
             "is_shoe": True,
             "size": None,
             "source": "need_shoe_size",
             "reason_uz": (
-                f"Oyoq kiyim razmeringizni alohida tanlang ({', '.join(avail or ['39','40','41','42','43','44'])})"
-                + (f" — {size_up_reason}" if size_up else "")
+                f"Oyoq kiyim bo'y-vaznga qaralmaydi — o'zingiz kiyadigan razmerni tanlang ({', '.join(avail or ['39','40','41','42','43','44'])})"
+                + (f" ({hint_reason})" if hint_reason else "")
             ),
         }
 
@@ -141,7 +185,7 @@ def recommend_for_item(
                     best_dist = dist
                     best_idx = i
         if best_idx >= 0:
-            picked_idx = min(len(chart) - 1, best_idx + (1 if size_up else 0))
+            picked_idx = min(len(chart) - 1, best_idx + (1 if force_up else 0))
             picked_row = chart[picked_idx]
             sz = str(picked_row.get("size") or "").strip()
             detail_parts = []
@@ -153,17 +197,19 @@ def recommend_for_item(
                 detail_parts.append(f"ko'krak {picked_row['chest_cm']} sm")
             spec_str = f" ({', '.join(detail_parts)})" if detail_parts else ""
             reason = f"Do'konning o'z jadvali bo'yicha {sz}{spec_str} mos tushadi"
-            if size_up and picked_idx > best_idx:
-                reason += f" — {size_up_reason}"
-            return {"name": name, "is_shoe": False, "size": sz, "source": "store_size_chart", "reason_uz": reason}
+            if force_up and picked_idx > best_idx and hint_reason:
+                reason += f" — {hint_reason}"
+            elif optional_hint and hint_reason:
+                reason += f" (eslatma: {hint_reason})"
+            return {"name": name, "group": group, "is_shoe": False, "size": sz, "source": "store_size_chart", "reason_uz": reason}
 
-    # 2) Agar do'kon jadvali hali o'qilmagan bo'lsa, Osiyo jadvali + qishki/tor bichim tuzatishi
-    eff_weight = weight_kg + (5.5 if size_up else 0.0)
+    # 2) Agar do'kon jadvali hali o'qilmagan bo'lsa, Osiyo jadvali (faqat do'kon izohi talab qilsagina +1)
+    eff_weight = weight_kg + (5.5 if force_up else 0.0)
     sz = recommend(height_cm, eff_weight, avail)
     reason = f"Bo'y {height_cm:g} sm / vazn {weight_kg:g} kg bo'yicha {sz or 'XL'} razmer mos"
-    if size_up:
-        reason += f" ({size_up_reason})"
-    return {"name": name, "is_shoe": False, "size": sz, "source": "winter_adjusted" if size_up else "asia_standard", "reason_uz": reason}
+    if hint_reason:
+        reason += f" ({hint_reason})"
+    return {"name": name, "group": group, "is_shoe": False, "size": sz, "source": "store_fit_adjusted" if force_up else "asia_standard", "reason_uz": reason}
 
 
 def recommend_for_look(
@@ -172,7 +218,7 @@ def recommend_for_look(
     look: dict[str, Any],
     foot_cm: float | None = None,
 ) -> dict[str, Any]:
-    """Butun look tarkibidagi har bir kiyim va oyoq kiyim uchun alohida razmer va insoniy izoh beradi."""
+    """Butun look tarkibidagi ust kiyim, shim va oyoq kiyim uchun ALOHIDA razmer tavsiyasi beradi."""
     import json
 
     try:
@@ -181,19 +227,28 @@ def recommend_for_look(
         items = []
     avail_look = [x.strip() for x in str(look.get("sizes") or "").split(",") if x.strip()]
     per_item = [recommend_for_item(height_cm, weight_kg, it, foot_cm=foot_cm) for it in items]
-    clothing_recs = [r for r in per_item if not r["is_shoe"] and r.get("size")]
-    shoe_recs = [r for r in per_item if r["is_shoe"]]
+    top_recs = [r for r in per_item if r.get("group") == "top" and r.get("size")]
+    bottom_recs = [r for r in per_item if r.get("group") == "bottom" and r.get("size")]
+    shoe_recs = [r for r in per_item if r.get("group") == "shoes"]
 
-    primary_size = clothing_recs[0]["size"] if clothing_recs else recommend(height_cm, weight_kg, avail_look)
-    # Agar kiyimlar ichida qishki/tor bichim bo'lib kattaroq razmer chiqqan bo'lsa, ustki kiyimnikini asos qilamiz
-    if len(clothing_recs) > 1:
-        letter_recs = [r["size"] for r in clothing_recs if normalize(r["size"]) in ORDER]
-        if letter_recs:
-            primary_size = max(letter_recs, key=lambda s: ORDER.index(normalize(s)))
+    def _pick_group_size(recs: list[dict[str, Any]]) -> str | None:
+        if not recs:
+            return None
+        letters = [r["size"] for r in recs if normalize(r["size"]) in ORDER]
+        if letters:
+            return max(letters, key=lambda s: ORDER.index(normalize(s)))
+        return recs[0]["size"]
+
+    top_size = _pick_group_size(top_recs) or recommend(height_cm, weight_kg, avail_look)
+    bottom_size = _pick_group_size(bottom_recs)
+    primary_size = top_size or bottom_size or recommend(height_cm, weight_kg, avail_look)
 
     advice_lines = [f"• {r['name']}: <b>{r['size'] or 'alohida tanlanadi'}</b> — {r['reason_uz']}" for r in per_item]
     return {
         "primary_clothing_size": primary_size,
+        "top_size": top_size,
+        "bottom_size": bottom_size,
+        "has_bottom": bool(bottom_recs),
         "has_shoes": bool(shoe_recs),
         "shoe_sizes": (items[[i for i, x in enumerate(items) if is_shoe_item(x)][0]].get("store_sizes") if shoe_recs else []) or ["39", "40", "41", "42", "43", "44"],
         "per_item": per_item,

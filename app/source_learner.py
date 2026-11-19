@@ -67,9 +67,13 @@ def parse_source_url(raw_input: str) -> tuple[str, str, str]:
 
 
 async def check_ig_publish_ready(ig_user_id: str, ig_token: str) -> tuple[bool, str]:
-    """Instagram Graph API (yoki Facebook Page'ga ulangan IG Business hisobi) nashrga tayyorligini tekshiradi."""
+    """Instagram Reels nashrga tayyorligini tekshiradi (Instagram Web sessiyasi YOKI Meta Graph API)."""
+    from .publisher import has_valid_ig_browser_session
+
+    if has_valid_ig_browser_session():
+        return (True, "")
     if not ig_token:
-        return (False, "IG_ACCESS_TOKEN ulanmagan")
+        return (False, "Instagram sessiyasi yoki Meta API ulanmagan")
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             if ig_user_id:

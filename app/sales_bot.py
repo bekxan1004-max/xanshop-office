@@ -17,7 +17,7 @@ from .config import Settings
 from .db import Database
 from .notify import admin_order_kb, notify_admins
 from .pricing import fmt, unique_amount
-from .sizes import is_shoe_item, recommend, recommend_for_look
+from .sizes import is_shoe_item, item_size_group, recommend, recommend_for_look
 from .texts import (STATUS_LABELS, admin_order_card, look_50_values, look_caption, look_items, order_summary,
                     payment_text, split_list)
 
@@ -34,6 +34,7 @@ MAIN_KB = ReplyKeyboardMarkup(
 
 class OrderForm(StatesGroup):
     size = State()
+    bottom_size = State()
     shoe_size = State()
     height = State()
     weight = State()
@@ -176,25 +177,31 @@ def build_sales_router() -> Router:
         await cb.answer()
         await state.clear()
         items = look_items(look)
-        has_shoes = any(is_shoe_item(it) for it in items)
+        has_bottom = any(item_size_group(it) == "bottom" for it in items)
+        has_shoes = any(item_size_group(it) == "shoes" for it in items)
         shoe_sizes: list[str] = []
-        cloth_sizes: list[str] = []
+        top_sizes: list[str] = []
+        bottom_sizes: list[str] = []
         store_alt_colors: list[str] = []
         for it in items:
-            if is_shoe_item(it):
-                for s_val in (it.get("store_sizes") or []):
-                    if s_val not in shoe_sizes:
-                        shoe_sizes.append(str(s_val))
-            else:
-                for s_val in (it.get("store_sizes") or []):
-                    if s_val not in cloth_sizes:
-                        cloth_sizes.append(str(s_val))
+            grp = item_size_group(it)
+            for s_val in (it.get("store_sizes") or []):
+                sv = str(s_val)
+                if grp == "shoes" and sv not in shoe_sizes:
+                    shoe_sizes.append(sv)
+                elif grp == "bottom" and sv not in bottom_sizes:
+                    bottom_sizes.append(sv)
+                elif grp == "top" and sv not in top_sizes:
+                    top_sizes.append(sv)
             for c_val in (it.get("store_colors") or []):
                 if c_val not in store_alt_colors:
                     store_alt_colors.append(str(c_val))
 
-        if not cloth_sizes:
-            cloth_sizes = split_list(look["sizes"]) or ["M", "L", "XL", "2XL"]
+        fallback_sizes = split_list(look["sizes"]) or ["M", "L", "XL", "2XL"]
+        if not top_sizes:
+            top_sizes = fallback_sizes
+        if has_bottom and not bottom_sizes:
+            bottom_sizes = fallback_sizes
         if has_shoes and not shoe_sizes:
             shoe_sizes = ["39", "40", "41", "42", "43", "44"]
 
@@ -206,7 +213,9 @@ def build_sales_router() -> Router:
 
         await state.update_data(
             look_id=look["id"],
-            sizes=cloth_sizes,
+            sizes=top_sizes,
+            has_bottom=has_bottom,
+            bottom_sizes=bottom_sizes,
             has_shoes=has_shoes,
             shoe_sizes=shoe_sizes,
             colors=color_options,
@@ -217,17 +226,17 @@ def build_sales_router() -> Router:
     async def ask_size(message: Message, state: FSMContext, mark: str | None = None, advice_html: str = ""):
         data = await state.get_data()
         if not data["sizes"]:
-            await state.update_data(size="")
-            await ask_shoe_size(message, state)
+            await state.update_data(top_size="")
+            await ask_bottom_size(message, state)
             return
         await state.set_state(OrderForm.size)
         if mark:
-            text = f"⭐️ Sizga kiyim uchun <b>{escape(mark)}</b> mos keladi."
+            text = f"⭐️ Ust kiyim uchun <b>{escape(mark)}</b> mos keladi."
             if advice_html:
                 text += f"\n\n{advice_html}"
-            text += "\n\n📏 O'lchamni tasdiqlang yoki boshqasini tanlang:"
+            text += "\n\n📏 Ust kiyim razmerini tanlang:"
         else:
-            text = "📏 Kiyim o'lchamini tanlang (do'kon jadvali bo'yicha aniq tanlab beramiz):"
+            text = "📏 <b>Ust kiyim</b> o'lchamini tanlang (do'kon jadvali bo'yicha hisoblab beramiz):"
         await message.answer(text, reply_markup=options_kb(
             "size", data["sizes"], [("📏 Bo'y va vaznim bo'yicha hisoblash", "size_help")], mark))
 
@@ -262,8 +271,9 @@ def build_sales_router() -> Router:
         advice_html = ""
         if look:
             rec_info = recommend_for_look(data["height"], w, look)
-            rec = rec_info.get("primary_clothing_size")
+            rec = rec_info.get("top_size") or rec_info.get("primary_clothing_size")
             advice_html = rec_info.get("advice_html") or ""
+            await state.update_data(rec_bottom_size=rec_info.get("bottom_size"))
         else:
             rec = recommend(data["height"], w, data["sizes"])
         if rec is None:
@@ -274,7 +284,30 @@ def build_sales_router() -> Router:
     @r.callback_query(OrderForm.size, F.data.startswith("size:"))
     async def got_size(cb: CallbackQuery, state: FSMContext):
         data = await state.get_data()
-        await state.update_data(size=data["sizes"][int(cb.data.split(":")[1])])
+        picked_top = data["sizes"][int(cb.data.split(":")[1])]
+        await state.update_data(top_size=picked_top, size=picked_top)
+        await cb.answer()
+        await ask_bottom_size(cb.message, state)
+
+    async def ask_bottom_size(message: Message, state: FSMContext):
+        data = await state.get_data()
+        if not data.get("has_bottom") or not data.get("bottom_sizes"):
+            await ask_shoe_size(message, state)
+            return
+        await state.set_state(OrderForm.bottom_size)
+        rec_b = data.get("rec_bottom_size") or data.get("top_size")
+        await message.answer(
+            "👖 <b>Shim</b> o'lchamini alohida tanlang (ust kiyim bilan bir xil yoki boshqa bo'lishi mumkin):",
+            reply_markup=options_kb("bottom", data["bottom_sizes"], mark=rec_b),
+        )
+
+    @r.callback_query(OrderForm.bottom_size, F.data.startswith("bottom:"))
+    async def got_bottom_size(cb: CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        b_sz = data["bottom_sizes"][int(cb.data.split(":")[1])]
+        t_sz = data.get("top_size") or ""
+        combined = f"Ust: {t_sz} | Shim: {b_sz}" if t_sz else f"Shim: {b_sz}"
+        await state.update_data(bottom_size=b_sz, size=combined)
         await cb.answer()
         await ask_shoe_size(cb.message, state)
 
@@ -285,8 +318,7 @@ def build_sales_router() -> Router:
             return
         await state.set_state(OrderForm.shoe_size)
         await message.answer(
-            "👞 Bu lookda oyoq kiyim ham bor — oyoq razmeringizni tanlang\n"
-            "<i>(Qishki ichi issiq/mo'ynali model bo'lsa, qalin paypoq bilan qisib qo'ymasligi uchun 1 razmer kattaroq tanlashingizni tavsiya qilamiz)</i>:",
+            "👞 <b>Oyoq kiyim</b> o'lchamini alohida tanlang (o'zingiz kiyadigan oyoq razmeringiz):",
             reply_markup=options_kb("shoe", data["shoe_sizes"]),
         )
 
@@ -294,9 +326,13 @@ def build_sales_router() -> Router:
     async def got_shoe_size(cb: CallbackQuery, state: FSMContext):
         data = await state.get_data()
         shoe_sz = data["shoe_sizes"][int(cb.data.split(":")[1])]
-        base_sz = data.get("size") or ""
-        combined = f"Kiyim: {base_sz} | Oyoq: {shoe_sz}" if base_sz else f"Oyoq: {shoe_sz}"
-        await state.update_data(size=combined, shoe_size=shoe_sz)
+        parts = []
+        if data.get("top_size"):
+            parts.append(f"Ust: {data['top_size']}")
+        if data.get("bottom_size"):
+            parts.append(f"Shim: {data['bottom_size']}")
+        parts.append(f"Oyoq: {shoe_sz}")
+        await state.update_data(size=" | ".join(parts), shoe_size=shoe_sz)
         await cb.answer()
         await ask_color(cb.message, state)
 

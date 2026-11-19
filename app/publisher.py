@@ -370,6 +370,174 @@ def _publish_via_instagrapi_sync(
     return None
 
 
+DEFAULT_IG_BROWSER_SESSION = "data/ig_browser_session.json"
+
+
+def has_valid_ig_browser_session(session_path: str = DEFAULT_IG_BROWSER_SESSION) -> bool:
+    """Saqlangan Instagram brauzer sessiyasida (`sessionid` cookie) faol kirish borligini tekshiradi."""
+    if not session_path or not os.path.isfile(session_path):
+        return False
+    try:
+        import json
+
+        data = json.loads(open(session_path, encoding="utf-8").read())
+        for c in (data.get("cookies") or []):
+            if str(c.get("name") or "") == "sessionid" and str(c.get("value") or "").strip():
+                return True
+    except Exception:
+        pass
+    return False
+
+
+async def publish_reels_via_web_browser(
+    local_video_path: str,
+    caption: str,
+    hide_likes: bool = True,
+    session_path: str = DEFAULT_IG_BROWSER_SESSION,
+) -> str | None:
+    """Facebook'siz to'g'ridan-to'g'ri Instagram veb-sessiyasi orqali 1080p Reels yuklaydi va har bir videoda 'Hide like and view counts' ni yoqadi."""
+    if os.getenv("PYTEST_CURRENT_TEST") or not local_video_path or not os.path.isfile(local_video_path):
+        return None
+    if not has_valid_ig_browser_session(session_path):
+        return None
+    try:
+        from playwright.async_api import async_playwright
+    except Exception:
+        return None
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                ctx = await browser.new_context(
+                    storage_state=session_path,
+                    viewport={"width": 1280, "height": 900},
+                )
+                page = await ctx.new_page()
+                await page.goto("https://www.instagram.com/", timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(3000)
+                if "/accounts/login" in page.url or "challenge" in page.url:
+                    log.warning("Instagram brauzer sessiyasi eskirgan yoki tekshiruv so'radi: %s", page.url)
+                    return None
+
+                # 1) Create / New post tugmasini bosish
+                for sel in (
+                    'svg[aria-label="New post"]',
+                    'svg[aria-label="Создать"]',
+                    'a:has-text("Create")',
+                    'span:has-text("Create")',
+                    'a:has-text("Post")',
+                ):
+                    loc = page.locator(sel).first
+                    if await loc.count() > 0:
+                        await loc.click(timeout=5000)
+                        await page.wait_for_timeout(1200)
+                        break
+
+                # Agar Create menyusi ochilsa "Post" ni tanlaymiz
+                post_opt = page.locator('div[role="dialog"] span:has-text("Post"), a[role="link"]:has-text("Post")').first
+                if await post_opt.count() > 0:
+                    try:
+                        await post_opt.click(timeout=3000)
+                        await page.wait_for_timeout(800)
+                    except Exception:
+                        pass
+
+                # 2) Video faylni yuklash
+                file_inp = page.locator('input[type="file"]').first
+                await file_inp.set_input_files(os.path.abspath(local_video_path))
+                await page.wait_for_timeout(4000)
+
+                # "Video posts are now shared as reels" oynasi chiqsa OK bosamiz
+                ok_btn = page.locator('button:has-text("OK"), button:has-text("ОК")').first
+                if await ok_btn.count() > 0:
+                    try:
+                        await ok_btn.click(timeout=3000)
+                        await page.wait_for_timeout(800)
+                    except Exception:
+                        pass
+
+                # 3) 2 marta Next (Crop -> Trim/Cover -> Caption ekrani)
+                for _ in range(2):
+                    nxt = page.locator('div[role="dialog"] div[role="button"]:has-text("Next"), div[role="dialog"] button:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Далее")').first
+                    if await nxt.count() > 0:
+                        await nxt.click(timeout=8000)
+                        await page.wait_for_timeout(2000)
+
+                # 4) Opisaniya yozish
+                cap_box = page.locator('div[role="dialog"] div[role="textbox"], div[role="dialog"] textarea').first
+                if await cap_box.count() > 0:
+                    await cap_box.click(timeout=4000)
+                    await cap_box.fill(caption[:2100])
+                    await page.wait_for_timeout(700)
+
+                # 5) HAR BIR VIDEODA ALOHIDA "Hide like and view counts on this post" ni yoqish!
+                if hide_likes:
+                    adv = page.locator(
+                        'div[role="dialog"] :text("Advanced settings"), div[role="dialog"] :text("Расширенные настройки")'
+                    ).first
+                    if await adv.count() > 0:
+                        await adv.click(timeout=5000)
+                        await page.wait_for_timeout(900)
+                        # Toggle switch yonidagi "Hide like and view counts on this post"
+                        sw = page.locator(
+                            'div[role="dialog"] input[type="checkbox"], div[role="dialog"] input[role="switch"]'
+                        ).first
+                        if await sw.count() > 0:
+                            try:
+                                if not await sw.is_checked():
+                                    await sw.click(force=True, timeout=4000)
+                                    await page.wait_for_timeout(500)
+                            except Exception:
+                                pass
+
+                # 6) Share tugmasi
+                share_btn = page.locator(
+                    'div[role="dialog"] div[role="button"]:has-text("Share"), div[role="dialog"] button:has-text("Share"), div[role="dialog"] div[role="button"]:has-text("Поделиться")'
+                ).first
+                if await share_btn.count() > 0:
+                    await share_btn.click(timeout=8000)
+                    for _ in range(25):
+                        await page.wait_for_timeout(2000)
+                        body_txt = (await page.locator('div[role="dialog"]').inner_text() if await page.locator('div[role="dialog"]').count() > 0 else "")
+                        if any(k in body_txt.lower() for k in ("reel has been shared", "post has been shared", "публикация размещена", "shared")):
+                            return f"web_reel_{int(asyncio.get_running_loop().time())}"
+            finally:
+                await browser.close()
+    except Exception as exc:
+        log.warning("Instagram Web Browser Reels yuklash xatosi: %s", exc)
+    return None
+
+
+async def interactive_ig_browser_login(
+    session_path: str = DEFAULT_IG_BROWSER_SESSION,
+    timeout_sec: int = 240,
+) -> bool:
+    """Bir martalik Chrome oynasi orqali @xans_styles sessiyasini saqlaydi (Facebook shart emas!)."""
+    try:
+        from playwright.async_api import async_playwright
+    except Exception:
+        return False
+    os.makedirs(os.path.dirname(session_path) or "data", exist_ok=True)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        try:
+            ctx = await browser.new_context(viewport={"width": 1100, "height": 820})
+            page = await ctx.new_page()
+            await page.goto("https://www.instagram.com/accounts/login/", timeout=30000)
+            elapsed = 0
+            while elapsed < timeout_sec:
+                cookies = await ctx.cookies("https://www.instagram.com")
+                if any(c.get("name") == "sessionid" and str(c.get("value") or "").strip() for c in cookies):
+                    await ctx.storage_state(path=session_path)
+                    return True
+                await asyncio.sleep(2)
+                elapsed += 2
+        finally:
+            await browser.close()
+    return False
+
+
 async def resolve_active_ig_user_id(ig_user_id: str, ig_access_token: str) -> str:
     """Facebook Page'ga ulangan faol Instagram Business ID ni avtomatik aniqlaydi."""
     if not ig_access_token:
@@ -408,7 +576,18 @@ async def publish_reels_to_instagram(
     hide_likes: bool = True,
     local_video_path: str = "",
 ) -> str | None:
-    """Rasmiy Meta Graph API yoki to'g'ridan-to'g'ri @xans_styles sessiyasi orqali 1080p Reels joylaydi."""
+    """1080p Reels joylaydi: avval har bir videoda 'Hide Likes' ni yoqa oladigan Instagram Web sessiyasi (Facebook'siz), so'ng Meta Graph API."""
+    # 1) Agar Facebook'siz Instagram brauzer sessiyasi saqlangan bo'lsa va hide_likes=True bo'lsa — har bir videoda alohida laykni yashirib yuklaydi!
+    if local_video_path and os.path.isfile(local_video_path) and has_valid_ig_browser_session():
+        web_id = await publish_reels_via_web_browser(
+            local_video_path,
+            caption,
+            hide_likes=hide_likes,
+        )
+        if web_id:
+            return web_id
+
+    # 2) Rasmiy Meta Graph API (agar Facebook sahifaga ulangan IG Business hisob bo'lsa)
     eff_ig_id = await resolve_active_ig_user_id(ig_user_id, ig_access_token) if ig_access_token else ig_user_id
     if eff_ig_id and ig_access_token and video_public_url.startswith("http"):
         base = f"https://graph.facebook.com/v22.0/{eff_ig_id}"

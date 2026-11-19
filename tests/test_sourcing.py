@@ -107,11 +107,20 @@ def test_store_size_chart_winter_fit_and_admin_pdd_links():
                 "pdd_goods_id": "307246992745",
                 "url": "https://mobile.yangkeduo.com/goods.html?goods_id=307246992745",
                 "store_sizes": ["48", "50", "52", "54"],
+                "fit_note": "Do'kon izohida bichimi sal torroq deyilgan (偏小) — 1 razmer kattaroq oling",
                 "size_chart": [
                     {"size": "50", "height_cm": "175", "weight_kg": "70"},
                     {"size": "52", "height_cm": "180", "weight_kg": "75"},
                     {"size": "54", "height_cm": "185", "weight_kg": "80"},
                 ],
+            },
+            {
+                "category": "bottom",
+                "name": "Klassik Jun Shim",
+                "price_cny": 99.0,
+                "pdd_goods_id": "1005495388107",
+                "url": "https://mobile.yangkeduo.com/goods.html?goods_id=1005495388107",
+                "store_sizes": ["M", "L", "XL", "2XL"],
             },
             {
                 "category": "shoes",
@@ -124,9 +133,14 @@ def test_store_size_chart_winter_fit_and_admin_pdd_links():
         ], ensure_ascii=False),
     }
     rec = recommend_for_look(178, 75, look, foot_cm=26.0)
-    assert rec["primary_clothing_size"] == "54"  # winter +1 size up from 52
+    assert rec["top_size"] == "54"  # store explicitly says 偏小 -> +1 from 52
+    assert rec["has_bottom"] is True
+    assert rec["bottom_size"] == "2XL"  # separate trouser size
     assert rec["has_shoes"] is True
-    assert rec["per_item"][1]["size"] == "43"  # winter shoe +0.5cm from 42 -> 43
+    assert rec["per_item"][2]["size"] == "42"  # exact foot_cm 26.0 -> 42 (no forced +1 on shoes!)
+
+    rec_no_foot = recommend_for_look(178, 75, look)
+    assert rec_no_foot["per_item"][2]["size"] is None  # shoes NEVER guessed from height/weight!
 
     card = admin_order_card(
         {

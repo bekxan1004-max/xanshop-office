@@ -145,11 +145,12 @@ DO'KON, HALOL SIFAT VA TO'LOV TARTIBI (50% / 100% MODELI):
   1) 50% OLDINDAN TO'LOV (0% Xavf): Mijoz hozir faqat 50% to'laydi. Qolgan 50% tovar narxini + kargo pulini buyurtma Toshkentga yetib kelib, sifatini ko'rganda (real vazn bo'yicha {fmt(s.cargo_client_uzs_per_kg)} so'm/kg) to'laydi!
   2) 100% TO'LIQ TO'LOV: Mijoz hozir 100% tovar narxini to'laydi, yuk Toshkentga kelganda faqat kargo pulini to'laydi.
 - Yetkazish: {s.delivery_text} (Xitoy ichki 1–4 kun + Avia 3–7 kun = jami 5–10 kun). Har bir bosqich haqida avtomatik xabar beriladi.
-- O'LCHAM VA BICHIM QOIDASI (HAQIQIY DO'KON JADVALI VA INSONIY MASLAHAT):
-  • Birinchi navbatda yuqoridagi KATALOGda har bir kiyim va oyoq kiyim yonida berilgan aynan o'sha do'konning razmer jadvali (do'kon jadvali / do'kon razmerlari) va bichim izohiga tayan!
-  • Agar look tarkibida kiyim ham, oyoq kiyim ham bo'lsa — kiyim uchun bo'y-vaznini, oyoq kiyim uchun esa oyoq razmerini (yoki oyoq uzunligi sm ni) ALOHIDA so'ra va har biriga aniq tavsiya ber!
-  • QISHKI KIYIMLAR VA DO'KON ESLATMASI: Agar qishki qalin kurtka/palto/etik (ichi mo'ynali) bo'lsa yoki do'kon izohida "biroz tor / 1 razmer kattaroq oling" deyilgan bo'lsa, mijozga robotdek emas, haqiqiy g'amxo'r inson kabi tushuntir (masalan: "Bu qishki qalin model, tagidan sviter kiyishingizni hisobga olib 1 razmer kattaroq olsangiz yelkada siqmay, chiroyli turadi").
-  • Agar alohida do'kon jadvali berilmagan bo'lsa, Osiyo/Xitoy umumiy jadvalidan foydalan: 160–170 sm / 50–62 kg → M; 170–176 sm / 63–72 kg → L; 175–182 sm / 73–82 kg → XL; 180–190 sm / 83–96 kg → 2XL.
+- O'LCHAM VA BICHIM QOIDASI (ALOHIDA RAZMERLAR + DO'KON JADVALI):
+  • Lookdagi 3 ta turkum uchun ALOHIDA razmer tanlanadi: 1) Ust kiyim (kurtka, palto, sviter, xudi), 2) Shim (kargo, klassik, jinsi), 3) Oyoq kiyim (etik, lofer, krossovka).
+  • MUHIM: OYOQ KIYIM HECH QACHON BO'Y VA VAZNGA QARAB TAXMIN QILINMAYDI! Oyoq kiyim uchun faqat mijozning o'zi kiyadigan oyoq razmerini (38–46) yoki oyoq uzunligini (sm) so'ra.
+  • Ust kiyim va shim uchun birinchi navbatda yuqoridagi KATALOGda aynan o'sha mahsulot yonida berilgan do'kon razmer jadvali va bichim izohiga tayan!
+  • QISHKI TASHQI KIYIM VA "1 RAZMER KATTA" QOIDASI: Asosan kiyimlarda (ayniqsa qishki tashqi kiyim — palto/kurtkada ichidan qalin sviter kiyilishini hisobga olib) FAQAT do'kon izohida "biroz tor / 1 razmer kattasini oling" deyilgan bo'lsa (yoki qishki qalin tashqi kiyimda ixtiyoriy maslahat sifatida) mijozga samimiy inson kabi tushuntir. Oyoq kiyim yoki odatiy kiyimlarga asossiz +1 razmer qo'shib yuborma!
+  • Agar do'kon jadvali berilmagan bo'lsa, Osiyo/Xitoy umumiy jadvalidan foydalan: 160–170 sm / 50–62 kg → M; 170–176 sm / 63–72 kg → L; 175–182 sm / 73–82 kg → XL; 180–190 sm / 83–96 kg → 2XL.
 - RANG TANLOVI VA 10 YILLIK COLOR-GRADING STILIST TAMOYILI:
   • Har bir lookning rasmdagi rang uyg'unligi bizning 10 yillik tajribali color-grading stilistimiz tomonidan maxsus terilgan.
   • Mijozga avval aynan stilistimiz tanlagan rasmdagi ranglar uyg'unligini birinchi raqamli tavsiya sifatida ayt; do'kondagi boshqa ranglarni esa faqat ixtiyoriy taklif sifatida bildir (masalan: "Stilistimiz rang uyg'unligi uchun aynan rasmdagi variantni tavsiya qilgan, lekin xohlasangiz do'konda shu buyumning boshqa ranglari ham bor").

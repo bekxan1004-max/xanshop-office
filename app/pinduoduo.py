@@ -889,12 +889,11 @@ class PinduoduoConnector:
             sizes = ["M", "L", "XL", "2XL"]
 
         fit_notes: list[str] = []
-        if is_shoe and any(w in txt for w in ("加绒", "保暖", "棉鞋", "冬季")):
-            fit_notes.append("Qishki ichi mo'ynali oyoq kiyim — qalin paypoq bilan qulay turishi uchun 1 razmer kattaroq olish tavsiya etiladi")
-        elif any(w in txt for w in ("偏小", "修身", "紧身", "显瘦")):
-            fit_notes.append("Do'kon bichimi sal ixcham/tor (修身/偏小) — odatdagidan 1 razmer kattaroq olish tavsiya etiladi")
-        elif any(w in txt for w in ("羽绒", "加厚", "加绒", "棉衣", "棉袄", "毛呢大衣", "双面呢", "羊绒", "冬季")):
-            fit_notes.append("Qishki qalin model — ichidan sviter yoki vodolazka kiyilsa, 1 razmer kattaroq olish bemalolroq turadi")
+        if any(w in txt for w in ("偏小", "拍大一码", "修身", "紧身")):
+            fit_notes.append("Do'kon izohida bichimi sal torroq deyilgan (偏小/修身) — 1 razmer kattaroq olish tavsiya etiladi")
+        elif not is_shoe and any(w in txt for w in ("羽绒", "加厚", "加绒", "棉衣", "棉袄", "毛呢大衣", "双面呢", "羊绒", "冬季")):
+            if not any(w in txt for w in ("宽松", "大码", "廓形", "阔腿")):
+                fit_notes.append("Qishki qalin tashqi kiyim — ichidan sviter kiyilganda qulay bo'lishi uchun xohlasangiz 1 razmer kattasini olishingiz mumkin")
         elif any(w in txt for w in ("宽松", "大码", "廓形", "阔腿", "慵懒")):
             fit_notes.append("Keng/oversize bichim (宽松) — o'z razmeringiz bemalol tushadi")
 
