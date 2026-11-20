@@ -330,7 +330,7 @@ def _publish_via_instagrapi_sync(
     if os.getenv("PYTEST_CURRENT_TEST"):
         return None
     username = os.getenv("IG_USERNAME", "xans_styles").strip()
-    password = os.getenv("IG_PASSWORD", "1234567890beK$").strip()
+    password = os.getenv("IG_PASSWORD", "").strip()
     if not username or not password:
         return None
     try:
@@ -642,6 +642,62 @@ async def publish_reels_to_instagram(
     return None
 
 
+async def publish_story_via_web_browser(
+    local_photo_path: str = "",
+    local_video_path: str = "",
+    session_path: str = DEFAULT_IG_BROWSER_SESSION,
+) -> str | None:
+    """Facebook'siz Instagram mobil veb-sessiyasi orqali Istoriya (Story) joylaydi."""
+    target_path = local_photo_path if (local_photo_path and os.path.isfile(local_photo_path)) else local_video_path
+    if os.getenv("PYTEST_CURRENT_TEST") or not target_path or not os.path.isfile(target_path):
+        return None
+    if not has_valid_ig_browser_session(session_path):
+        return None
+    try:
+        from playwright.async_api import async_playwright
+    except Exception:
+        return None
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                ctx = await browser.new_context(
+                    storage_state=session_path,
+                    viewport={"width": 390, "height": 844},
+                    user_agent=(
+                        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                    ),
+                    is_mobile=True,
+                    has_touch=True,
+                )
+                page = await ctx.new_page()
+                await page.goto("https://www.instagram.com/", timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(3000)
+                if "/accounts/login" in page.url or "challenge" in page.url:
+                    return None
+                for sel in ('button:has-text("Your story")', 'span:has-text("Your story")', 'svg[aria-label="New story"]'):
+                    loc = page.locator(sel).first
+                    if await loc.count() > 0:
+                        async with page.expect_file_chooser(timeout=8000) as fc_info:
+                            await loc.click(timeout=5000)
+                        fc = await fc_info.value
+                        await fc.set_files(os.path.abspath(target_path))
+                        await page.wait_for_timeout(3500)
+                        add_btn = page.locator('button:has-text("Add to your story"), span:has-text("Add to your story")').first
+                        if await add_btn.count() > 0:
+                            await add_btn.click(timeout=8000)
+                            await page.wait_for_timeout(4000)
+                            return f"web_story_{int(asyncio.get_running_loop().time())}"
+                        break
+            finally:
+                await browser.close()
+    except Exception as exc:
+        log.debug("Instagram Web Story skip: %s", exc)
+    return None
+
+
 async def publish_story_to_instagram(
     ig_user_id: str,
     ig_access_token: str,
@@ -651,6 +707,14 @@ async def publish_story_to_instagram(
     local_photo_path: str = "",
 ) -> str | None:
     """Yangi chiqqan Look videoni yoki flat-lay rasmni avtomatik ravishda Instagram Istoriyaga (STORIES) ham joylaydi."""
+    if has_valid_ig_browser_session() and (local_photo_path or local_video_path):
+        st_web = await publish_story_via_web_browser(
+            local_photo_path=local_photo_path,
+            local_video_path=local_video_path,
+        )
+        if st_web:
+            return st_web
+
     eff_ig_id = await resolve_active_ig_user_id(ig_user_id, ig_access_token) if ig_access_token else ig_user_id
     if eff_ig_id and ig_access_token and (video_public_url.startswith("http") or image_public_url.startswith("http")):
         base = f"https://graph.facebook.com/v22.0/{eff_ig_id}"
