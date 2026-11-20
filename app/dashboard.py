@@ -701,6 +701,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         const deptMap = (eccSum.departments || {});
         document.getElementById('agents-container').innerHTML = data.agents.map(a => {
           const isSub = a.boss_id === 'smm_manager';
+          const isStudio = a.agent_id === 'photo_studio';
+          const studioBadge = isStudio
+            ? `<div class="boss-badge" style="background:rgba(20,184,166,0.2);color:#2dd4bf;border:1px solid #14b8a6;">🎨 9-ASOSIY AGENT (FOTOSTUDIYA)</div>`
+            : '';
           const bossLabel = isSub
             ? `<div class="boss-badge">↳ SMM Boshlig'ining shaxsiy xodimi</div>`
             : (a.boss_id ? `<div class="boss-badge" style="background:rgba(59,130,246,0.15);color:#93c5fd;">Bo'ysunadi: Bosh Direktor</div>` : '');
@@ -708,11 +712,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
           const stText = a.status === 'working' ? 'ISHLAYAPTI ⚡' : '24/7 ONLINE ●';
           const eccList = (deptMap[a.agent_id] || []).map(e => `<span class="ecc-badge">${e}</span>`).join(' ');
           return `
-            <div class="agent-box ${isSub ? 'subordinate' : ''}">
+            <div class="agent-box ${isSub ? 'subordinate' : ''}" style="${isStudio ? 'border: 1.5px solid #14b8a6; background: linear-gradient(90deg, rgba(20,184,166,0.12) 0%, #0c0f17 100%);' : ''}">
               <div class="agent-head">
                 <div class="agent-name">${a.name}</div>
                 <span class="status-dot ${stClass}">${stText}</span>
               </div>
+              ${studioBadge}
               ${bossLabel}
               <div class="agent-role">${a.role}</div>
               ${eccList ? `<div style="margin-bottom:7px;display:flex;gap:4px;flex-wrap:wrap;">${eccList}</div>` : ''}
@@ -921,12 +926,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     // === 1. VIRTUAL AI AGENT OFIS SIMULYATORI (HTML5 Pixel/Isometric Studio) ===
     const DESKS = {
-      director:       { x: 165, y: 120, room: "👑 Boshqaruv & Strategiya", color: "#eab308", label: "Direktor",     ecc: "chief-of-staff" },
-      insta_analyst:  { x: 325, y: 120, room: "📡 Insta Trend Tahlilchi",  color: "#f43f5e", label: "Insta AI",     ecc: "research-agent" },
-      skaut:          { x: 500, y: 120, room: "🔍 Pinduoduo Tahlilchi",    color: "#3b82f6", label: "PDD Skaut",    ecc: "spec-miner" },
-      photo_studio:   { x: 690, y: 120, room: "🎨 Photoshop Studio AI",    color: "#14b8a6", label: "Photo Studio", ecc: "studio-retouch" },
-      smm_manager:    { x: 890, y: 120, room: "📢 SMM & Kontent",          color: "#ec4899", label: "SMM",          ecc: "marketing-agent" },
-      video_employee: { x: 1100,y: 125, room: "🎬 Reels & Video Studio",   color: "#8b5cf6", label: "Video AI",     ecc: "video-editing" },
+      director:       { x: 85,  y: 120, room: "👑 Boshqaruv & CEO",          color: "#eab308", label: "Direktor",     ecc: "chief-of-staff" },
+      insta_analyst:  { x: 200, y: 120, room: "📡 Insta Trend Tahlilchi",  color: "#f43f5e", label: "Insta AI",     ecc: "research-agent" },
+      skaut:          { x: 395, y: 120, room: "🔍 Pinduoduo Tahlilchi",    color: "#3b82f6", label: "PDD Skaut",    ecc: "spec-miner" },
+      photo_studio:   { x: 635, y: 120, room: "🎨 Photoshop Studio AI",    color: "#14b8a6", label: "Photo Studio", ecc: "studio-retouch" },
+      smm_manager:    { x: 880, y: 120, room: "📢 SMM & Kontent",          color: "#ec4899", label: "SMM",          ecc: "marketing-agent" },
+      video_employee: { x: 1110,y: 125, room: "🎬 Reels & Video Studio",   color: "#8b5cf6", label: "Video AI",     ecc: "video-editing" },
       sales_stylist:  { x: 185, y: 315, room: "💬 Sotuv & VIP Telegram",   color: "#10b981", label: "Stilist",      ecc: "conversation-analyzer" },
       accountant:     { x: 510, y: 315, room: "🧮 Hisobchi & Chek AI",     color: "#06b6d4", label: "Hisobchi",     ecc: "security-reviewer" },
       cargo_logistics:{ x: 850, y: 315, room: "✈️ MK Express & DTD Kargo", color: "#f97316", label: "Kargo",        ecc: "loop-operator" }
@@ -996,13 +1001,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
       // 2. Xonalar chegaralari (Rooms)
       const rooms = [
-        { x: 24,  y: 22,  w: 280, h: 165, title: "👑 BOSHQARUV & CHIEF-OF-STAFF", col: "rgba(234,179,8,0.18)" },
-        { x: 325, y: 22,  w: 300, h: 165, title: "🔍 PINDUODUO & OB-HAVO LAB",   col: "rgba(59,130,246,0.18)" },
-        { x: 645, y: 22,  w: 300, h: 165, title: "📢 SMM & MARKETING ECC",       col: "rgba(236,72,153,0.18)" },
-        { x: 965, y: 22,  w: 290, h: 165, title: "🎬 REELS & VOICE AI STUDIO",   col: "rgba(139,92,246,0.22)" },
+        { x: 20,  y: 22,  w: 255, h: 165, title: "👑 BOSHQARUV & INSTA TREND", col: "rgba(234,179,8,0.18)" },
+        { x: 290, y: 22,  w: 215, h: 165, title: "🔍 PINDUODUO SKAUT LAB",   col: "rgba(59,130,246,0.18)" },
+        { x: 520, y: 22,  w: 235, h: 165, title: "🎨 PHOTOSHOP STUDIYA (9-AI)", col: "rgba(20,184,166,0.28)" },
+        { x: 770, y: 22,  w: 225, h: 165, title: "📢 SMM & KONTENT",          col: "rgba(236,72,153,0.18)" },
+        { x: 1010,y: 22,  w: 250, h: 165, title: "🎬 REELS & VIDEO STUDIO",   col: "rgba(139,92,246,0.22)" },
         { x: 24,  y: 245, w: 320, h: 165, title: "💬 SOTUV STILIST (TG + BOT)",  col: "rgba(16,185,129,0.18)" },
         { x: 365, y: 245, w: 300, h: 165, title: "🧮 AI HISOBCHI & CHEK OCR",    col: "rgba(6,182,212,0.18)" },
-        { x: 685, y: 245, w: 320, h: 165, title: "✈️ KARGO BP-1 & T-7621",       col: "rgba(249,115,22,0.18)" },
+        { x: 685, y: 245, w: 320, h: 165, title: "✈️ MK EXPRESS & DTD KARGO", col: "rgba(249,115,22,0.18)" },
         { x: 1025,y: 245, w: 230, h: 165, title: "⚡ OMNIROUTE + ECC 71x",       col: "rgba(34,197,94,0.22)" }
       ];
 
@@ -1054,6 +1060,19 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       ctx.fillStyle = omniOnline ? "#34d399" : "#fbbf24";
       ctx.font = "bold 11px Consolas, monospace";
       ctx.fillText(omniOnline ? "● OMNIROUTE :20128 OK" : "● OMNIROUTE STANDBY", 1042, 392);
+
+      // Photoshop Studio Softbox / AI Fotostudiya (Room 3)
+      ctx.fillStyle = "rgba(20, 184, 166, 0.22)";
+      ctx.fillRect(690, 42, 52, 70);
+      ctx.strokeStyle = "#14b8a6";
+      ctx.strokeRect(690, 42, 52, 70);
+      ctx.fillStyle = "#5eead4";
+      ctx.font = "bold 9px sans-serif";
+      ctx.fillText("PHOTO", 698, 68);
+      ctx.fillText("STUDIO", 695, 82);
+      ctx.fillStyle = "#99f6e4";
+      ctx.font = "8px sans-serif";
+      ctx.fillText("RETOUCH", 694, 96);
 
       // Video Studio Green Screen (o'ng yuqorida)
       ctx.fillStyle = "rgba(16, 185, 129, 0.25)";
