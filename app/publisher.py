@@ -420,23 +420,40 @@ async def publish_reels_via_web_browser(
                     log.warning("Instagram brauzer sessiyasi eskirgan yoki tekshiruv so'radi: %s", page.url)
                     return None
 
-                # 1) Create / New post tugmasini bosish
+                # "Not Now" bildirishnoma oynasini yopish
+                for sel in ('button:has-text("Not Now")', 'button:has-text("Не сейчас")'):
+                    if await page.locator(sel).count() > 0:
+                        try:
+                            await page.locator(sel).first.click(timeout=2000)
+                            await page.wait_for_timeout(600)
+                        except Exception:
+                            pass
+
+                # 1) Create / Post tugmasini bosish (Instagram 2026 Business sidebar: svg[aria-label="Post"])
+                clicked_create = False
                 for sel in (
+                    'svg[aria-label="Post"]',
                     'svg[aria-label="New post"]',
                     'svg[aria-label="Создать"]',
-                    'a:has-text("Create")',
-                    'span:has-text("Create")',
-                    'a:has-text("Post")',
+                    'svg[aria-label="Публикация"]',
                 ):
                     loc = page.locator(sel).first
                     if await loc.count() > 0:
-                        await loc.click(timeout=5000)
-                        await page.wait_for_timeout(1200)
-                        break
+                        try:
+                            await loc.click(timeout=5000)
+                            await page.wait_for_timeout(1400)
+                            clicked_create = True
+                            break
+                        except Exception:
+                            continue
+
+                if not clicked_create:
+                    log.warning("Instagram Create/Post tugmasi topilmadi")
+                    return None
 
                 # Agar Create menyusi ochilsa "Post" ni tanlaymiz
                 post_opt = page.locator('div[role="dialog"] span:has-text("Post"), a[role="link"]:has-text("Post")').first
-                if await post_opt.count() > 0:
+                if await post_opt.count() > 0 and await page.locator('input[type="file"]').count() == 0:
                     try:
                         await post_opt.click(timeout=3000)
                         await page.wait_for_timeout(800)
@@ -446,14 +463,27 @@ async def publish_reels_via_web_browser(
                 # 2) Video faylni yuklash
                 file_inp = page.locator('input[type="file"]').first
                 await file_inp.set_input_files(os.path.abspath(local_video_path))
-                await page.wait_for_timeout(4000)
+                await page.wait_for_timeout(4500)
 
                 # "Video posts are now shared as reels" oynasi chiqsa OK bosamiz
                 ok_btn = page.locator('button:has-text("OK"), button:has-text("ОК")').first
                 if await ok_btn.count() > 0:
                     try:
                         await ok_btn.click(timeout=3000)
-                        await page.wait_for_timeout(800)
+                        await page.wait_for_timeout(900)
+                    except Exception:
+                        pass
+
+                # 9:16 Original Reels nisbatini tanlash
+                crop_svg = page.locator('div[role="dialog"] svg[aria-label="Select crop"]').first
+                if await crop_svg.count() > 0:
+                    try:
+                        await crop_svg.click(timeout=3000)
+                        await page.wait_for_timeout(600)
+                        orig_opt = page.locator('div[role="dialog"] span:has-text("Original"), div[role="dialog"] span:has-text("9:16"), div[role="dialog"] span:has-text("Оригинал")').first
+                        if await orig_opt.count() > 0:
+                            await orig_opt.click(timeout=3000)
+                            await page.wait_for_timeout(600)
                     except Exception:
                         pass
 
@@ -462,31 +492,36 @@ async def publish_reels_via_web_browser(
                     nxt = page.locator('div[role="dialog"] div[role="button"]:has-text("Next"), div[role="dialog"] button:has-text("Next"), div[role="dialog"] div[role="button"]:has-text("Далее")').first
                     if await nxt.count() > 0:
                         await nxt.click(timeout=8000)
-                        await page.wait_for_timeout(2000)
+                        await page.wait_for_timeout(2200)
 
                 # 4) Opisaniya yozish
-                cap_box = page.locator('div[role="dialog"] div[role="textbox"], div[role="dialog"] textarea').first
+                cap_box = page.locator('div[role="dialog"] div[role="textbox"][aria-label*="caption"], div[role="dialog"] div[role="textbox"], div[role="dialog"] textarea').first
                 if await cap_box.count() > 0:
-                    await cap_box.click(timeout=4000)
+                    await cap_box.click(timeout=5000)
                     await cap_box.fill(caption[:2100])
                     await page.wait_for_timeout(700)
 
-                # 5) HAR BIR VIDEODA ALOHIDA "Hide like and view counts on this post" ni yoqish!
+                # 5) HAR BIR VIDEODA ALOHIDA "Hide like and view counts on this post" ni yoqish ("Add AI label" ga tegmasdan!)
                 if hide_likes:
                     adv = page.locator(
-                        'div[role="dialog"] :text("Advanced settings"), div[role="dialog"] :text("Расширенные настройки")'
+                        'div[role="dialog"] span:has-text("Advanced settings"), div[role="dialog"] div[role="button"]:has-text("Advanced settings"), div[role="dialog"] :text("Расширенные настройки")'
                     ).first
                     if await adv.count() > 0:
+                        await adv.scroll_into_view_if_needed()
                         await adv.click(timeout=5000)
-                        await page.wait_for_timeout(900)
-                        # Toggle switch yonidagi "Hide like and view counts on this post"
-                        sw = page.locator(
-                            'div[role="dialog"] input[type="checkbox"], div[role="dialog"] input[role="switch"]'
+                        await page.wait_for_timeout(1000)
+                        hide_sw = page.locator(
+                            'xpath=//div[@role="dialog"]//*[contains(normalize-space(.), "Hide like and view counts") or contains(normalize-space(.), "Скрыть число отметок")]/ancestor::div[.//input[@type="checkbox" or @role="switch"]][1]//input[@type="checkbox" or @role="switch"]'
                         ).first
-                        if await sw.count() > 0:
+                        if await hide_sw.count() == 0:
+                            # Fallback: agar "Add AI label" 1-switch bo'lsa, "Hide like" 2-switch (nth(1)) bo'ladi
+                            all_sw = page.locator('div[role="dialog"] input[type="checkbox"], div[role="dialog"] input[role="switch"]')
+                            hide_sw = all_sw.nth(1) if await all_sw.count() >= 2 else all_sw.first
+                        if await hide_sw.count() > 0:
                             try:
-                                if not await sw.is_checked():
-                                    await sw.click(force=True, timeout=4000)
+                                await hide_sw.scroll_into_view_if_needed()
+                                if not await hide_sw.is_checked():
+                                    await hide_sw.click(force=True, timeout=4000)
                                     await page.wait_for_timeout(500)
                             except Exception:
                                 pass
@@ -497,10 +532,10 @@ async def publish_reels_via_web_browser(
                 ).first
                 if await share_btn.count() > 0:
                     await share_btn.click(timeout=8000)
-                    for _ in range(25):
+                    for _ in range(30):
                         await page.wait_for_timeout(2000)
                         body_txt = (await page.locator('div[role="dialog"]').inner_text() if await page.locator('div[role="dialog"]').count() > 0 else "")
-                        if any(k in body_txt.lower() for k in ("reel has been shared", "post has been shared", "публикация размещена", "shared")):
+                        if any(k in body_txt.lower() for k in ("reel has been shared", "post has been shared", "публикация размещена", "shared reel")):
                             return f"web_reel_{int(asyncio.get_running_loop().time())}"
             finally:
                 await browser.close()

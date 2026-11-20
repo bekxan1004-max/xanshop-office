@@ -273,17 +273,35 @@ class AgentOffice:
 
         item_names = [i["name"] for i in gen.raw_items]
         dl_imgs = gen.downloaded_images or []
-        imgs_to_use = raw_images or [
-            (dl_imgs[idx] if idx < len(dl_imgs) and dl_imgs[idx] else None)
-            or generate_item_studio_card(
-                name=i["name"],
+
+        def _ensure_pil(raw_im: Any, idx: int, it_dict: dict[str, Any]):
+            if raw_im is not None:
+                if isinstance(raw_im, (bytes, bytearray)):
+                    try:
+                        import io as _io
+                        from PIL import Image as _PILImage
+
+                        return _PILImage.open(_io.BytesIO(raw_im)).convert("RGB")
+                    except Exception:
+                        pass
+                elif hasattr(raw_im, "convert"):
+                    return raw_im
+            return generate_item_studio_card(
+                name=it_dict["name"],
                 idx=idx,
-                price_cny=float(i.get("price_cny", 0)),
+                price_cny=float(it_dict.get("price_cny", 0)),
                 color_hex=palette_hex[idx % len(palette_hex)] if palette_hex else "#1E1E22",
-                sales_tip=str(i.get("sales_tip", "")),
+                sales_tip=str(it_dict.get("sales_tip", "")),
             )
-            for idx, i in enumerate(gen.raw_items)
-        ]
+
+        imgs_to_use = (
+            [_ensure_pil(im, idx, gen.raw_items[min(idx, len(gen.raw_items) - 1)]) for idx, im in enumerate(raw_images)]
+            if raw_images
+            else [
+                _ensure_pil(dl_imgs[idx] if idx < len(dl_imgs) else None, idx, i)
+                for idx, i in enumerate(gen.raw_items)
+            ]
+        )
 
         photo_path = os.path.join(self.media_dir, f"look_{look_id}.jpg")
         video_path = os.path.join(self.media_dir, f"look_{look_id}_reels.gif")

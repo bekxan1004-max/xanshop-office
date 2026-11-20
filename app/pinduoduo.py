@@ -275,6 +275,7 @@ class PddProduct:
     product_url: str
     category: str
     color_hex: str = "#1E1E22"
+    gallery_images: list[str] = field(default_factory=list)
     detail_images: list[str] = field(default_factory=list)
     store_colors: list[str] = field(default_factory=list)
     store_sizes: list[str] = field(default_factory=list)
@@ -917,6 +918,7 @@ class PinduoduoConnector:
             product_url=str(row.get("product_url") or ""),
             category=str(row.get("category") or "general"),
             color_hex=str(row.get("color_hex") or "#1E1E22"),
+            gallery_images=list(row.get("gallery_images") or ([row.get("image_url")] if row.get("image_url") else [])),
             detail_images=list(row.get("detail_images") or []),
             store_colors=list(row.get("store_colors") or []),
             store_sizes=list(row.get("store_sizes") or []),
@@ -937,6 +939,7 @@ class PinduoduoConnector:
             "product_url": p.product_url,
             "category": p.category,
             "color_hex": p.color_hex,
+            "gallery_images": list(p.gallery_images or ([p.image_url] if p.image_url else []))[:8],
             "detail_images": list(p.detail_images or [])[:12],
             "store_colors": list(p.store_colors or []),
             "store_sizes": list(p.store_sizes or []),
@@ -1252,14 +1255,14 @@ class PinduoduoConnector:
                         continue
 
                     gallery = g.get("gallery_urls") or []
-                    img_url = ""
+                    clean_gallery: list[str] = []
                     for cand in [*gallery, g.get("hd_thumb_url"), g.get("thumb_url")]:
                         s_u = str(cand or "").strip()
                         if s_u.startswith("//"):
                             s_u = "https:" + s_u
-                        if s_u.startswith("http") and "pddpic.com" in s_u:
-                            img_url = s_u
-                            break
+                        if s_u.startswith("http") and "pddpic.com" in s_u and s_u not in clean_gallery:
+                            clean_gallery.append(s_u)
+                    img_url = clean_gallery[0] if clean_gallery else ""
                     if not img_url:
                         continue
 
@@ -1278,10 +1281,13 @@ class PinduoduoConnector:
                     for t in kw_terms:
                         if t in title_cn:
                             score += 3.0
-                    if 28.0 <= price_cny <= 320.0:
-                        score += 2.5
-                    elif price_cny <= 550.0:
-                        score += 1.0
+                    # O'zbekiston bozori uchun eng yaxshi sotiladigan Pinduoduo narx oralig'i (¥32–¥155)
+                    if 32.0 <= price_cny <= 155.0:
+                        score += 5.0
+                    elif 156.0 <= price_cny <= 220.0:
+                        score += 1.5
+                    elif price_cny > 220.0:
+                        score -= 3.0
                     if "男" in title_cn and wants_men:
                         score += 2.0
 
@@ -1295,6 +1301,7 @@ class PinduoduoConnector:
                         image_url=img_url,
                         product_url=f"https://mobile.yangkeduo.com/goods.html?goods_id={gid}",
                         category="shoes" if meta["is_shoe"] else target_bucket,
+                        gallery_images=clean_gallery[:8],
                         detail_images=detail_imgs[:12],
                         store_colors=meta["store_colors"],
                         store_sizes=meta["store_sizes"],

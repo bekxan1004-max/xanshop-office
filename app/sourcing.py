@@ -345,6 +345,9 @@ class TrendSourcingAgent:
                 pdd_enriched["image_url"] = str(i["image_url"])
             if i.get("url") and "yangkeduo.com" in str(i.get("url")):
                 pdd_enriched["url"] = str(i["url"])
+            for meta_key in ("title_cn", "store_colors", "store_sizes", "size_chart", "fit_note"):
+                if i.get(meta_key):
+                    pdd_enriched[meta_key] = i[meta_key]
             normalized.append(pdd_enriched)
             items.append(
                 Item(
@@ -713,25 +716,59 @@ FAQAT JSON QAYTAR:
         downloaded_imgs: list[bytes | None] = []
         used_urls: set[str] = set()
 
+        async def _is_clean_flatlay_garment(img_bytes: bytes) -> bool:
+            """Flat-lay Reels kolaji uchun rasmni Vision QC dan o'tkazadi: odam yuzi va katta xitoycha yozuvsiz toza kiyim rasmi bo'lishi shart."""
+            if not img_bytes or not self.ai.enabled:
+                return False
+            try:
+                qc = await self.ai.ask_json(
+                    "Inspect this e-commerce product image for a luxury flat-lay fashion collage. "
+                    "Return strict JSON: {\"clean_isolated_garment\": bool, \"has_human_face_or_person\": bool, \"has_promo_text_overlay\": bool}. "
+                    "Set clean_isolated_garment=true ONLY if it shows ONLY the clothing/shoe item on a clean plain/studio background with NO human face/body and NO promotional Chinese/English text banner.",
+                    media_bytes=img_bytes,
+                    mime_type="image/jpeg",
+                    timeout_sec=11.0,
+                    model_override="gemini-3.5-flash-lite",
+                )
+                if isinstance(qc, dict):
+                    return bool(
+                        qc.get("clean_isolated_garment")
+                        and not qc.get("has_human_face_or_person")
+                        and not qc.get("has_promo_text_overlay")
+                    )
+            except Exception:
+                pass
+            return False
+
         for item_idx, item in enumerate(base_items):
             kw = item.get("cn_keyword") or item.get("name", "")
             live_matches = await self.pdd.search_live(kw, page_size=12)
             picked_prod = None
             picked_bytes = None
             if live_matches:
-                start_offset = (self._fallback_idx + item_idx) % len(live_matches)
-                ordered = live_matches[start_offset:] + live_matches[:start_offset]
-                for cand in ordered[:6]:
-                    if cand.image_url and cand.image_url not in used_urls:
-                        img_b = await self.pdd.fetch_image_bytes(cand.image_url)
-                        if img_b:
+                # Avval O'zbekiston bozoriga mos hamyonbop (<= ¥185) Pinduoduo tovarlarini saralaymiz
+                affordable = [m for m in live_matches if 25.0 <= float(m.price_cny or 0) <= 185.0]
+                pool = affordable if affordable else live_matches
+                start_offset = (self._fallback_idx + item_idx) % len(pool)
+                ordered = pool[start_offset:] + pool[:start_offset]
+                picked_prod = ordered[0]
+                # Galereyadan yuzsiz va xitoycha yozuvsiz toza flat-lay rasm qidiramiz (cover [0] dan ko'ra [1..3] tozaroq bo'ladi)
+                for cand in ordered[:3]:
+                    gal = list(cand.gallery_images or [])
+                    if cand.image_url and cand.image_url not in gal:
+                        gal.append(cand.image_url)
+                    probe_urls = gal[1:4] + gal[:1]
+                    for g_url in probe_urls[:3]:
+                        if not g_url or g_url in used_urls:
+                            continue
+                        img_b = await self.pdd.fetch_image_bytes(g_url)
+                        if img_b and await _is_clean_flatlay_garment(img_b):
                             picked_prod = cand
                             picked_bytes = img_b
-                            used_urls.add(cand.image_url)
+                            used_urls.add(g_url)
                             break
-                if picked_prod is None:
-                    picked_prod = ordered[0]
-                    picked_bytes = await self.pdd.fetch_image_bytes(picked_prod.image_url)
+                    if picked_bytes:
+                        break
 
             if picked_prod is not None:
                 updated = dict(item)
@@ -761,6 +798,7 @@ FAQAT JSON QAYTAR:
                 updated["store_sizes"] = store_sizes
                 updated["size_chart"] = size_chart
                 updated["fit_note"] = " | ".join(dict.fromkeys(fit_parts))
+                # Agar Pinduoduo rasmlarida faqat xitoycha yozuv/odam yuzi bo'lsa, kolajga toza studiya flat-lay rasm tushadi (tovar linki/narxi/jadvali 100% real PDD!)
                 downloaded_imgs.append(picked_bytes)
                 enriched_items.append(updated)
             else:

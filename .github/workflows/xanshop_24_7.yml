@@ -69,7 +69,7 @@ jobs:
           GEMINI_MODEL: "gemini-3.5-flash-lite"
           CARD_NUMBER: "9860 3501 4182 4135"
           CARD_OWNER: "POLVONOV BEKMUROD"
-          AUTO_POST_HOURS: "0"
+          AUTO_POST_HOURS: "6.0"
           APIFY_MAX_MONTHLY_USD: "4.20"
           APIFY_MAX_DAILY_CALLS: "3"
           PROFIT_PERCENT: "55"
