@@ -207,6 +207,7 @@ INITIAL_AGENT_LEARNINGS: dict[str, list[str]] = {
         "QAT'IY QOIDA: Mahsulotni qayta studiya ko'rinishida chiqarishda uning matosi, rangi, tugma/zamogi va logotipi 100% O'ZGARMASDAN qolishi shart!",
         "Pinduoduo Tahlilchidan mahsulot promptini, Instagram Tahlilchidan esa tabiiy turish (pose/drape/lighting) ko'rsatmasini olib birlashtiradi.",
         "Odam yuzi, qo'llari, shim tagidagi poyabzal, fon va xitoycha yozuvlar to'liq olib tashlanib, faqat toza mahsulotning o'zi qoldiriladi.",
+        "Zaxiradagi aqlli studiya moduli orqali mahsulotlarni orqa fonsiz, kiyim matosi va rangini 100% tabiiy saqlagan holda tayyorlab beraveradi. Hatto tashqi bulut kvotasi to'xtasa ham, zaxira studiyasi 24/7 uzluksiz ishlaydi.",
     ],
     "video_employee": [
         "QAT'IY QOIDA: Reels videoda robot/TTS ovoz (voiceover) ishlatilmaydi! Faqat toza studiya beat + kadr almashinuvida whoosh/shutter/sub-bass saund-dizayn.",
