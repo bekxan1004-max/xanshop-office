@@ -505,8 +505,8 @@ def build_sales_router() -> Router:
             f"🇨🇳 <i>{escape(data['title_cn'])}</i>\n\n"
             f"💵 <b>To'liq narxi:</b> {fmt(data['total_price_uzs'])} so'm\n"
             f"💳 <b>50% Oldindan to'lov:</b> <b>{fmt(data['prepay_50_uzs'])} so'm</b>\n"
-            f"🛬 <b>Toshkentda to'lanadigan:</b> {fmt(data['remaining_50_uzs'])} so'm (+ kargo)\n"
-            f"✈️ <b>Yetkazish:</b> Avia 5–10 kun ichida Toshkentda ko'rib olasiz!\n\n"
+            f"🛬 <b>Toshkentda to'lanadigan:</b> {fmt(data['remaining_50_uzs'])} so'm (+ kargo 12 000 so'm / 100 gr)\n"
+            f"✈️ <b>Yetkazish:</b> Avia 5–12 kun ichida Toshkentda ko'rib olasiz!\n\n"
             f"<i>Ushbu tovar uchun buyurtma berishni xohlaysizmi?</i>"
         )
         kb = ikb([

@@ -48,16 +48,16 @@ class WeatherForecast:
     future_temp_c: float = 0.0
     future_min_c: float = 0.0
     future_max_c: float = 0.0
-    lead_time_days: str = "5–10 kun"
-    planning_horizon_days: int = 10
+    lead_time_days: str = "5–12 kun"
+    planning_horizon_days: int = 12
 
 
 def _classify_weather(temp_c: float, max_c: float, cur_temp: float | None = None) -> tuple[str, str]:
-    """Kutilayotgan harorat (5–10 kun oldingi prognoz) asosida mavsum va kiyim tavsiyasini beradi."""
+    """Kutilayotgan harorat (5–12 kun oldingi prognoz) asosida mavsum va kiyim tavsiyasini beradi."""
     prefix = ""
     if cur_temp is not None:
         prefix = (
-            f"Bugun {cur_temp:.0f}°C, 5–10 kunda (Avia yetib kelganda) ~{temp_c:.0f}°C kutilmoqda — "
+            f"Bugun {cur_temp:.0f}°C, 5–12 kunda (Avia yetib kelganda) ~{temp_c:.0f}°C kutilmoqda — "
         )
     if temp_c <= 8.0:
         return (
@@ -112,8 +112,8 @@ async def fetch_tashkent_weather() -> WeatherForecast:
             future_temp_c=f_temp,
             future_min_c=f_min,
             future_max_c=f_max,
-            lead_time_days="5–10 kun",
-            planning_horizon_days=10,
+            lead_time_days="5–12 kun",
+            planning_horizon_days=12,
         )
     except Exception as e:
         log.info("Ob-havo API mavjud emas (%s), standart mavsum ishlatiladi", e)
@@ -124,15 +124,15 @@ async def fetch_tashkent_weather() -> WeatherForecast:
             max_c=16.0,
             season_uz="salqin kuz / erta bahor",
             clothing_advice=(
-                "Bugun ~11°C, 5–10 kunda (Avia yetib kelganda) ~10°C atrofida — "
+                "Bugun ~11°C, 5–12 kunda (Avia yetib kelganda) ~10°C atrofida — "
                 "qalin 420g xudi, bomber/palto va kargo/jinsi kombinatsiyasi eng xaridorgir."
             ),
             is_live=False,
             future_temp_c=10.5,
             future_min_c=5.5,
             future_max_c=15.5,
-            lead_time_days="5–10 kun",
-            planning_horizon_days=10,
+            lead_time_days="5–12 kun",
+            planning_horizon_days=12,
         )
 
 
@@ -362,7 +362,7 @@ def build_video_creative_directive(
     viral_hook: str = "",
 ) -> dict[str, Any]:
     """insta_analyst v3.0 tomonidan video_employee v3.0 ga beriladigan 1080p rejissyorlik buyrug'i."""
-    lead = weather.lead_time_days if weather else "5–10 kun"
+    lead = weather.lead_time_days if weather else "5–12 kun"
     fut_t = (weather.future_temp_c or weather.temp_c) if weather else 12.0
     season = weather.season_uz if weather else "mavsumiy"
     persona = select_persona_archetype(look_title + " " + viral_hook, audio_vibe, idx=style_idx)
@@ -428,7 +428,7 @@ def analyze_competitor_account(raw_input: str, weather: WeatherForecast | None =
     """Raqobatchi Instagram profili bo'yicha 7 yo'nalishli tizimli razvedka hisobotini tuzadi."""
     handle = extract_instagram_handle(raw_input)
     prof = COMPETITOR_PROFILES.get(handle)
-    lead = weather.lead_time_days if weather else "5–10 kun"
+    lead = weather.lead_time_days if weather else "5–12 kun"
     horizon_line = (
         f"Bugun {weather.temp_c}°C, {lead}dan keyin ~{weather.future_temp_c}°C ({weather.season_uz})"
         if weather
@@ -454,7 +454,7 @@ def analyze_competitor_account(raw_input: str, weather: WeatherForecast | None =
                 f"yoki 50k/100k yaxlitlangan narx + {lead} yetkazish."
             ),
             "koment_triggers": "Kommentga '+' yozdirib DM orqali avtomatik razmer va narx yuborish.",
-            "narx_psychology": "Yaxlit 50k/100k narx (masalan 550k / 600k) + 65% marja + 50% bo'lib to'lash.",
+            "narx_psychology": "Yaxlit 50k/100k narx (masalan 500k / 550k) + 35% raqobatbardosh marja + 50% bo'lib to'lash.",
             "hook_patterns": [
                 "Bo'y va vazn segmenti (masalan 170–185 sm yigitlar uchun)",
                 "Birinchi 1.5 soniyada muammo + tayyor yechim kapsulasi",
@@ -467,10 +467,10 @@ def analyze_competitor_account(raw_input: str, weather: WeatherForecast | None =
     base["weather_horizon"] = horizon_line
     base["global_niches"] = GLOBAL_IG_NICHES
     base["xan_shop_counter_strategy"] = (
-        f"1) Muddat halolligi: Xitoy ichki 1–4 kun + Avia 3–7 kun = {lead} (@_tima_shop 7–13 kunidan tezroq). "
-        "2) Kargo afzalligi: ~115k so'm/kg ($9.5/kg) — raqobatchining 130k/kg tarifidan arzon. "
-        "3) Narx va foyda: 65% marja va 50k/100k yuqoriga yaxlitlash (masalan 527k -> 550k/600k). "
-        "4) Halol Premium Video (v3.0): TTS robot ovozsiz, Bento Split-Screen, qora kapsula subtitrlar va 100% real mato/razmer kafolati."
+        f"1) Muddat halolligi: Xitoy ichki 1–4 kun + Avia 4–8 kun = {lead} (@_tima_shop 7–13 kunidan tezroq). "
+        "2) Kargo afzalligi: 12 000 so'm / 100 gr (120 000 so'm/kg) — raqobatchining 13 000 so'm / 100 gr tarifidan arzon. "
+        "3) Narx va foyda: real Pinduoduo tannarxi + 35% raqobatbardosh marja (50 ga 50 majburiy 2x oshirishsiz). "
+        "4) Halol Premium Video (v3.0): TTS robot ovozsiz, haqiqiy Pinduoduo kiyim rasmlari va 100% real mato/razmer kafolati."
     )
     return base
 
@@ -570,8 +570,8 @@ async def analyze_competitor_with_ai(
             f"Maqsadli raqobatchi: {report['handle']} ({report['url']})\n"
             f"Mavjud tahlil: {report['bio_formula']} | Hooklar: {', '.join(report['hook_patterns'])} | "
             f"Koment: {report['koment_triggers']} | Zvuk: {report['zvuk_style']}\n"
-            f"Toshkent ob-havosi 5–10 kundan keyin: {w.future_temp_c or w.temp_c}°C ({w.season_uz}).\n"
-            f"XAN SHOP ustunligi: Avia 5–10 kun, kargo ~$9.5/kg (115k/kg), 50k/100k yaxlitlangan narx (65% marja), "
+            f"Toshkent ob-havosi 5–12 kundan keyin: {w.future_temp_c or w.temp_c}°C ({w.season_uz}).\n"
+            f"XAN SHOP ustunligi: Avia 5–12 kun, kargo 12 000 so'm / 100 gr (120 000 so'm/kg), raqobatbardosh 35% marja, "
             f"va 8 ta avtonom AI agent.\n\n"
             "FAQAT JSON QAYTAR (o'zbek tilida):\n"
             "{\n"

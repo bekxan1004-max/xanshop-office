@@ -751,6 +751,75 @@ def evaluate_seasonal_styling_rules(weather: Any = None) -> dict[str, Any]:
     }
 
 
+async def fetch_live_uzbek_competitor_channels(
+    channels: tuple[str, ...] = ("stylesh_shop", "tima_shop_uz"),
+) -> dict[str, Any]:
+    """O'zbekistonlik real raqobatchilar (@stylesh_shop, @tima_shop_uz) Telegram kanallaridan jonli narxlar va eng ko'p ko'rilgan postlarni oladi."""
+    import os
+
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return {"ok": False, "prices_uzs": [], "posts": [], "avg_price_uzs": 0}
+
+    prices_uzs: list[int] = []
+    posts: list[dict[str, Any]] = []
+    price_re = re.compile(r"(\d{3}[\s.,]?\d{3}|\d[\s.,]\d{3}[\s.,]\d{3})\s*(?:so[\'’ʻ‘`]m|som|сум|uzs)", re.I)
+
+    def _parse_views(v_txt: str) -> int:
+        s = (v_txt or "").strip().upper()
+        try:
+            if s.endswith("K"):
+                return int(float(s[:-1]) * 1000)
+            if s.endswith("M"):
+                return int(float(s[:-1]) * 1_000_000)
+            return int(re.sub(r"\D", "", s) or "0")
+        except Exception:
+            return 0
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}) as client:
+            for ch in channels:
+                try:
+                    resp = await client.get(f"https://t.me/s/{ch}")
+                    if resp.status_code != 200:
+                        continue
+                    blocks = re.findall(
+                        r'tgme_widget_message_text[^>]*>(.*?)</div>.*?tgme_widget_message_views">([^<]+)<',
+                        resp.text,
+                        re.S,
+                    )
+                    for raw_txt, raw_views in blocks[-10:]:
+                        clean = " ".join(re.sub(r"<[^>]+>", " ", raw_txt).split())
+                        v_n = _parse_views(raw_views)
+                        p_val = 0
+                        m = price_re.search(clean)
+                        if m:
+                            digits = int(re.sub(r"\D", "", m.group(1)))
+                            if 200_000 <= digits <= 2_500_000:
+                                p_val = digits
+                                prices_uzs.append(digits)
+                        posts.append({
+                            "channel": f"@{ch}",
+                            "views": v_n,
+                            "price_uzs": p_val,
+                            "snippet": clean[:180],
+                        })
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    posts.sort(key=lambda x: -x.get("views", 0))
+    avg_p = int(round(sum(prices_uzs) / len(prices_uzs) / 10000) * 10000) if prices_uzs else 0
+    return {
+        "ok": bool(posts),
+        "prices_uzs": prices_uzs,
+        "avg_price_uzs": avg_p,
+        "min_price_uzs": min(prices_uzs) if prices_uzs else 0,
+        "max_price_uzs": max(prices_uzs) if prices_uzs else 0,
+        "posts": posts[:8],
+    }
+
+
 async def run_live_instagram_analyst_async(
     db: Any,
     settings: Any,
@@ -785,6 +854,7 @@ async def run_live_instagram_analyst_async(
         else {"ok": False, "permission_error": "instagram_manage_insights yo'q yoki hisob qulflangan", "competitors": {}, "raw_media": []}
     )
     rules = evaluate_seasonal_styling_rules(weather)
+    live_tg_comp = await fetch_live_uzbek_competitor_channels()
     web_intel = await discover_fashion_accounts_from_web(db, cycle_idx=cycle_idx, allow_network=allow_net)
     analyzed_videos = await analyze_competitor_videos_batch(db, settings, comp_discovery, web_intel, rules)
 
@@ -802,21 +872,31 @@ async def run_live_instagram_analyst_async(
     rec_style = str(winning_pick.get("editing_style") or "persona_spotlight_deck")
     rec_audio = str(winning_pick.get("audio_vibe") or "diplomat_old_money")
     rec_music_label = str(winning_pick.get("music_genre") or "Klassik Piano & Strings")
-    comp_price = int(winning_pick.get("competitor_sell_price_uzs") or 950000)
-    est_cost = int(winning_pick.get("estimated_pdd_cost_uzs") or 460000)
-    est_profit = int(winning_pick.get("estimated_profit_uzs") or 340000)
-    xan_target = int(winning_pick.get("xan_target_price_uzs") or 850000)
+
+    # Jonli O'zbekiston raqobatchilari (@stylesh_shop / @tima_shop_uz) real narxlarini ustuvor olamiz!
+    live_avg = int(live_tg_comp.get("avg_price_uzs") or 0)
+    live_min = int(live_tg_comp.get("min_price_uzs") or 0)
+    live_max = int(live_tg_comp.get("max_price_uzs") or 0)
+    comp_price = live_avg if live_avg >= 350_000 else int(winning_pick.get("competitor_sell_price_uzs") or 750000)
+    est_cost = int(winning_pick.get("estimated_pdd_cost_uzs") or 380000)
+    est_profit = max(120000, comp_price - est_cost)
+    # Raqobatchidan 10–18% arzonroq, bozorga mos maqsadli narx
+    xan_target = int(round((comp_price * 0.85) / 50000) * 50000)
+    live_note = (
+        f"Jonli bozor (@stylesh_shop / @tima_shop_uz): {live_min:,}–{live_max:,} so'm (o'rtacha {live_avg:,} so'm, kargo 13 000 so'm/100gr)"
+        if live_avg
+        else f"@{winning_pick.get('account_handle', 'stylesh.uz')} bozor narxi ~{comp_price:,} so'm"
+    )
 
     scout_brief = (
-        f"Halol O'g'ri → Pinduoduo Skaut: @{winning_pick.get('account_handle', 'stylesh.uz')} dagi "
-        f"'{winning_pick.get('garment_type', 'Qishki Palto/Vodolazka')}' bozor narxi ~{comp_price:,} so'm "
-        f"(tannarx ~{est_cost:,}, raqobatchi foydasi ~{est_profit:,}). "
-        f"Pinduoduo'dan faqat qishki qalin klassik/street buyumlar topib, mijozga {xan_target:,} so'm (50% oldindan) atrofida foydali look yig'!"
+        f"Halol O'g'ri → Pinduoduo Skaut: {live_note}. "
+        f"Pinduoduo'dan eng qimmatini emas, eng sifatli + arzon (¥35–¥135) va avval ishlatilmagan YANGI kiyimlarni topib, "
+        f"raqobatchidan arzon (~{xan_target:,} so'm atrofida, kargo 12 000 so'm/100gr, 5–12 kun) look yig'!"
     )
     video_brief = (
-        f"Halol O'g'ri → Video Montajchi: Eng ko'p ko'rilgan ({winning_pick.get('views_est', 20000):,} ko'rish) uslub = '{rec_style}', "
-        f"haqiqiy studio MP3 zvuk = '{rec_audio}' ({rec_music_label}). "
-        f"Ma'no: {winning_pick.get('video_meaning', 'Tayyor kapsula')}. Sintetik bip-bip ishlatma, faqat data/audio/{rec_audio}.mp3 trekni qo'y!"
+        f"Halol O'g'ri → Video Montajchi: Eng ko'p ko'rilgan uslub = '{rec_style}', "
+        f"haqiqiy trend MP3 zvuk = '{rec_audio}' ({rec_music_label}). "
+        f"Ma'no: {winning_pick.get('video_meaning', 'Tayyor kapsula')}. Faqat real Pinduoduo kiyim rasmlari va data/audio/{rec_audio}.mp3 trekni ishlat!"
     )
 
     recent_looks: list[dict[str, Any]] = []
@@ -867,6 +947,9 @@ async def run_live_instagram_analyst_async(
             "new_web_accounts": web_intel.get("discovered_handles", []),
             "videos_analyzed": len(analyzed_videos),
             "winning_pattern": winning_pick,
+            "live_competitor_market": live_tg_comp,
+            "competitor_avg_price_uzs": comp_price,
+            "xan_target_price_uzs": xan_target,
             "recommended_video_style": rec_style,
             "recommended_audio_vibe": rec_audio,
             "recommended_music_genre": rec_music_label,

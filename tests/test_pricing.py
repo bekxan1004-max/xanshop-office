@@ -159,11 +159,11 @@ def test_insta_competitor_intelligence_and_handle_parser():
     rep = analyze_competitor_account(handle)
     assert rep["handle"] == "@_tima_shop"
     assert "+" in rep["koment_triggers"] and "komment" in rep["koment_triggers"].lower()
-    assert "5–10 kun" in rep["xan_shop_counter_strategy"]
+    assert "5–12 kun" in rep["xan_shop_counter_strategy"]
     assert len(rep["hook_patterns"]) >= 2
     season, advice = _classify_weather(6.5, 11.0, cur_temp=15.0)
     assert "sovuq" in season
-    assert "5–10 kunda" in advice and "15°C" in advice and ("~6°C" in advice or "~7°C" in advice)
+    assert "5–12 kunda" in advice and "15°C" in advice and ("~6°C" in advice or "~7°C" in advice)
 
 
 def test_v3_self_learning_and_video_directive():

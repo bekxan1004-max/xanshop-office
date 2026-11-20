@@ -68,7 +68,7 @@ def look_caption(look: dict, s: Settings) -> str:
         f"✈️ Yetkazish: {escape(s.delivery_text)}",
         "",
         f"💳 <b>Hozirgi narx (50%): {fmt(p50)} so'm</b>",
-        f"📦 <b>+ kargo</b> <i>(qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelganda!)</i>",
+        f"📦 <b>Kargo: 12 000 so'm / 100 gr</b> <i>(qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelganda!)</i>",
         f"💰 To'liq narxi: {fmt(look['prepay_uzs'])} so'm",
     ]
     return "\n".join(lines)[:1024]

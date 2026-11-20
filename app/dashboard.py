@@ -1659,11 +1659,11 @@ def build_dashboard_app(
             elif mode == "competitive":
                 calc_params = PriceParams(
                     vykup_percent=0.0,
-                    profit_percent=float(request.query.get("profit", "65") or 65),
+                    profit_percent=float(request.query.get("profit", "35") or 35),
                     payment_fee_percent=base_params.payment_fee_percent,
                     china_shipping_cny_per_item=0.0,
                     cargo_usd_per_kg=base_params.cargo_usd_per_kg,
-                    cargo_client_uzs_per_kg=float(request.query.get("cargo_uzs_kg", "115000")),
+                    cargo_client_uzs_per_kg=float(request.query.get("cargo_uzs_kg", "120000")),
                     prepay_round_to=base_params.prepay_round_to or 50000,
                     conversion_fee_percent=2.5,
                     ensure_50_covers_cost=False,

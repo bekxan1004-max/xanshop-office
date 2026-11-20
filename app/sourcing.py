@@ -137,21 +137,21 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         ],
     },
     {
-        "title": "Qishki Klassik Diplomat To'liq Kapsulasi (5-in-1)",
-        "description": "To'q ko'k blazer + och bej zamokli sviter + grafit klassik drape shim + qora charm chelsea etik + espresso zamsh lofer (almashtirish uchun).",
+        "title": "Qishki Shahar VIP Street-Klassik Kapsulasi (5-in-1)",
+        "description": "Qishki qalin jun palto + yoqali svitshot + issiq kargo/keng shim + qora-oq retro krossovka + minimalist kepka.",
         "piece_count": 5,
-        "palette_name": "Diplomat Navy & Obsidian",
-        "palette_hex": ["#1B263B", "#2B2D32", "#C8B8A6", "#18191C"],
+        "palette_name": "Diplomat Obsidian & Cream",
+        "palette_hex": ["#18191C", "#2B2D32", "#E8E4DC", "#4A4E58"],
         "audio_vibe": "lofi_editorial",
-        "viral_hook": "QISHKI TO'LIQ KLASSIK GARDEROB • DIPLOMAT USLUBI",
-        "colors": "To'q ko'k (navy), Och bej, To'q kulrang (grafit), Qora",
+        "viral_hook": "QISHKI ZAMONAVIY SHAHAR OBRAZI • 5 QISMLI VIP SET",
+        "colors": "Qora, Oq, To'q kulrang",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "To'q Jigarrang Ikki Qatorli Jun Palto", "price_cny": 138.0, "weight_kg": 1.15, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
-            {"category": "outerwear", "name": "To'q Ko'k Klassik Jun Blazer", "price_cny": 115.0, "weight_kg": 0.78, "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克"},
-            {"category": "top", "name": "Och Bej Zamokli Sviter", "price_cny": 62.0, "weight_kg": 0.50, "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领"},
-            {"category": "bottom", "name": "Grafit Klassik Drape Shim", "price_cny": 62.0, "weight_kg": 0.50, "cn_keyword": "垂感羊毛西装裤男直筒老钱风秋冬加厚长裤"},
-            {"category": "shoes", "name": "Qora Charm Qishki Chelsea Etik", "price_cny": 78.0, "weight_kg": 0.92, "cn_keyword": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴"},
+            {"category": "outerwear", "name": "Qora Tik Yoqali Jun Palto", "price_cny": 138.0, "weight_kg": 1.05, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
+            {"category": "top", "name": "Oq Yoqali Svitshot", "price_cny": 88.0, "weight_kg": 0.48, "cn_keyword": "半拉链卫衣男潮"},
+            {"category": "bottom", "name": "To'q Kulrang Qishki Kargo Shim", "price_cny": 58.0, "weight_kg": 0.52, "cn_keyword": "工装裤男士直筒宽松"},
+            {"category": "shoes", "name": "Qora-Oq Retro Krossovka", "price_cny": 95.0, "weight_kg": 0.85, "cn_keyword": "男复古板鞋运动鞋"},
+            {"category": "accessory", "name": "Qora Minimalist Kepka", "price_cny": 26.0, "weight_kg": 0.15, "cn_keyword": "美式复古纯色软顶棒球帽男百搭显脸小鸭舌帽"},
         ],
     },
     {
@@ -217,6 +217,75 @@ def _detect_garment_color_uz(img_bytes: bytes | None) -> str:
         return "To'q kulrang (grafit)" if lum < 125 else "Och bej"
     except Exception:
         return ""
+
+
+def _uz_name_from_real_pdd(title_cn: str, color_uz: str, fallback_name: str) -> str:
+    """Haqiqiy Pinduoduo xitoycha nomidan 100% rost, qisqa o'zbekcha nom (brend + rang + haqiqiy tur) tuzadi."""
+    t = (title_cn or "").strip()
+    if not t:
+        return fallback_name
+    col_clean = (color_uz or "").split("(")[0].split("/")[0].strip()
+    if col_clean:
+        col_clean = col_clean[0].upper() + col_clean[1:]
+
+    brand = ""
+    for cn_b, uz_b in (
+        ("李宁", "Li-Ning"),
+        ("安踏", "Anta"),
+        ("特步", "Xtep"),
+        ("阿迪达斯", "Adidas"),
+        ("adidas", "Adidas"),
+        ("JEEP", "Jeep"),
+        ("Dickies", "Dickies"),
+        ("皮尔卡丹", "Pierre Cardin"),
+        ("回力", "Warrior"),
+    ):
+        if cn_b.lower() in t.lower():
+            brand = uz_b
+            break
+
+    kind = ""
+    if any(k in t for k in ("切尔西靴", "马丁靴", "皮靴", "短靴")):
+        kind = "Chelsea Etik"
+    elif any(k in t for k in ("乐福鞋", "皮鞋")):
+        kind = "Klassik Lofer"
+    elif any(k in t for k in ("德训", "板鞋", "运动鞋", "休闲鞋", "小白鞋", "鞋")):
+        kind = "Retro Krossovka"
+    elif any(k in t for k in ("工装裤", "伞兵")):
+        kind = "Qishki Kargo Shim" if any(w in t for w in ("加绒", "加厚", "秋冬", "冬")) else "Kargo Shim"
+    elif "牛仔裤" in t:
+        kind = "To'g'ri Jinsi Shim"
+    elif any(k in t for k in ("西装裤", "西裤")):
+        kind = "Klassik Drape Shim"
+    elif any(k in t for k in ("阔腿裤", "休闲裤", "卫裤", "长裤", "裤")):
+        kind = "Erkin Keng Shim"
+    elif any(k in t for k in ("羊毛呢大衣", "呢子大衣", "毛呢大衣", "羊毛大衣", "大衣")):
+        kind = "Jun Palto"
+    elif "风衣" in t:
+        kind = "Trench Palto"
+    elif any(k in t for k in ("羽绒服", "棉服", "棉衣", "棉袄")):
+        kind = "Qishki Puxovik Kurtka"
+    elif any(k in t for k in ("冲锋衣", "防风")):
+        kind = "Shamolto'sar Kurtka"
+    elif any(k in t for k in ("西装", "西服")):
+        kind = "Klassik Jun Blazer"
+    elif any(k in t for k in ("夹克", "外套")):
+        kind = "Bomber Kurtka"
+    elif "半拉链" in t:
+        kind = "Zamokli Sviter"
+    elif any(k in t for k in ("高领", "羊绒")):
+        kind = "Kashmir Vodolazka"
+    elif any(k in t for k in ("连帽卫衣", "帽衫")):
+        kind = "Oversize Xudi"
+    elif any(k in t for k in ("卫衣", "衬衫")):
+        kind = "Yoqali Svitshot" if "衬衫" in t or "翻领" in t else "Oversize Svitshot"
+    elif any(k in t for k in ("毛衣", "针织", "开衫")):
+        kind = "Trikotaj Sviter"
+
+    if not kind:
+        return fallback_name
+    parts = [p for p in (brand, col_clean, kind) if p]
+    return " ".join(parts)
 
 
 def _sync_item_with_studio_photo_color(name: str, category: str = "", idx: int = 0) -> tuple[str, str]:
@@ -367,8 +436,21 @@ class TrendSourcingAgent:
         weather_line: str,
         gender: str,
         playbooks_text: str = "",
+        recent_titles: list[str] | None = None,
+        market_benchmark_note: str = "",
     ) -> str:
         playbook_section = f"\n{playbooks_text}\n" if playbooks_text else ""
+        recent_block = ""
+        if recent_titles:
+            clean_rec = [str(t).strip() for t in recent_titles if str(t).strip()][:8]
+            if clean_rec:
+                recent_block = (
+                    "\nTAQIQLANGAN TAKRORLASH (oxirgi chiqqan looklar — bularni va xuddi shu kiyimlarni QAYTA YOZMA! "
+                    "Mutlaqo yangi, boshqa fason va yangi nom o'ylab top):\n- "
+                    + "\n- ".join(clean_rec)
+                    + "\n"
+                )
+        market_block = f"\nRAQOBATCHI BOZOR NARXLARI (Telegram/Instagram jonli tahlil): {market_benchmark_note}\n" if market_benchmark_note else ""
         return f"""Sen "XAN SHOP" moda brendining Bosh Bozor Tahlilchisi, Dizayner-Stilisti va Pinduoduo Skaut Agentisan.
 Instagram & Telegram tahlilchisi quyidagi trend hisobotini yubordi:
 - Trend yo'nalishi: {brief.trend_name}
@@ -376,14 +458,15 @@ Instagram & Telegram tahlilchisi quyidagi trend hisobotini yubordi:
 - Dizayner ranglar palitrasi: {brief.color_palette_name} ({', '.join(brief.color_hex_list)})
 - Toshkent ob-havosi va mavsumi: {weather_line}
 - Auditoriya: {gender}
-{playbook_section}
-Vazifang: Pinduoduo (拼多多) da haqiqatda ko'p sotilayotgan (10万+ sotuvli), O'zbekiston bozoriga va berilgan kanallar uslubiga mos, narxiga yarasha qimmat ko'rinadigan (~42–135 CNY atrofida, sovuq mavsumda arzon yupqa futbolka o'rniga issiq qalin sviter/palto/blazer/hoodie afzal, jami ~145–280 CNY) uyg'un Look yig'. Erkin va ijodkor bo'l — bir xil qolipda qotib qolma!
+{market_block}{recent_block}{playbook_section}
+Vazifang: Pinduoduo (拼多多) da haqiqatda ko'p sotilayotgan, sifati baland va narxi hamyonbop (~38–125 CNY oralig'ida, ENG QIMMAT emas, balki sifat/narx nisbati eng zo'r variantlar, jami ~140–270 CNY) bo'lgan mutlaqo YANGI va uyg'un Look yig'.
+Har safar har xil kiyim turlarini tanla (masalan: zamsh/teri kurtka, yengil puxovik, kardigan, polo sviter, yarim-zamokli sviter, jun palto, klassik shim, to'g'ri jinsi, kargo, chelsea etik, zamsh lofer, retro krossovka).
 MUHIM QOIDA: "title" va har bir buyumning "name" maydoni FAQAT O'ZBEK TILIDA, qisqa va tushunarli (2–4 so'z) bo'lsin! Inglizcha so'zlar yozma!
-Har bir buyum uchun real Pinduoduo narxi (yuan - CNY), vazni (kg), kategoriyasi (outerwear, top, bottom, shoes, accessory) va xitoycha qidiruv so'zini ber.
+Har bir buyum uchun real Pinduoduo narxi (yuan - CNY), vazni (kg), kategoriyasi (outerwear, top, bottom, shoes, accessory) va aniq xitoycha qidiruv so'zini ber.
 
 FAQAT JSON QAYTAR:
 {{
-  "title": "O'zbekcha qisqa Look nomi",
+  "title": "O'zbekcha qisqa va yangi Look nomi",
   "description": "Sotuvbop professional tavsif",
   "colors": "Ranglar uyg'unligi",
   "sizes": "M, L, XL, 2XL",
@@ -571,15 +654,10 @@ FAQAT JSON QAYTAR:
         for idx, it in enumerate(norm_items):
             live_img = downloaded_images[idx] if (downloaded_images and idx < len(downloaded_images)) else None
             if live_img:
-                # Jonli 1688/Pinduoduo rasmi bor: kiyimning o'zbekcha nomini va rasmdagi haqiqiy rangni uyg'unlashtiramiz
-                det_col = _detect_garment_color_uz(live_img) or str(it.get("color_uz") or "Qora")
-                short_col = det_col.split("(")[0].split("/")[0].strip().title()
-                cur_name = str(it.get("name") or "")
-                for old_prefix in ("Muzdek Oq ", "Oq-Kulrang ", "To'q Kulrang ", "Och Bej ", "Grafit ", "Qora ", "Bej ", "Oq ", "Zaytun ", "Jigarrang ", "Ko'k ", "Kulrang "):
-                    if cur_name.lower().startswith(old_prefix.lower()) and short_col:
-                        cur_name = f"{short_col} {cur_name[len(old_prefix):].strip()}"
-                        break
-                it["name"] = cur_name
+                # Jonli Pinduoduo rasmi bor: kiyimning o'zbekcha nomini haqiqiy Pinduoduo tovari va rangiga 100% moslaymiz
+                st_cols = it.get("store_colors") or []
+                det_col = (st_cols[0] if len(st_cols) == 1 else "") or _detect_garment_color_uz(live_img) or str(it.get("color_uz") or "Qora")
+                it["name"] = _uz_name_from_real_pdd(str(it.get("title_cn") or ""), det_col, str(it.get("name") or "Buyum"))
                 it["color_uz"] = det_col
                 if det_col and det_col not in exact_colors:
                     exact_colors.append(det_col)
@@ -690,8 +768,9 @@ FAQAT JSON QAYTAR:
         trend_brief: InstagramTrendBrief | None = None,
         weather: WeatherForecast | None = None,
         ig_intel: dict[str, Any] | None = None,
+        exclude_goods_ids: set[str] | None = None,
     ) -> GeneratedLook:
-        """Jonli Toshkent ob-havosi + OmniRoute/Gemini AI + haqiqiy Pinduoduo API bilan asinxron Look yaratadi."""
+        """Jonli Toshkent ob-havosi + Raqobatchi narx tahlili + OmniRoute/Gemini AI + haqiqiy Pinduoduo API bilan asinxron Look yaratadi."""
         weather = weather or await fetch_tashkent_weather()
         eff_brief = trend_brief or await self.analyze_instagram_trends_async(weather)
         eff_season = weather.season_uz if season in ("", "avtomatik ob-havo") else season
@@ -703,9 +782,27 @@ FAQAT JSON QAYTAR:
         if self.client is not self.ai.client:
             self.ai.client = self.client
         pb_txt = str((ig_intel or {}).get("learned_playbooks_text") or "")
-        prompt = self._build_look_prompt(eff_brief, weather_line, gender, playbooks_text=pb_txt)
+        recent_titles = list((ig_intel or {}).get("recent_titles") or [])
+        halol = (ig_intel or {}).get("halol_ogri") or {}
+        comp_avg = int(halol.get("competitor_avg_price_uzs") or 0)
+        xan_target = int(halol.get("xan_target_price_uzs") or 0)
+        market_note = ""
+        if comp_avg > 0:
+            market_note = (
+                f"@stylesh_shop va @tima_shop_uz da o'rtacha look narxi ~{comp_avg:,} so'm "
+                f"(bizning hamyonbop maqsadli narx: ~{xan_target or int(comp_avg * 0.85):,} so'm atrofida, kargo 12 000 so'm/100gr)."
+            ).replace(",", " ")
+
+        prompt = self._build_look_prompt(
+            eff_brief,
+            weather_line,
+            gender,
+            playbooks_text=pb_txt,
+            recent_titles=recent_titles,
+            market_benchmark_note=market_note,
+        )
         ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
-        raw_data = self._pick_template_if_invalid(ai_data, recent_titles=(ig_intel or {}).get("recent_titles"))
+        raw_data = self._pick_template_if_invalid(ai_data, recent_titles=recent_titles)
         raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
 
         if self.pdd.connection_mode not in ("official_api", "apify_pdd_live", "onebound_pdd"):
@@ -715,54 +812,68 @@ FAQAT JSON QAYTAR:
         enriched_items: list[dict[str, Any]] = []
         downloaded_imgs: list[bytes | None] = []
         used_urls: set[str] = set()
+        used_gids: set[str] = {str(x).strip() for x in (exclude_goods_ids or set()) if str(x).strip()}
 
-        async def _is_clean_flatlay_garment(img_bytes: bytes) -> bool:
-            """Flat-lay Reels kolaji uchun rasmni Vision QC dan o'tkazadi: odam yuzi va katta xitoycha yozuvsiz toza kiyim rasmi bo'lishi shart."""
-            if not img_bytes or not self.ai.enabled:
+        vision_state = {"alive": bool(self.ai.enabled)}
+
+        async def _is_usable_pdd_garment_photo(img_bytes: bytes, target_cat: str = "") -> bool:
+            """Haqiqiy Pinduoduo kiyim rasmini tekshiradi: katta xitoycha reklama banner/infografikani rad etadi,
+            lekin toza flat-lay YOKI modeldagi bitta kiyim rasmini QABUL qiladi (u2net_cloth_seg yuz va fonni 100% qirqib oladi!)."""
+            if not img_bytes:
                 return False
+            if not vision_state["alive"]:
+                return True
             try:
                 qc = await self.ai.ask_json(
-                    "Inspect this e-commerce product image for a luxury flat-lay fashion collage. "
-                    "Return strict JSON: {\"clean_isolated_garment\": bool, \"has_human_face_or_person\": bool, \"has_promo_text_overlay\": bool}. "
-                    "Set clean_isolated_garment=true ONLY if it shows ONLY the clothing/shoe item on a clean plain/studio background with NO human face/body and NO promotional Chinese/English text banner.",
+                    f"Inspect this Pinduoduo product photo (target category: {target_cat or 'clothing'}). "
+                    "Our AI cloth segmenter (u2net_cloth_seg) will cleanly cut out ONLY the clothing/shoe item and remove any human model/face/background. "
+                    "Return strict JSON: {\"shows_target_garment\": bool, \"has_heavy_promo_text_or_collage\": bool}. "
+                    "Set shows_target_garment=true if a clear single garment or pair of shoes is clearly visible (whether flat-lay OR worn by a model). "
+                    "Set has_heavy_promo_text_or_collage=true ONLY if it is a cluttered infographic, size table, multi-grid collage, or covered with big Chinese promotional price/discount banners across the garment.",
                     media_bytes=img_bytes,
                     mime_type="image/jpeg",
-                    timeout_sec=11.0,
-                    model_override="gemini-3.5-flash-lite",
+                    timeout_sec=8.0,
                 )
-                if isinstance(qc, dict):
-                    return bool(
-                        qc.get("clean_isolated_garment")
-                        and not qc.get("has_human_face_or_person")
-                        and not qc.get("has_promo_text_overlay")
-                    )
+                if isinstance(qc, dict) and qc:
+                    return bool(qc.get("shows_target_garment") and not qc.get("has_heavy_promo_text_or_collage"))
+                # Vision modeli vaqtincha javob bermasa, qolgan rasmlarda 5 daqiqa kutmasdan tezkor o'tamiz
+                vision_state["alive"] = False
             except Exception:
-                pass
-            return False
+                vision_state["alive"] = False
+            return True
 
         for item_idx, item in enumerate(base_items):
             kw = item.get("cn_keyword") or item.get("name", "")
-            live_matches = await self.pdd.search_live(kw, page_size=12)
+            cat = str(item.get("category") or "")
+            live_matches = await self.pdd.search_live(kw, page_size=12, exclude_goods_ids=used_gids)
             picked_prod = None
             picked_bytes = None
+            fallback_prod = None
+            fallback_bytes = None
             if live_matches:
-                # Avval O'zbekiston bozoriga mos hamyonbop (<= ¥185) Pinduoduo tovarlarini saralaymiz
-                affordable = [m for m in live_matches if 25.0 <= float(m.price_cny or 0) <= 185.0]
-                pool = affordable if affordable else live_matches
-                start_offset = (self._fallback_idx + item_idx) % len(pool)
-                ordered = pool[start_offset:] + pool[:start_offset]
-                picked_prod = ordered[0]
-                # Galereyadan yuzsiz va xitoycha yozuvsiz toza flat-lay rasm qidiramiz (cover [0] dan ko'ra [1..3] tozaroq bo'ladi)
-                for cand in ordered[:3]:
+                # Sifat/narx nisbati eng zo'r va hali ishlatilmagan hamyonbop (¥25–¥165) Pinduoduo tovarlari birinchi!
+                fresh_pool = [m for m in live_matches if m.goods_id and m.goods_id not in used_gids]
+                base_pool = fresh_pool if fresh_pool else live_matches
+                affordable = [m for m in base_pool if 25.0 <= float(m.price_cny or 0) <= 165.0]
+                pool = affordable if affordable else base_pool
+                picked_prod = pool[0]
+
+                # Galereyadan [1..3] (odatda reklama yozuvsiz toza kiyim rasmlari) + [0] ni tekshiramiz
+                for cand in pool[:2]:
                     gal = list(cand.gallery_images or [])
                     if cand.image_url and cand.image_url not in gal:
                         gal.append(cand.image_url)
-                    probe_urls = gal[1:4] + gal[:1]
-                    for g_url in probe_urls[:3]:
+                    probe_urls = gal[1:3] + gal[:1]
+                    for g_url in probe_urls[:2]:
                         if not g_url or g_url in used_urls:
                             continue
                         img_b = await self.pdd.fetch_image_bytes(g_url)
-                        if img_b and await _is_clean_flatlay_garment(img_b):
+                        if not img_b:
+                            continue
+                        if fallback_bytes is None:
+                            fallback_prod = cand
+                            fallback_bytes = img_b
+                        if await _is_usable_pdd_garment_photo(img_b, target_cat=cat):
                             picked_prod = cand
                             picked_bytes = img_b
                             used_urls.add(g_url)
@@ -770,7 +881,13 @@ FAQAT JSON QAYTAR:
                     if picked_bytes:
                         break
 
+                if picked_bytes is None and fallback_bytes is not None:
+                    picked_prod = fallback_prod or picked_prod
+                    picked_bytes = fallback_bytes
+
             if picked_prod is not None:
+                if picked_prod.goods_id:
+                    used_gids.add(str(picked_prod.goods_id).strip())
                 updated = dict(item)
                 updated["price_cny"] = picked_prod.price_cny
                 updated["cny"] = picked_prod.price_cny
@@ -784,7 +901,7 @@ FAQAT JSON QAYTAR:
 
                 # Do'konning haqiqiy ranglari, razmerlari, qishki bichim eslatmasi va razmer jadvali (尺码表)
                 chart_info: dict[str, Any] = {}
-                if not picked_prod.size_chart and picked_prod.detail_images and self.ai.enabled:
+                if not picked_prod.size_chart and picked_prod.detail_images and vision_state["alive"]:
                     chart_info = await self.pdd.extract_store_size_chart(
                         picked_prod.detail_images,
                         picked_prod.title_cn,
@@ -798,7 +915,6 @@ FAQAT JSON QAYTAR:
                 updated["store_sizes"] = store_sizes
                 updated["size_chart"] = size_chart
                 updated["fit_note"] = " | ".join(dict.fromkeys(fit_parts))
-                # Agar Pinduoduo rasmlarida faqat xitoycha yozuv/odam yuzi bo'lsa, kolajga toza studiya flat-lay rasm tushadi (tovar linki/narxi/jadvali 100% real PDD!)
                 downloaded_imgs.append(picked_bytes)
                 enriched_items.append(updated)
             else:

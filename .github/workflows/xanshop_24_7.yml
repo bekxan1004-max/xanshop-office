@@ -43,6 +43,9 @@ jobs:
           sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
           pip install -r requirements.txt
           playwright install chromium || true
+          mkdir -p ~/.rembg/models/u2net ~/.rembg/models/u2net_cloth_seg
+          curl -fsSL -o ~/.rembg/models/u2net/u2net.onnx https://huggingface.co/tomjackson2023/rembg/resolve/main/u2net.onnx || true
+          curl -fsSL -o ~/.rembg/models/u2net_cloth_seg/u2net_cloth_seg.onnx https://huggingface.co/tomjackson2023/rembg/resolve/main/u2net_cloth_seg.onnx || true
           if [ -f remotion_studio/package.json ]; then
             npm --prefix remotion_studio install --no-audit --no-fund
           fi
@@ -70,10 +73,12 @@ jobs:
           CARD_NUMBER: "9860 3501 4182 4135"
           CARD_OWNER: "POLVONOV BEKMUROD"
           AUTO_POST_HOURS: "6.0"
+          DELIVERY_TEXT: "5–12 kun (Avia)"
+          CARGO_CLIENT_UZS_PER_KG: "120000"
           APIFY_MAX_MONTHLY_USD: "4.20"
           APIFY_MAX_DAILY_CALLS: "3"
-          PROFIT_PERCENT: "55"
-          ENSURE_50_COVERS_COST: "1"
+          PROFIT_PERCENT: "35"
+          ENSURE_50_COVERS_COST: "0"
           PREPAY_ROUND_TO: "50000"
           USE_OMNIROUTE: "1"
         run: |

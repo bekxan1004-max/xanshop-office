@@ -40,7 +40,7 @@ class Settings:
     cargo_collect_on_delivery: bool
     db_path: str
     conversion_fee_percent: float = 2.5
-    ensure_50_covers_cost: bool = True
+    ensure_50_covers_cost: bool = False
     prepay_round_to: int = 50000
     channel_id: str = ""
     office_port: int = 8080
@@ -93,7 +93,7 @@ def load_settings() -> Settings:
         gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite"),
         shop_name=os.getenv("SHOP_NAME", "XAN SHOP"),
-        delivery_text=os.getenv("DELIVERY_TEXT", "5–10 kun (avia)"),
+        delivery_text=os.getenv("DELIVERY_TEXT", "5–12 kun (Avia)"),
         return_policy=os.getenv("RETURN_POLICY", ""),
         card_number=os.getenv("CARD_NUMBER", "9860 3501 4182 4135"),
         card_owner=os.getenv("CARD_OWNER", "POLVONOV BEKMUROD"),
@@ -101,15 +101,15 @@ def load_settings() -> Settings:
         cny_uzs=_float("CNY_UZS", "1800"),
         usd_uzs=_float("USD_UZS", "12000"),
         vykup_percent=_float("VYKUP_PERCENT", "0"),
-        profit_percent=_float("PROFIT_PERCENT", "100"),
+        profit_percent=_float("PROFIT_PERCENT", "35"),
         payment_fee_percent=_float("PAYMENT_FEE_PERCENT", "0"),
         china_shipping_cny_per_item=_float("CHINA_SHIPPING_CNY_PER_ITEM", "0"),
         cargo_usd_per_kg=_float("CARGO_USD_PER_KG", "9.5"),
-        cargo_client_uzs_per_kg=_float("CARGO_CLIENT_UZS_PER_KG", "115000"),
+        cargo_client_uzs_per_kg=_float("CARGO_CLIENT_UZS_PER_KG", "120000"),
         cargo_collect_on_delivery=os.getenv("CARGO_COLLECT_ON_DELIVERY", "0") == "1",
         db_path=os.getenv("DB_PATH", "data/shop.db"),
         conversion_fee_percent=_float("CONVERSION_FEE_PERCENT", "2.5"),
-        ensure_50_covers_cost=os.getenv("ENSURE_50_COVERS_COST", "1") == "1",
+        ensure_50_covers_cost=os.getenv("ENSURE_50_COVERS_COST", "0") == "1",
         prepay_round_to=int(float(os.getenv("PREPAY_ROUND_TO", "50000") or "50000")),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
         office_port=int(float(port_raw)),

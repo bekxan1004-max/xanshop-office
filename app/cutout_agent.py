@@ -75,11 +75,10 @@ def _mask_for(img: Image.Image, model: str) -> np.ndarray | None:
         return None
 
 
-def _cloth_mask(img: Image.Image, category: str) -> np.ndarray | None:
-    """Odam kiyib turgan fotodan faqat kerakli kiyimni ajratadi (faqat model fayli mavjud bo'lsa)."""
-    ch = _CLOTH_CHANNEL.get(category)
+def _cloth_masks_all(img: Image.Image) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """u2net_cloth_seg dan 3 ta kanalni qaytaradi: (0=ust, 1=shim/past, 2=to'liq/uzun palto)."""
     cloth_model_path = Path.home() / ".rembg" / "models" / "u2net_cloth_seg" / "u2net_cloth_seg.onnx"
-    if ch is None or not cloth_model_path.is_file() or "u2net_cloth_seg" in _DISABLED_MODELS:
+    if not cloth_model_path.is_file() or "u2net_cloth_seg" in _DISABLED_MODELS:
         return None
     try:
         from rembg import remove
@@ -87,14 +86,52 @@ def _cloth_mask(img: Image.Image, category: str) -> np.ndarray | None:
         out = remove(img.convert("RGB"), session=_session("u2net_cloth_seg"), only_mask=True)
         m = np.asarray(out.convert("L"), dtype=np.float32) / 255.0
         h = img.height
-        # rembg cloth_seg 3 ta maskani vertikal ketma-ket qaytaradi (H*3)
         if m.shape[0] >= h * 3:
-            m = m[ch * h:(ch + 1) * h]
-        return m
+            return (m[0:h], m[h : 2 * h], m[2 * h : 3 * h])
+        return (m, np.zeros_like(m), np.zeros_like(m))
     except Exception as exc:
         log.warning("Cloth-seg ishlamadi: %s", exc)
         _DISABLED_MODELS.add("u2net_cloth_seg")
         return None
+
+
+def _detect_human_head_above_garment(general: np.ndarray, cloth: np.ndarray) -> bool:
+    """General maskada kiyim ustida odam boshi/bo'yni borligini geometrik aniq tekshiradi (rangdan mustaqil!)."""
+    h, w = general.shape
+    g_bin = general > 0.5
+    c_bin = cloth > 0.5
+    gy = np.where(g_bin.any(axis=1))[0]
+    cy = np.where(c_bin.any(axis=1))[0]
+    if not len(gy) or not len(cy):
+        return False
+    g_top = int(gy[0])
+    c_top = int(cy[0])
+    # Kiyimdan tepada kamida 7.5% balandlikda bosh/iyak/bo'yin bo'lishi kerak (ilgichdagi paltoda < 4%)
+    if (c_top - g_top) < int(h * 0.075):
+        return False
+    # Tepada qolgan bosh qismi yelkadan (kiyim kengligidan) torroq bo'ladi (< 65%)
+    cx = np.where(c_bin.any(axis=0))[0]
+    cloth_w = int(cx[-1] - cx[0] + 1) if len(cx) else w
+    head_band = g_bin[g_top : max(g_top + 1, c_top - 4), :]
+    hx = np.where(head_band.any(axis=0))[0]
+    if not len(hx):
+        return False
+    head_w = int(hx[-1] - hx[0] + 1)
+    return head_w <= max(int(cloth_w * 0.72), int(w * 0.32))
+
+
+def _cloth_mask(img: Image.Image, category: str) -> np.ndarray | None:
+    """Odam kiyib turgan fotodan faqat kerakli kiyimni ajratadi (faqat model fayli mavjud bo'lsa)."""
+    ch = _CLOTH_CHANNEL.get(category)
+    if ch is None:
+        return None
+    all_ch = _cloth_masks_all(img)
+    if all_ch is None:
+        return None
+    if category == "outerwear":
+        # Uzun palto/trench ba'zan 0-kanal va 2-kanalga bo'linadi -> ikkalasini birlashtiramiz
+        return np.maximum(all_ch[0], all_ch[2])
+    return all_ch[ch]
 
 
 def _components(binary: np.ndarray) -> tuple[np.ndarray, list[int]]:
@@ -210,7 +247,12 @@ def guess_category(name: str) -> str:
     return ""
 
 
-def extract_main_item(img: Image.Image, category: str = "", use_cache: bool = True) -> Image.Image | None:
+def extract_main_item(
+    img: Image.Image,
+    category: str = "",
+    use_cache: bool = True,
+    has_human: bool | None = None,
+) -> Image.Image | None:
     """Rasmdan asosiy buyumni AI bilan ajratib, qirqilgan RGBA qaytaradi (yoki None)."""
     if not ai_available():
         return None
@@ -244,13 +286,36 @@ def extract_main_item(img: Image.Image, category: str = "", use_cache: bool = Tr
         if m is not None and general is None:
             general = m
 
-    # Odam kiyib turgan foto: umumiy maska kiyimdan ancha katta bo'lsa (bosh/qo'l/oyoq), kiyim kanalini olamiz
-    cloth = _cloth_mask(work, category) if category in _CLOTH_CHANNEL else None
-    if cloth is not None and general is not None:
+    # Odam kiyib turgan foto vs toza flat-lay farqlash:
+    # 1) Agar rasmda odam bo'lsa (has_human=True yoki geometrik bosh/yelka + shim+ust) -> u2net_cloth_seg faqat kerakli kiyimni oladi!
+    # 2) Agar rasm allaqachon toza flat-lay / ilgichdagi kiyim bo'lsa -> u2net general butun kiyimni buzmasdan oladi!
+    all_cloth = _cloth_masks_all(work) if (category in _CLOTH_CHANNEL and has_human is not False) else None
+    if all_cloth is not None and general is not None:
+        c0, c1, c2 = all_cloth
+        if category == "outerwear":
+            cloth = np.maximum(c0, c2)
+        else:
+            cloth = all_cloth[_CLOTH_CHANNEL[category]]
         cov_g = float((general > 0.5).mean())
         cov_c = float((cloth > 0.5).mean())
-        if cov_c > 0.04 and cov_c < cov_g * 0.82:
-            mask = cloth * (general > 0.3)
+        ratio_cg = cov_c / max(cov_g, 1e-4)
+        other_cov = float((c1 > 0.5).mean()) if category in ("top", "outerwear") else float((c0 > 0.5).mean())
+        if has_human is True:
+            is_human_photo = cov_c >= 0.06 and ratio_cg >= 0.25
+        else:
+            head_above = _detect_human_head_above_garment(general, cloth)
+            if category == "bottom":
+                # Shim kiygan modelda tepada ust kiyim (c0) va bosh bo'ladi
+                is_human_photo = head_above and (other_cov > 0.04) and cov_c >= 0.06
+            else:
+                # Ust kiyim kiygan modelda tepada tor bosh + kiyim maskasi butun (ratio_cg >= 0.35)
+                is_human_photo = head_above and ratio_cg >= 0.35 and cov_c >= 0.07
+        if is_human_photo and cov_c < cov_g * 0.96:
+            mask = cloth * (general > 0.20)
+    elif all_cloth is not None:
+        cloth = np.maximum(all_cloth[0], all_cloth[2]) if category == "outerwear" else all_cloth[_CLOTH_CHANNEL[category]]
+        if float((cloth > 0.5).mean()) > 0.06:
+            mask = cloth
     if mask is None:
         mask = general
     if mask is None:

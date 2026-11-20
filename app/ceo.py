@@ -26,31 +26,31 @@ CUSTOMS_MONTHLY_LIMIT_USD = 200.0
 
 PRICING_PRESETS: dict[str, dict[str, Any]] = {
     "competitive": {
-        "label": "Optimal Biznes (<$200 limit, 65% foyda + 50k/100k yaxlitlash)",
-        "profit_percent": 65,
+        "label": "Bozorga mos raqobatbardosh (35% foyda, 12 000 so'm/100gr kargo)",
+        "profit_percent": 35,
         "vykup_percent": 0,
         "china_shipping_cny_per_item": 0,
         "conversion_fee_percent": 2.5,
         "ensure_50_covers_cost": "0",
-        "cargo_client_uzs_per_kg": 115000,
+        "cargo_client_uzs_per_kg": 120000,
     },
     "safe_50": {
-        "label": "Noldan sarmoyasiz (50% tannarxni qoplaydi)",
-        "profit_percent": 105,
-        "vykup_percent": 0,
-        "china_shipping_cny_per_item": 0,
-        "conversion_fee_percent": 2.5,
-        "ensure_50_covers_cost": "1",
-        "cargo_client_uzs_per_kg": 115000,
-    },
-    "yatt_customs": {
-        "label": "YaTT + Tijoriy Bojxona (>$200/oy reja)",
+        "label": "Yuqori marjali (45% foyda, 12 000 so'm/100gr kargo)",
         "profit_percent": 45,
         "vykup_percent": 0,
         "china_shipping_cny_per_item": 0,
         "conversion_fee_percent": 2.5,
         "ensure_50_covers_cost": "0",
-        "cargo_client_uzs_per_kg": 85000,
+        "cargo_client_uzs_per_kg": 120000,
+    },
+    "yatt_customs": {
+        "label": "YaTT + Tijoriy Bojxona (>$200/oy reja)",
+        "profit_percent": 35,
+        "vykup_percent": 0,
+        "china_shipping_cny_per_item": 0,
+        "conversion_fee_percent": 2.5,
+        "ensure_50_covers_cost": "0",
+        "cargo_client_uzs_per_kg": 120000,
     },
 }
 
@@ -137,76 +137,76 @@ def build_default_directives(t: dict[str, Any]) -> dict[str, Any]:
         {
             "target_agent": "insta_analyst",
             "priority": "yuqori",
-            "command": "@_tima_shop, @stylesh.uz va @lookzona.uz Reels hooklari, zvuk, opisaniya va komment triggerlarini kuzatib 5–10 kun oldingi trendni uzat",
-            "reason": "Raqobatchilar jonli ishchilar jamoasi qilayotgan kontent va sotuv psixologiyasini avtomatlashtiramiz.",
+            "command": "@_tima_shop, @stylesh_shop va @lookzona.uz Reels hooklari, zvuk, jonli narxlar va komment triggerlarini kuzatib 5–12 kun oldingi trendni uzat",
+            "reason": "Raqobatchilar jonli ishchilar jamoasi qilayotgan kontent va bozor narxlarini real vaqtda tahlil qilamiz.",
         },
         {
             "target_agent": "skaut",
             "priority": "yuqori",
             "command": (
-                "7–14 kunlik ob-havo prognozi va 65% marja + 50k/100k yuqoriga yaxlitlash qoidasi bilan ¥110–¥165 kapsulalarni sarala"
+                "5–12 kunlik ob-havo prognozi va jonli raqobatchi narxlariga qarab Pinduoduo'dan eng sifatli va hamyonbop (35% marja) yangi kapsulalarni sarala"
                 if pdd_ok
-                else "Pinduoduo API/sessiya ulangach ¥40–¥75 talabgir buyumlarni 5–10 kun oldingi ob-havoga moslab yig'ishga tayyor tur"
+                else "Pinduoduo API ulangach sifatli va arzon buyumlarni 5–12 kun oldingi ob-havoga moslab yig'ishga tayyor tur"
             ),
-            "reason": f"Look narxlari 50k/100k ga yaxlitlanib ({t['sample_capsule_uzs']:,} so'm), pullik AI/hosting xarajatini ham bemalol qoplaydi.".replace(",", " "),
+            "reason": f"Look narxlari raqobatchilardan hamyonbop ({t['sample_capsule_uzs']:,} so'm) chiqishi savdo tezligini oshiradi.".replace(",", " "),
         },
         {
             "target_agent": "smm_manager",
             "priority": "yuqori",
             "command": (
-                "5–10 kun Avia muddati, 50% oldindan to'lov va Insta Tahlilchi topgan hooklarni Telegram + Instagram Reels kampaniyasida yurgiz"
+                "5–12 kun Avia muddati, 12 000 so'm/100gr kargo va Insta Tahlilchi topgan hooklarni Telegram + Instagram Reels kampaniyasida yurgiz"
                 if ig_ok
-                else "Telegram kanal va @xan_styles uchun 5–10 kun Avia sharti va saqlanadigan (Save) kapsula postlarini tayyorla"
+                else "Telegram kanal va @xans_styles uchun 5–12 kun Avia sharti va 12 000 so'm/100gr kargo bilan saqlanadigan (Save) kapsula postlarini tayyorla"
             ),
-            "reason": "Aniq 5–10 kunlik muddat va kuchli opisaniya/koment triggeri mijoz ishonchini oshiradi.",
+            "reason": "5–12 kunlik real muddat va 12 000 so'm/100gr kargo raqobatchilardan (13 000 so'm/100gr) ustun turadi.",
         },
         {
             "target_agent": "video_employee",
             "priority": "yuqori",
-            "command": "Insta Tahlilchi V3 bergan Split-Screen Bento hook, qora kapsula subtitr, 100% halol mato/razmer pasporti va studiya beat + saund-dizayn (TTS ovozsiz!) bilan 9:16 montajni qo'lla",
-            "reason": "Reels videoda sun'iy TTS ovoz bo'lmasligi, 1-kadrdan kiyimlar ko'rinishi va mijoz olganda 100% rozi bo'lishi shart.",
+            "command": "Haqiqiy Pinduoduo kiyim rasmlaridan yuz va fonni qirqib, Insta Tahlilchi tanlagan trend zvuk (TTS ovozsiz!) bilan 9:16 montajni qo'lla",
+            "reason": "Reels videoda sun'iy TTS ovoz bo'lmasligi, haqiqiy yangi kiyimlar ko'rinishi va mijoz olganda 100% rozi bo'lishi shart.",
         },
         {
             "target_agent": "sales_stylist",
             "priority": "yuqori",
-            "command": "Mijozlarga bo'y/vazn bo'yicha 100% aniq razmer ber, mato qalinligini va 5–10 kunlik Avia + 50% to'lovni halol tushuntir",
+            "command": "Mijozlarga do'kon jadvali bo'yicha alohida (ust/shim/oyoq kiyim) aniq razmer ber, 5–12 kun Avia va 12 000 so'm/100gr kargoni halol tushuntir",
             "reason": "Mijoz buyurtmani qo'liga olganda 100% mamnun bo'lishi va hech qachon hafsalasi pir bo'lmasligi kerak.",
         },
         {
             "target_agent": "accountant",
             "priority": "yuqori",
             "command": (
-                f"Foyda ustamasi ({p['profit_percent']:g}%) juda yuqori — 65% + 50k/100k yaxlitlash rejimiga mosla"
+                f"Foyda ustamasi ({p['profit_percent']:g}%) juda yuqori — 35% raqobatbardosh marjaga mosla"
                 if price_too_high
-                else "HUMO 9860 3501 4182 4135 (*4135, POLVONOV BEKMUROD) tushumlari, 65% marja va 50k/100k yaxlitlash nazoratini ushla"
+                else "HUMO 9860 3501 4182 4135 (*4135, POLVONOV BEKMUROD) tushumlari, 35% marja va 12 000 so'm/100gr kargo nazoratini ushla"
             ),
-            "reason": "Rasmiy HUMO *4135 kartasi ulangan; 527k -> 550k/600k yaxlitlash barcha tizim xarajatlarini qoplaydi.",
+            "reason": "Rasmiy HUMO *4135 kartasi ulangan; raqobatbardosh narx ko'proq buyurtma va barqaror foyda keltiradi.",
         },
         {
             "target_agent": "cargo_logistics",
             "priority": "yuqori" if used_usd >= 140 else "o'rta",
             "command": (
-                f"Oylik limit ${used_usd}/$200 ga yetmoqda: YaTT + tijoriy oq bojxona va 1688 optom kargo jadvalini faollashtir"
+                f"Oylik limit ${used_usd}/$200 ga yetmoqda: YaTT + tijoriy oq bojxona rejasini tayyorla"
                 if used_usd >= 140
-                else f"TUJJOR-AVIA ($9.5/kg) va Door-to-Door ($9.5/kg, 5–10 kun) orasida $200 limitni (${used_usd}/$200) kuzat"
+                else f"TUJJOR-AVIA ($9.5/kg) va Door-to-Door ($9.5/kg, 5–12 kun) orasida $200 limitni (${used_usd}/$200) kuzat"
             ),
-            "reason": "Xitoy ichki 1–4 kun + Avia 3–7 kun = jami 5–10 kunlik aniq logistika nazorati.",
+            "reason": "Xitoy ichki 1–4 kun + Avia 4–8 kun = jami 5–12 kunlik real logistika nazorati.",
         },
     ]
 
     market_verdict = (
-        f"Narx va raqobat auditi: hozirgi parametrlarda ({p['profit_percent']:g}% ustama + 50k/100k yuqoriga yaxlitlash) 3 qismli kapsula {t['sample_capsule_uzs']:,} so'm, "
-        f"1 dona tovar {t['sample_100k_item_uzs']:,} so'mga chiqmoqda. 65% marja pullik AI/API va reklama xarajatlarini bemalol qoplaydi."
+        f"Narx va raqobat auditi: hozirgi parametrlarda ({p['profit_percent']:g}% ustama, 12 000 so'm/100gr kargo) 3 qismli kapsula {t['sample_capsule_uzs']:,} so'm, "
+        f"1 dona tovar {t['sample_100k_item_uzs']:,} so'mga chiqmoqda."
     ).replace(",", " ")
 
     customs_plan = (
         f"Bojxona & YaTT ($200 limit, hozir ${used_usd}/$200): "
-        "1) 0–$200/oy — Pinduoduo + Avia kuryer (5–10 kun, 0% boj). "
-        "2) $200+ oshganda — YaTT ochib 1688.com ulgurji (-30% arzon xarid) + tijoriy avto (~$4-5/kg) ga o'tish."
+        "1) 0–$200/oy — Pinduoduo + Avia kuryer (5–12 kun, 0% boj). "
+        "2) $200+ oshganda — YaTT ochib tijoriy kargo ga o'tish."
     )
 
     growth_plan = (
-        "Keyingi harakat: Insta Tahlilchi (@_tima_shop / @stylesh.uz) hooklari + 7–14 kunlik ob-havo -> 65% marjada 50k/100k yaxlitlangan look -> 5–10 kun Avia bilan Telegram & Instagram Reels."
+        "Keyingi harakat: Insta Tahlilchi (@_tima_shop / @stylesh_shop) jonli narxlari va trend zvuklari -> Pinduoduo sifatli/arzon yangi look (35% marja) -> 5–12 kun Avia + 12 000 so'm/100gr kargo bilan Telegram & Instagram Reels."
     )
 
     return {
@@ -214,7 +214,7 @@ def build_default_directives(t: dict[str, Any]) -> dict[str, Any]:
         "market_verdict": market_verdict,
         "customs_yatt_plan": customs_plan,
         "growth_plan": growth_plan,
-        "recommended_profit_percent": 65 if price_too_high else round(p["profit_percent"]),
+        "recommended_profit_percent": 35 if price_too_high else round(p["profit_percent"]),
         "directives": directives,
     }
 

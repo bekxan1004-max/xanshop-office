@@ -78,7 +78,7 @@ def test_dashboard_ecc_catalog_endpoint(tmp_path):
                 r_comp = await client.get("/api/calc?cny=45+48+42&weight=1.3&mode=competitive")
                 assert r_comp.status == 200
                 c_comp = await r_comp.json()
-                assert 400000 <= c_comp["prepay_uzs"] <= 500000
+                assert 300000 <= c_comp["prepay_uzs"] <= 450000
                 assert c_comp["prepay_uzs"] % 50000 == 0
 
                 r_yatt = await client.get("/api/calc?cny=135&weight=1.3&mode=yatt_customs")
@@ -91,7 +91,7 @@ def test_dashboard_ecc_catalog_endpoint(tmp_path):
                 assert r_apply.status == 200
                 ap = await r_apply.json()
                 assert ap["ok"] is True
-                assert ap["params"]["profit_percent"] == 65.0
+                assert ap["params"]["profit_percent"] == 35.0
 
                 r_ceo = await client.post("/api/ceo/analyze", json={"apply_directives": True})
                 assert r_ceo.status == 200

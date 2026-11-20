@@ -124,6 +124,20 @@ class AgentOffice:
         params = await get_params(self.db, self.s)
 
         existing_looks = await self.db.list_looks(only_active=False)
+        used_goods_ids: set[str] = set()
+        recent_titles: list[str] = []
+        for ex_l in existing_looks:
+            t_str = str(ex_l.get("title") or "").strip()
+            if t_str and len(recent_titles) < 12:
+                recent_titles.append(t_str)
+            try:
+                ex_items = json.loads(ex_l.get("items_json") or "[]")
+            except Exception:
+                ex_items = []
+            for ex_it in ex_items if isinstance(ex_items, list) else []:
+                gid_val = str(ex_it.get("pdd_goods_id") or "").strip()
+                if gid_val:
+                    used_goods_ids.add(gid_val)
         saved_cycle = int(await self.db.get_setting("look_cycle_idx") or "0")
         cycle_idx = max(len(existing_looks), saved_cycle, self._cycle_counter)
         await self.db.set_setting("look_cycle_idx", cycle_idx + 1)
@@ -133,7 +147,7 @@ class AgentOffice:
         skaut._fallback_idx = cycle_idx
         brief = skaut.analyze_instagram_trends(cycle_idx)
 
-        # 1-QADAM: Instagram Razvedka Agent (insta_analyst) -> 5–10 kun oldingi ob-havo + @_tima_shop/Stylesh tahlilini Skautga uzatadi
+        # 1-QADAM: Instagram Razvedka Agent (insta_analyst) -> 5–12 kun oldingi ob-havo + @_tima_shop/Stylesh jonli tahlilini Skautga uzatadi
         await self.db.set_agent_status(
             "director",
             "working",
@@ -142,11 +156,12 @@ class AgentOffice:
         await self.db.set_agent_status(
             "insta_analyst",
             "working",
-            f"@_tima_shop / @stylesh.uz hooklari va {params.profit_percent:g}% marja asosida tahlil...",
+            f"@_tima_shop / @stylesh_shop jonli narxlari, zvuklari va hooklari tahlil qilinmoqda...",
         )
         weather = await fetch_tashkent_weather()
         from app.ig_analytics import run_live_instagram_analyst_async
         ig_intel = await run_live_instagram_analyst_async(self.db, self.s, cycle_idx, weather=weather)
+        ig_intel["recent_titles"] = recent_titles
         comp_snap = analyze_competitor_account("_tima_shop", weather)
         if not comp_snap.get("ig_live"):
             comp_snap["ig_live"] = ig_intel
@@ -165,13 +180,21 @@ class AgentOffice:
             target_id="skaut",
         )
 
-        # 2-QADAM: Skaut & Dizayner Agent (jonli Toshkent ob-havosi + Pinduoduo API) Look yig'adi
+        # 2-QADAM: Skaut & Dizayner Agent (jonli Toshkent ob-havosi + Raqobatchi narxlar + Pinduoduo API) yangi Look yig'adi
         await self.db.set_agent_status(
             "skaut",
             "working",
-            f"Toshkent ob-havosi va Pinduoduo'dan {brief.recommended_piece_count} qismli Look yig'ilmoqda...",
+            f"Toshkent ob-havosi va Pinduoduo'dan {brief.recommended_piece_count} qismli YANGI Look yig'ilmoqda...",
         )
-        gen = await skaut.generate_look_async(season, gender, style, brief, weather=weather, ig_intel=ig_intel)
+        gen = await skaut.generate_look_async(
+            season,
+            gender,
+            style,
+            brief,
+            weather=weather,
+            ig_intel=ig_intel,
+            exclude_goods_ids=used_goods_ids,
+        )
         b = gen.breakdown
 
         price_dict = {
@@ -414,7 +437,7 @@ class AgentOffice:
         )
         await self.db.record_agent_learning(
             "smm_manager",
-            f"Sikl #{look_id}: '+' komment voronkasi va 5–10 kun Avia kafolati bilan kontent paket chiqarildi.",
+            f"Sikl #{look_id}: '+' komment voronkasi, 5–12 kun Avia va 12 000 so'm/100gr kargo bilan kontent paket chiqarildi.",
             xp_gain=20,
         )
 
@@ -534,20 +557,38 @@ class AgentOffice:
                 ig_line = f"📸 <b>Instagram Reels (Likes yashirilgan){story_note}:</b> Yuklanmoqda / navbatda"
             tg_line = f"📢 <b>Telegram Kanal:</b> <a href='{tg_link}'>{tg_link}</a>" if channel_msg_id else "📢 <b>Telegram Kanal:</b> https://t.me/Xan_style"
 
-            # Raqobatchilar (@_tima_shop / @stylesh_shop) bilan narxlar nisbati
-            comp_ref_uzs = max(int(b.prepay_uzs * 1.18 // 50000 * 50000), 850000 if gen.piece_count >= 4 else 650000)
-            diff_pct = max(5, int(round((1.0 - (b.prepay_uzs / max(comp_ref_uzs, 1))) * 100)))
+            # Jonli raqobatchilar (@stylesh_shop / @tima_shop_uz) bilan haqiqiy narxlar nisbati
+            live_comp_avg = int(halol_ogri.get("competitor_avg_price_uzs") or 0)
+            comp_ref_uzs = (
+                live_comp_avg
+                if live_comp_avg > 0
+                else max(int(b.prepay_uzs * 1.18 // 50000 * 50000), 750000 if gen.piece_count >= 4 else 600000)
+            )
+            diff_pct = int(round((1.0 - (b.prepay_uzs / max(comp_ref_uzs, 1))) * 100))
+            diff_label = f"<b>~{diff_pct}% arzonroq!</b>" if diff_pct > 0 else "bozor narxiga teng"
+            pdd_links_lines = []
+            for idx_it, it_obj in enumerate(gen.raw_items, 1):
+                it_nm = str(it_obj.get("name") or f"Buyum #{idx_it}")
+                it_cny = float(it_obj.get("price_cny") or it_obj.get("cny") or 0)
+                it_url = str(it_obj.get("url") or "")
+                if it_url:
+                    pdd_links_lines.append(f"  {idx_it}. <a href='{it_url}'>{it_nm}</a> — ¥{it_cny:g}")
+                else:
+                    pdd_links_lines.append(f"  {idx_it}. {it_nm} — ¥{it_cny:g}")
+            pdd_block = "\n".join(pdd_links_lines)
             admin_report = (
-                f"🚀 <b>Yangi Look #{look_id} (1080p Dark Matte Flat-Lay) joylandi!</b>\n\n"
+                f"🚀 <b>Yangi Look #{look_id} (1080p Real Pinduoduo Flat-Lay) joylandi!</b>\n\n"
                 f"👔 <b>{gen.title} ({gen.piece_count} qism)</b>\n"
                 f"🎯 Auditoriya: <i>{target_persona}</i>\n"
                 f"🎨 Rasmdagi ranglar: <b>{gen.colors}</b>\n"
-                f"🎬 Format: <code>RASMDA / Flat-Lay Obzor</code> · 🎵 Viral Zvuk: <code>{audio_vibe}</code>\n\n"
-                f"📊 <b>Tahlilchi & Narxlar Nisbati (@_tima_shop / @stylesh_shop):</b>\n"
-                f"• Raqobatchilarda shu darajadagi set: ~<b>{fmt(comp_ref_uzs)} so'm</b> (+ kargo 130 000 so'm/kg)\n"
-                f"• Bizda to'liq narxi: <b>{fmt(b.prepay_uzs)} so'm</b> (<b>~{diff_pct}% hamyonboproq!</b>)\n"
-                f"• 💳 <b>Hozirgi narx (50%): {fmt(b.prepay_50_uzs)} so'm</b> (+ kargo Toshkentda)\n"
-                f"• 💵 Sof foyda: <b>{fmt(b.profit_uzs)} so'm</b> (Xitoy+Tranzaksiya: {fmt(b.goods_cost_uzs)} so'm)\n\n"
+                f"🎬 Format: <code>RASMDA / Flat-Lay Obzor</code> · 🎵 Viral Zvuk: <code>{audio_vibe}</code>\n"
+                f"✈️ Yetkazish: <b>5–12 kun (Avia)</b> · 📦 Kargo: <b>12 000 so'm / 100 gr</b>\n\n"
+                f"📊 <b>Tahlilchi & Jonli Narxlar Nisbati (@stylesh_shop / @tima_shop_uz):</b>\n"
+                f"• Raqobatchilarda o'rtacha set: ~<b>{fmt(comp_ref_uzs)} so'm</b> (+ kargo 13 000 so'm/100gr)\n"
+                f"• Bizda to'liq narxi: <b>{fmt(b.prepay_uzs)} so'm</b> ({diff_label})\n"
+                f"• 💳 <b>Hozirgi to'lov (50%): {fmt(b.prepay_50_uzs)} so'm</b> (+ kargo 12 000 so'm/100gr Toshkentda)\n"
+                f"• 💵 Sof foyda: <b>{fmt(b.profit_uzs)} so'm</b> (Pinduoduo jami: ¥{b.goods_cny:g} ≈ {fmt(b.goods_cost_uzs)} so'm)\n\n"
+                f"🛒 <b>Pinduoduo to'g'ridan-to'g'ri havolalari:</b>\n{pdd_block}\n\n"
                 f"{tg_line}\n"
                 f"{ig_line}"
             )

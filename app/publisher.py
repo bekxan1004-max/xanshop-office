@@ -59,8 +59,8 @@ def format_channel_post(
             f"{items_text}",
             "……………………………..",
             f"- Razmer: <b>{look.get('sizes') or 'M, L, XL, 2XL'}</b> | Rang: {colors_line}",
-            f"- 50% oldindan to'lov (+ kargo va qolgan {fmt(rem50)} so'm Toshkentda ko'rganingizda)",
-            "- Dastavka UZB bo'ylab: <b>5–10 kun (Avia)</b>",
+            f"- Kargo: <b>12 000 so'm / 100 gr</b> (qolgan {fmt(rem50)} so'm + kargo Toshkentda ko'rganingizda)",
+            "- Dastavka UZB bo'ylab: <b>5–12 kun (Avia)</b>",
             "………………………………",
             f"- Zakaz uchun: @{mgr} 👍",
         ]
@@ -77,8 +77,8 @@ def format_channel_post(
             f"-| Razmer: <b>{look.get('sizes') or 'M - 2XL'}</b> ({colors_line})",
             "———————————————",
             "-| Oldindan to'lov: 50%",
-            "-| Yetkazib berish: <b>5–10 kun (Avia)</b>",
-            f"-| + kargo (qolgan {fmt(rem50)} so'm + kargo Toshkentga kelganda)",
+            "-| Yetkazib berish: <b>5–12 kun (Avia)</b>",
+            f"-| Kargo: <b>12 000 so'm / 100 gr</b> (qolgan {fmt(rem50)} so'm + kargo Toshkentga kelganda)",
             "-| Dastafka UZB bo'ylab\n",
             f"-| Buyurtma: @{mgr}",
         ]
@@ -90,10 +90,10 @@ def format_channel_post(
         f"🎯 <i>{persona['target_persona']} uchun</i>\n",
         f"{items_text}\n",
         f"🎨 Rasmdagi ranglar: <b>{colors_line}</b> <i>(boshqa ranglari ham bor)</i>",
-        f"📏 Razmer: <b>{look.get('sizes') or 'M, L, XL, 2XL'}</b> <i>(bo'y/vaznga qarab tanlaymiz)</i>",
-        f"✈️ Yetkazish: <b>5–10 kun (Avia)</b>\n",
+        f"📏 Razmer: <b>{look.get('sizes') or 'M, L, XL, 2XL'}</b> <i>(do'kon jadvali bo'yicha aniq tanlaymiz)</i>",
+        f"✈️ Yetkazish: <b>5–12 kun (Avia)</b>\n",
         f"💳 <b>Hozirgi narx (50%): {fmt(p50)} so'm</b>",
-        f"📦 <b>+ kargo</b> <i>(qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelib, ko'rganingizda!)</i>",
+        f"📦 <b>Kargo: 12 000 so'm / 100 gr</b> <i>(qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelib, ko'rganingizda!)</i>",
         f"💰 To'liq narxi: {fmt(look.get('prepay_uzs', 0))} so'm\n",
         f"{mgr_line}👇 <b>1 daqiqada buyurtma berish:</b>",
     ]
@@ -120,17 +120,22 @@ def format_instagram_caption(
     mgr_clean = (manager_username or "Bekshop_style").lstrip("@")
     ig_pb = (playbooks or {}).get("ig_reels_strategy") or {}
     custom_cta = re.sub(r"@[A-Za-z0-9_]+", f"@{mgr_clean}", str(ig_pb.get("caption_cta") or "").strip())
-    cta_line = custom_cta if custom_cta else "💬 Buyurtma, rang va razmer uchun izohda «+» yoki savolingizni yozing!"
+    is_english_cta = any(w in custom_cta.lower() for w in ("save for later", "comment your", "dm to order", "link in bio"))
+    cta_line = (
+        custom_cta
+        if (custom_cta and not is_english_cta)
+        else "💬 Buyurtma, rang va razmer uchun izohda «+» yoki savolingizni yozing!"
+    )
 
     return (
         f"{persona['hook_headline']} 🔥\n"
         f"{look.get('title', 'Tayyor Obraz')} ({n_items} qism)\n\n"
         f"To'plamda:\n{items_text}\n\n"
         f"-| Hozirgi narx (50%): {fmt(p50)} so'm\n"
-        f"-| + kargo (qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelib, ko'rganingizda!)\n"
         f"-| To'liq narxi: {fmt(look.get('prepay_uzs', 0))} so'm\n"
-        f"-| Razmer: M, L, XL, 2XL ({colors_line})\n"
-        f"-| Yetkazib berish: 5–10 kun (Avia)\n\n"
+        f"-| Kargo: 12 000 so'm / 100 gr (qolgan {fmt(rem50)} so'm + kargo Toshkentga kelganda)\n"
+        f"-| Razmer: {look.get('sizes') or 'M, L, XL, 2XL'} ({colors_line})\n"
+        f"-| Yetkazib berish: 5–12 kun (Avia)\n\n"
         f"{cta_line}\n"
         f"📲 Telegram: @{mgr_clean} (Kod: #{look['id']})\n\n"
         f"#xanshop #lookuz #mensfashionuz #tashkentstyle #kiyimuz"
@@ -143,22 +148,22 @@ def generate_premium_channel_kit(shop_name: str = "XAN SHOP", manager_username: 
         "instagram_bio": (
             f"👑 {shop_name} | Erkaklar Tayyor Obrazlari\n"
             f"• Bo'y va vazningizga mos 2/3/4 qismli setlar\n"
-            f"• Hozir 50% • Qolgani Toshkentga kelganda!\n"
-            f"• Avia: 5–10 kun ✈️ | @{mgr}"
+            f"• Hozir 50% • Kargo: 12 000 so'm / 100 gr\n"
+            f"• Avia: 5–12 kun ✈️ | @{mgr}"
         ),
         "instagram_highlights": "1) ISBOTLAR  2) OTZIVLAR  3) 50% SHARTI  4) RAZMERLAR  5) KARGO",
         "telegram_channel_bio": (
             f"{shop_name} — Tayyor erkaklar obrazlari.\n"
-            f"✔️ 50% oldindan | Qolgani Toshkentda ko'rib olganda\n"
-            f"✈️ Avia: 5–10 kun | Zakaz: @{mgr}"
+            f"✔️ 50% oldindan | Kargo: 12 000 so'm / 100 gr\n"
+            f"✈️ Avia: 5–12 kun | Zakaz: @{mgr}"
         ),
         "telegram_pinned_post": (
             f"📌 <b>{shop_name} — ISHONCHLI XARID QOIDASI</b>\n\n"
             f"1️⃣ <b>Hozir faqat 50% to'laysiz:</b>\n"
-            f"Qolgan 50% + kargo to'lovini kiyimingiz Toshkentga yetib kelib, sifatini ko'rganingizda to'laysiz.\n\n"
+            f"Qolgan 50% + kargo (12 000 so'm / 100 gr) to'lovini kiyimingiz Toshkentga yetib kelib, sifatini ko'rganingizda to'laysiz.\n\n"
             f"2️⃣ <b>Aniq Razmer:</b>\n"
-            f"Bo'y (sm) va vazningizni (kg) yozing — sizga aniq mos razmerni (M–2XL) tanlab beramiz.\n\n"
-            f"3️⃣ <b>Avia 5–10 kun:</b>\n"
+            f"Bo'y (sm), vazn (kg) va oyoq razmeringizni yozing — har bir kiyimning o'z do'kon jadvalidan aniq mos razmerni tanlab beramiz.\n\n"
+            f"3️⃣ <b>Avia 5–12 kun:</b>\n"
             f"Buyurtma va savollar uchun: @{mgr}"
         ),
     }

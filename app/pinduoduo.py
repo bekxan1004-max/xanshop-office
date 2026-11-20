@@ -841,7 +841,7 @@ class PinduoduoConnector:
     def _compact_cn_query(keyword_cn: str) -> str:
         """Uzun xitoycha so'rovni Pinduoduo poros/h5 qidiruvi uchun aniq 2-3 kalit so'zga qisqartiradi."""
         kw = (keyword_cn or "").strip()
-        if len(kw) <= 10:
+        if len(kw) <= 5:
             return kw
         tokens: list[str] = []
         if "男" in kw:
@@ -893,7 +893,9 @@ class PinduoduoConnector:
         if any(w in txt for w in ("偏小", "拍大一码", "修身", "紧身")):
             fit_notes.append("Do'kon izohida bichimi sal torroq deyilgan (偏小/修身) — 1 razmer kattaroq olish tavsiya etiladi")
         elif not is_shoe and any(w in txt for w in ("羽绒", "加厚", "加绒", "棉衣", "棉袄", "毛呢大衣", "双面呢", "羊绒", "冬季")):
-            if not any(w in txt for w in ("宽松", "大码", "廓形", "阔腿")):
+            if "裤" in txt:
+                fit_notes.append("Issiq qishki shim (odatiy razmeringizda bemalol mos keladi)")
+            elif not any(w in txt for w in ("宽松", "大码", "廓形", "阔腿")):
                 fit_notes.append("Qishki qalin tashqi kiyim — ichidan sviter kiyilganda qulay bo'lishi uchun xohlasangiz 1 razmer kattasini olishingiz mumkin")
         elif any(w in txt for w in ("宽松", "大码", "廓形", "阔腿", "慵懒")):
             fit_notes.append("Keng/oversize bichim (宽松) — o'z razmeringiz bemalol tushadi")
@@ -951,13 +953,15 @@ class PinduoduoConnector:
     @staticmethod
     def _category_bucket(keyword_cn: str) -> str:
         kw = keyword_cn or ""
-        if any(w in kw for w in ("靴", "鞋", "皮鞋", "乐福", "切尔西", "板鞋", "德训")):
+        if any(w in kw for w in ("靴", "鞋", "皮鞋", "乐福", "切尔西", "板鞋", "德训", "运动鞋")):
             return "shoes"
         if any(w in kw for w in ("裤", "西裤", "工装裤", "牛仔裤", "休闲裤", "卫裤")):
             return "bottom"
-        if any(w in kw for w in ("大衣", "风衣", "羽绒", "夹克", "外套", "棉衣", "西装", "西服")):
+        if any(w in kw for w in ("大衣", "风衣", "羽绒", "夹克", "外套", "棉衣", "棉服", "西装", "西服", "冲锋衣")):
             return "outerwear"
-        if any(w in kw for w in ("帽", "包", "墨镜", "腰带")):
+        if any(w in kw for w in ("卫衣", "帽衫", "毛衣", "针织", "衬衫", "打底", "开衫", "T恤", "POLO", "polo")):
+            return "top"
+        if any(w in kw for w in ("鸭舌帽", "棒球帽", "冷帽", "帽子", "挎包", "背包", "墨镜", "腰带", "皮带")):
             return "accessory"
         return "top"
 
@@ -1053,7 +1057,7 @@ class PinduoduoConnector:
         timeout = aiohttp.ClientTimeout(total=12)
         try:
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-                for idx in cand_indices[:5]:
+                for idx in cand_indices[:3]:
                     u = detail_images[idx]
                     try:
                         async with session.get(u) as resp:
@@ -1074,11 +1078,10 @@ class PinduoduoConnector:
                         '"chart_rows": [{"size":"L","height_cm":"170-178","weight_kg":"62-72","chest_cm":"110","foot_cm":""}]}',
                         media_bytes=raw,
                         mime_type=ct,
-                        timeout_sec=13.0,
-                        model_override="gemini-3.5-flash-lite",
+                        timeout_sec=9.0,
                     )
                     if not isinstance(ans, dict):
-                        continue
+                        break
                     fn = str(ans.get("fit_note_uz") or "").strip()
                     if fn and fn not in collected_fit:
                         collected_fit.append(fn)
@@ -1108,7 +1111,76 @@ class PinduoduoConnector:
             return {"store_colors": collected_colors[:8], "fit_note": " | ".join(collected_fit[:2])}
         return {}
 
-    async def search_apify_pdd(self, keyword_cn: str, page_size: int = 8) -> list[PddProduct]:
+    @staticmethod
+    def _parse_cn_sales_num(sales_tip: str) -> int:
+        txt = str(sales_tip or "")
+        m = re.search(r"(\d+(?:\.\d+)?)\s*(万|千)?", txt)
+        if not m:
+            return 0
+        val = float(m.group(1))
+        unit = m.group(2) or ""
+        if unit == "万":
+            return int(val * 10000)
+        if unit == "千":
+            return int(val * 1000)
+        return int(val)
+
+    @classmethod
+    def _score_value_quality(cls, prod: PddProduct, kw_terms: list[str], wants_men: bool = True) -> float:
+        """Sifat + hamyonbop narx formulasi: eng qimmatini emas, eng ko'p sotilgan sifatli va arzon Pinduoduo tovarini 1-o'ringa chiqaradi."""
+        title_cn = prod.title_cn or ""
+        price_cny = float(prod.price_cny or 0)
+        score = 0.0
+        for t in kw_terms:
+            if t and t in title_cn:
+                score += 3.0
+        if wants_men and "男" in title_cn:
+            score += 2.0
+        # Sotuv hajmi = sifat va ishonch isboti
+        sales_n = cls._parse_cn_sales_num(prod.sales_tip)
+        if sales_n >= 5000:
+            score += 5.0
+        elif sales_n >= 500:
+            score += 3.0
+        elif sales_n >= 50:
+            score += 1.5
+        # Mato va sifat belgilari
+        if any(q in title_cn for q in ("羊毛", "纯棉", "重磅", "真皮", "头层牛皮", "垂感", "加绒", "羊绒", "加厚")):
+            score += 2.0
+        # Sovuq/kuz-qish kiyimi so'ralganda arzon yupqa yozgi futbolkalarni pasaytirish
+        kw_joined = " ".join(kw_terms)
+        item_bucket = cls._category_bucket(title_cn)
+        if any(w in kw_joined for w in ("卫衣", "毛衣", "针织", "外套", "夹克", "大衣")) and any(
+            bad in title_cn.lower() for bad in ("短袖", "薄款", "t恤", "夏季")
+        ):
+            score -= 7.5
+        # Narx nisbati: eng qimmatini EMAS, eng arzon sifatsizini HAM EMAS — sifat + hamyonbop o'rtacha narx!
+        if item_bucket == "outerwear":
+            if 68.0 <= price_cny <= 165.0:
+                score += 6.5
+            elif 165.0 < price_cny <= 220.0:
+                score += 2.5
+            elif price_cny < 55.0:
+                score -= 4.5
+            elif price_cny > 220.0:
+                score -= 5.0
+        else:
+            if 48.0 <= price_cny <= 125.0:
+                score += 6.5
+            elif 32.0 <= price_cny < 48.0:
+                score += 3.0
+            elif 125.0 < price_cny <= 170.0:
+                score += 3.5
+            elif price_cny > 170.0:
+                score -= 5.0
+        return score
+
+    async def search_apify_pdd(
+        self,
+        keyword_cn: str,
+        page_size: int = 8,
+        exclude_goods_ids: set[str] | None = None,
+    ) -> list[PddProduct]:
         """Apify + Pinduoduo `poros/h5` SSR serveri orqali 100% haqiqiy Pinduoduo narx, rasm va do'kon tafsilotlarini oladi.
 
         Xarajat himoyasi: 7 kunlik kesh + kategoriya keshidan foydalanish + kuniga max 3 ta / oyiga max $4.20 limit ($5 bepul reja ichida qolish uchun!).
@@ -1131,18 +1203,33 @@ class PinduoduoConnector:
         now_ts = int(time.time())
         cache_ttl_sec = int(float(os.getenv("PDD_CACHE_TTL_DAYS", "7") or "7")) * 86400
 
-        def _valid_pdd_rows(rows: Any) -> list[PddProduct]:
+        excl = {str(x).strip() for x in (exclude_goods_ids or set()) if str(x).strip()}
+        short_q = self._compact_cn_query(kw_key)
+        kw_terms = [t for t in short_q.split() if t]
+        wants_men = ("女" not in kw_key) or ("男" in kw_key)
+        target_bucket = self._category_bucket(kw_key)
+
+        def _valid_pdd_rows(rows: Any, apply_exclude: bool = True, strict_bucket: bool = True) -> list[PddProduct]:
             if not isinstance(rows, list):
                 return []
             out_list: list[PddProduct] = []
+            seen_local: set[str] = set()
             for row in rows:
                 if not isinstance(row, dict) or not row.get("goods_id"):
+                    continue
+                gid_s = str(row.get("goods_id") or "").strip()
+                if not gid_s or gid_s in seen_local:
+                    continue
+                if apply_exclude and gid_s in excl:
                     continue
                 if "1688.com" in str(row.get("product_url", "")) or "alicdn.com" in str(row.get("image_url", "")):
                     continue
                 if "pddpic.com" not in str(row.get("image_url", "")):
                     continue
-                if any(sp in str(row.get("title_cn", "")) for sp in self._NON_MEN_SPAM_WORDS):
+                t_cn = str(row.get("title_cn", ""))
+                if any(sp in t_cn for sp in self._NON_MEN_SPAM_WORDS):
+                    continue
+                if strict_bucket and self._category_bucket(t_cn) != target_bucket:
                     continue
                 p_obj = self._row_to_product(row)
                 if not p_obj.store_sizes or not p_obj.fit_note:
@@ -1153,30 +1240,41 @@ class PinduoduoConnector:
                         p_obj.store_colors = meta["store_colors"]
                     if not p_obj.fit_note:
                         p_obj.fit_note = meta["fit_note"]
+                seen_local.add(gid_s)
                 out_list.append(p_obj)
+            out_list.sort(
+                key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny)
+            )
             return out_list
 
-        # 1) Aniq kalit so'z 7 kunlik keshda bormi? (0$ sarf!)
+        # 1) Aniq kalit so'z 7 kunlik keshda bormi va hali ishlatilmagan (yangi) tovarlar bormi? (0$ sarf!)
         cached_rows = cached_map.get(kw_key)
         if isinstance(cached_rows, list) and cached_rows:
             first_ts = int((cached_rows[0] or {}).get("_cached_at") or now_ts) if isinstance(cached_rows[0], dict) else now_ts
-            clean_cached = _valid_pdd_rows(cached_rows)
+            clean_cached = _valid_pdd_rows(cached_rows, apply_exclude=True, strict_bucket=True)
             if clean_cached and (now_ts - first_ts) <= cache_ttl_sec:
                 return clean_cached[:page_size]
 
-        # 2) Xuddi shu kiyim turkumi (palto/shim/oyoq kiyim) bo'yicha yaqinda olingan jonli kesh bormi?
-        target_bucket = self._category_bucket(kw_key)
+        # 2) Xuddi shu kiyim turkumi (palto/shim/oyoq kiyim) bo'yicha hali ishlatilmagan jonli kesh bormi?
         bucket_fallback: list[PddProduct] = []
+        bucket_seen: set[str] = set()
         for ck, crows in cached_map.items():
-            if self._category_bucket(str(ck)) == target_bucket:
-                bucket_fallback.extend(_valid_pdd_rows(crows))
+            for pr in _valid_pdd_rows(crows, apply_exclude=True, strict_bucket=True):
+                if pr.goods_id not in bucket_seen:
+                    bucket_seen.add(pr.goods_id)
+                    bucket_fallback.append(pr)
+        bucket_fallback.sort(
+            key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny)
+        )
 
-        short_q = self._compact_cn_query(kw_key)
+        # Agar keshda shu kategoriya bo'yicha 4+ ta yangi ishlatilmagan real Pinduoduo tovar bo'lsa, ortiqcha Apify sarf qilmaymiz!
+        if len(bucket_fallback) >= 4:
+            return bucket_fallback[:page_size]
+
         search_query = f'site:mobile.yangkeduo.com/poros/h5 "goods_id" {short_q}'
-        wants_men = ("女" not in kw_key) or ("男" in kw_key)
 
         try:
-            timeout = aiohttp.ClientTimeout(total=55)
+            timeout = aiohttp.ClientTimeout(total=75)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 allowed, cap_reason = await self._check_apify_budget(session)
                 if not allowed:
@@ -1188,7 +1286,7 @@ class PinduoduoConnector:
                 apify_url = "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items"
                 async with session.post(
                     apify_url,
-                    params={"token": self.apify_token, "timeout": 42, "memory": 512},
+                    params={"token": self.apify_token, "timeout": 58, "memory": 512},
                     json={"queries": search_query, "maxPagesPerQuery": 1, "resultsPerPage": 6},
                 ) as resp:
                     self._record_apify_call()
@@ -1277,19 +1375,6 @@ class PinduoduoConnector:
                     meta = self._extract_cn_product_meta(title_cn, str(g.get("goods_desc") or ""))
                     gid = str(g.get("goods_id") or "").strip()
                     sales_tip = str(g.get("side_sales_tip") or g.get("bottom_sales_tip") or "100+件").strip()
-                    score = 0.0
-                    for t in kw_terms:
-                        if t in title_cn:
-                            score += 3.0
-                    # O'zbekiston bozori uchun eng yaxshi sotiladigan Pinduoduo narx oralig'i (¥32–¥155)
-                    if 32.0 <= price_cny <= 155.0:
-                        score += 5.0
-                    elif 156.0 <= price_cny <= 220.0:
-                        score += 1.5
-                    elif price_cny > 220.0:
-                        score -= 3.0
-                    if "男" in title_cn and wants_men:
-                        score += 2.0
 
                     prod = PddProduct(
                         goods_id=gid,
@@ -1307,20 +1392,22 @@ class PinduoduoConnector:
                         store_sizes=meta["store_sizes"],
                         fit_note=meta["fit_note"],
                     )
+                    score = self._score_value_quality(prod, kw_terms, wants_men)
                     scored.append((score, prod))
 
                 scored.sort(key=lambda pair: (-pair[0], pair[1].price_cny))
-                out = [p for _, p in scored[: max(page_size, 15)]]
-                if out:
+                all_found = [p for _, p in scored[: max(page_size, 18)]]
+                if all_found:
                     self.last_error = ""
                     try:
                         os.makedirs(os.path.dirname(cache_path) or "data", exist_ok=True)
-                        cached_map[kw_key] = [self._product_to_row(p) for p in out]
+                        cached_map[kw_key] = [self._product_to_row(p) for p in all_found]
                         with open(cache_path, "w", encoding="utf-8") as f:
                             json.dump(cached_map, f, ensure_ascii=False, indent=2)
                     except Exception:
                         pass
-                    return out[:page_size]
+                    fresh_out = [p for p in all_found if p.goods_id not in excl]
+                    return (fresh_out or bucket_fallback or all_found)[:page_size]
         except Exception as e:
             self.last_error = f"apify_err:{type(e).__name__}"
             log.warning("Apify Pinduoduo jonli qidiruv xatosi (%s): %s", kw_key, e)
@@ -1502,24 +1589,33 @@ class PinduoduoConnector:
             "cart_url": "https://mobile.yangkeduo.com/personal.html",
         }
 
-    async def search_live(self, keyword_cn: str, page_size: int = 3) -> list[PddProduct]:
+    async def search_live(
+        self,
+        keyword_cn: str,
+        page_size: int = 3,
+        exclude_goods_ids: set[str] | None = None,
+    ) -> list[PddProduct]:
         """Rasmiy API -> Apify PDD Live Server -> RapidAPI/OneBound -> Playwright Sessiyasi tartibida jonli Pinduoduo qidiruvi."""
+        excl = {str(x).strip() for x in (exclude_goods_ids or set()) if str(x).strip()}
         if self.client_id and self.client_secret:
             res = await self.search_official_api(keyword_cn, page_size=page_size)
             if res:
-                return res
+                filt = [p for p in res if p.goods_id not in excl]
+                return (filt or res)[:page_size]
         if self.apify_token:
-            res = await self.search_apify_pdd(keyword_cn, page_size=page_size)
+            res = await self.search_apify_pdd(keyword_cn, page_size=page_size, exclude_goods_ids=excl)
             if res:
                 return res
         if self.rapidapi_key:
             res = await self.search_rapidapi(keyword_cn, page_size=page_size)
             if res:
-                return res
-        if has_valid_pdd_session(self.session_path):
+                filt = [p for p in res if p.goods_id not in excl]
+                return (filt or res)[:page_size]
+        if not self.apify_token and has_valid_pdd_session(self.session_path):
             res = await self.search_browser(keyword_cn, page_size=page_size)
             if res:
-                return res
+                filt = [p for p in res if p.goods_id not in excl]
+                return (filt or res)[:page_size]
         return []
 
     async def fetch_image_bytes(self, image_url: str) -> bytes | None:
@@ -1779,16 +1875,16 @@ class PinduoduoConnector:
             usd_uzs=float(getattr(settings, "usd_uzs", 12900.0) or 12900.0),
         )
         params = PriceParams(
-            vykup_percent=float(getattr(settings, "vykup_percent", 10.0)),
-            profit_percent=float(getattr(settings, "profit_percent", 55.0)),
-            payment_fee_percent=float(getattr(settings, "payment_fee_percent", 1.5)),
+            vykup_percent=float(getattr(settings, "vykup_percent", 0.0)),
+            profit_percent=float(getattr(settings, "profit_percent", 35.0)),
+            payment_fee_percent=float(getattr(settings, "payment_fee_percent", 0.0)),
             china_shipping_cny_per_item=float(getattr(settings, "china_shipping_cny_per_item", 0.0)),
             cargo_usd_per_kg=float(getattr(settings, "cargo_usd_per_kg", 9.5)),
-            cargo_client_uzs_per_kg=float(getattr(settings, "cargo_client_uzs_per_kg", 0.0)),
+            cargo_client_uzs_per_kg=float(getattr(settings, "cargo_client_uzs_per_kg", 120000.0)),
             round_to=1000,
             prepay_round_to=int(getattr(settings, "prepay_round_to", 50000)),
             conversion_fee_percent=float(getattr(settings, "conversion_fee_percent", 2.5)),
-            ensure_50_covers_cost=bool(getattr(settings, "ensure_50_covers_cost", True)),
+            ensure_50_covers_cost=bool(getattr(settings, "ensure_50_covers_cost", False)),
         )
 
         item_obj = Item(name=title_uz, price_cny=price_cny, weight_kg=weight_kg, url=f"https://mobile.yangkeduo.com/goods.html?goods_id={goods_id}")

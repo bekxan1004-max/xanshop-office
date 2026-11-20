@@ -337,11 +337,13 @@ def _prepare_clean_product_card(
     raw_img: Image.Image,
     target_size: tuple[int, int] = (780, 940),
     gold_border: bool = True,
+    category: str = "",
+    already_cutout: bool = False,
 ) -> Image.Image:
     """Kiyim studiya rasmini @_tima_shop uslubida fon-qirqilgan (transparent cutout + 3D soya) holatda qaytaradi."""
     tw, th = target_size
     card = Image.new("RGBA", (tw, th), (0, 0, 0, 0))
-    cutout = _extract_garment_cutout_rgba(raw_img)
+    cutout = raw_img.convert("RGBA") if already_cutout else _extract_garment_cutout_rgba(raw_img, category=category)
     _paste_cutout_with_shadow(card, cutout, (24, 24, tw - 48, th - 48))
     return card
 
@@ -706,13 +708,13 @@ def _draw_1080p_header_and_footer(
     """1080x1920 Full HD kadrning yuqori (Persona Hook) va pastki (Hozirgi narx 50% + kargo) bloklarini chizadi."""
     clean_brand = _clean_canvas_text(shop_brand).upper()
     clean_hook = _clean_canvas_text(persona_hook or look_title).upper()
-    clean_sub = _clean_canvas_text(sub_hook or "Avia 5–10 kun • Toshkentda ko'rib olasiz")
+    clean_sub = _clean_canvas_text(sub_hook or "Avia 5–12 kun • Toshkentda ko'rib olasiz")
 
     # 1. Yuqori Auditoriya-Persona Kapsulasi (ortiqcha 3-QISM / 1080P STUDIO yozuvlarisiz, so'zlarni kesmasdan!)
     draw.rounded_rectangle([48, 52, w - 48, 232], radius=34, fill=(22, 26, 36, 245), outline=GOLD_ACCENT, width=3)
     draw.rounded_rectangle([74, 74, 260, 118], radius=14, fill=GOLD_ACCENT)
     draw.text((94, 82), clean_brand, fill=OBSIDIAN, font=_load_font(22, bold=True))
-    draw.text((284, 81), "AVIA 5–10 KUN", fill=EMERALD_OK, font=_load_font(22, bold=True))
+    draw.text((284, 81), "AVIA 5–12 KUN", fill=EMERALD_OK, font=_load_font(22, bold=True))
 
     max_txt_w = w - 148
     f_hook = _fit_font(draw, clean_hook, max_txt_w, start_size=31, min_size=19, bold=True)
@@ -884,13 +886,14 @@ def create_reels_frames(
         nm = names[idx] if idx < len(names) else f"Kiyim {idx + 1}"
         hx = palette_hex[idx % len(palette_hex)] if palette_hex else "#1E1E22"
         raw_loaded = _load_raw_image(raw_img, nm, idx, hx)
-        cut = _extract_garment_cutout_rgba(raw_loaded, guess_category(nm))
+        cat = guess_category(nm)
+        cut = _extract_garment_cutout_rgba(raw_loaded, cat)
         cutout_cards.append(cut)
-        product_cards.append(_prepare_clean_product_card(cut, (800, 950), gold_border=True))
+        product_cards.append(_prepare_clean_product_card(cut, (800, 950), gold_border=True, category=cat, already_cutout=True))
 
     part_prices = _estimate_item_prices_uzs(total_price_uzs, total_items)
     hook_txt = str((creative_directive or {}).get("hook_headline") or viral_hook or look_title)
-    sub_hook = str((creative_directive or {}).get("sub_hook") or "Avia 5–10 kun • Toshkentda ko'rib olasiz")
+    sub_hook = str((creative_directive or {}).get("sub_hook") or "Avia 5–12 kun • Toshkentda ko'rib olasiz")
     video_style = str((creative_directive or {}).get("video_style") or "orbit_3d_turntable")
     vibe = str((creative_directive or {}).get("audio_vibe") or "phonk_bass")
 
@@ -962,11 +965,13 @@ def create_hook_intro_slide(
     cnt = max(piece_count, len(preview_images or []), 2)
     names = list(item_names) if item_names else [f"Kiyim {i + 1}" for i in range(cnt)]
     cards: list[Image.Image] = []
+    from .cutout_agent import guess_category
+
     for i in range(cnt):
         nm = names[i] if i < len(names) else f"Kiyim {i + 1}"
         raw = preview_images[i] if preview_images and i < len(preview_images) else None
         hx = palette_hex[i % len(palette_hex)] if palette_hex else "#1E1E22"
-        cards.append(_prepare_clean_product_card(_load_raw_image(raw, nm, i, hx), (800, 950), gold_border=True))
+        cards.append(_prepare_clean_product_card(_load_raw_image(raw, nm, i, hx), (800, 950), gold_border=True, category=guess_category(nm)))
 
     part_prices = _estimate_item_prices_uzs(total_est, cnt)
     fr = _render_1080p_styled_frame(
@@ -1221,7 +1226,7 @@ def render_reels_with_remotion(
         props = {
             "shopBrand": str(orbit_meta.get("shop_brand") or "XAN SHOP"),
             "lookTitle": str(orbit_meta.get("look_title") or "XAN SHOP Kapsula"),
-            "subtitleHook": str(orbit_meta.get("subtitle_hook") or "Toshkentga 5–10 kunda yetib keladi"),
+            "subtitleHook": str(orbit_meta.get("subtitle_hook") or "Toshkentga 5–12 kunda yetib keladi"),
             "totalPriceUzs": int(orbit_meta.get("total_price_uzs") or 600000),
             "prepay50Uzs": int(orbit_meta.get("prepay_50_uzs") or 300000),
             "themeVariant": theme_variant,
