@@ -77,9 +77,9 @@ jobs:
           CARGO_CLIENT_UZS_PER_KG: "120000"
           APIFY_MAX_MONTHLY_USD: "4.20"
           APIFY_MAX_DAILY_CALLS: "3"
-          PROFIT_PERCENT: "35"
-          ENSURE_50_COVERS_COST: "0"
-          PREPAY_ROUND_TO: "50000"
+          PROFIT_PERCENT: "0"
+          ENSURE_50_COVERS_COST: "1"
+          PREPAY_ROUND_TO: "20000"
           USE_OMNIROUTE: "1"
         run: |
           if [ -n "$IG_BROWSER_SESSION_B64" ]; then

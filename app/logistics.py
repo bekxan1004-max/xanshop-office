@@ -32,23 +32,45 @@ class CargoLine:
 
 
 CARGO_LINES: dict[str, CargoLine] = {
-    "door_to_door": CargoLine(
-        code="DOOR-AVIA",
-        name="Avia Door-to-Door (Shenzhen)",
+    "mk_express": CargoLine(
+        code="MK-AVIA",
+        name="MK Express Avia (mkexpress.uz — 30+ filiallar)",
         rate_usd_kg=9.5,
-        eta_days="5–10 kun",
-        mode="Kuryer mijoz eshigigacha eltib beradi",
+        eta_days="5–12 kun",
+        mode="O'zbekiston bo'ylab 30+ filial, 114 000 so'm/kg (2–7 kun avia)",
+        client_id="MK-ID (mkexpress.uz ilovasidan oling)",
+        cn_recipient="MK Express Ombor",
+        cn_phone="mkexpress.uz",
+        cn_address="MK Express ilovasi / Telegram botidan shaxsiy ID va Xitoy ombor manzilini oling",
+    ),
+    "door_to_door": CargoLine(
+        code="DTD-AVIA",
+        name="DTD / Door-to-Door Avia (d2d.uz — Shenzhen)",
+        rate_usd_kg=9.49,
+        eta_days="5–12 kun",
+        mode="$9.49/kg + DUR keshbek + viloyat filiallariga bepul (4–7 kun avia)",
         client_id="ID BP-1",
         cn_recipient="徐安吉 ID BP-1",
         cn_phone="18124205652",
         cn_address="广东省深圳市宝安区福永街道怀德南路199号锦城大厦5008 ID BP-1",
     ),
+    "active_cargo": CargoLine(
+        code="ACTIVE-AVIA",
+        name="ActiveCargo Avia (acargo.uz — EMU filiallar)",
+        rate_usd_kg=8.99,
+        eta_days="5–12 kun",
+        mode="$8.50–$8.99/kg · ochiq reys kalendari + EMU tarmog'i (4–9 kun avia)",
+        client_id="AC-ID (acargo.uz kabinetidan oling)",
+        cn_recipient="ActiveCargo Ombor",
+        cn_phone="acargo.uz",
+        cn_address="acargo.uz shaxsiy kabinetidagi Xitoy ombor manzili",
+    ),
     "tujjor_avia": CargoLine(
         code="TUJJOR-AVIA",
-        name="Tujjor Avia Express (Yiwu)",
+        name="Tujjor Avia Express (zaxira — Yiwu)",
         rate_usd_kg=9.5,
-        eta_days="5–10 kun",
-        mode="Tezkor avia reys (Toshkent ombori / kuryer)",
+        eta_days="5–12 kun",
+        mode="Zaxira avia reys (Toshkent ombori)",
         client_id="T-7621",
         cn_recipient="T-7621",
         cn_phone="15757912326",
@@ -58,22 +80,8 @@ CARGO_LINES: dict[str, CargoLine] = {
 
 
 def cargo_address_specs() -> list[dict[str, str]]:
-    """Pinduoduo manzil kitobi uchun 2 ta tasdiqlangan Xitoy kargo omborining tuzilgan maydonlari."""
+    """Pinduoduo manzil kitobi uchun tasdiqlangan eng ishonchli Xitoy avia kargo omborlari."""
     return [
-        {
-            "key": "tujjor_avia",
-            "code": CARGO_LINES["tujjor_avia"].code,
-            "name": CARGO_LINES["tujjor_avia"].name,
-            "client_id": CARGO_LINES["tujjor_avia"].client_id,
-            "cn_recipient": CARGO_LINES["tujjor_avia"].cn_recipient,
-            "cn_phone": CARGO_LINES["tujjor_avia"].cn_phone,
-            "province": "浙江省",
-            "city": "金华市",
-            "district": "义乌市",
-            "street": "苏溪镇东洪新村11栋3单元1号门 (T-7621)",
-            "cn_address": CARGO_LINES["tujjor_avia"].cn_address,
-            "route_rule": "Toshkent shahar buyurtmalari uchun (5–10 kun)",
-        },
         {
             "key": "door_to_door",
             "code": CARGO_LINES["door_to_door"].code,
@@ -86,7 +94,35 @@ def cargo_address_specs() -> list[dict[str, str]]:
             "district": "宝安区",
             "street": "福永街道怀德南路199号锦城大厦5008 ID BP-1",
             "cn_address": CARGO_LINES["door_to_door"].cn_address,
-            "route_rule": "Viloyatlar va eshikgacha yetkazish uchun (5–10 kun)",
+            "route_rule": "Asosiy tasdiqlangan Avia Kargo — DTD ($9.49/kg, DUR keshbek, 5–12 kun)",
+        },
+        {
+            "key": "mk_express",
+            "code": CARGO_LINES["mk_express"].code,
+            "name": CARGO_LINES["mk_express"].name,
+            "client_id": CARGO_LINES["mk_express"].client_id,
+            "cn_recipient": CARGO_LINES["mk_express"].cn_recipient,
+            "cn_phone": CARGO_LINES["mk_express"].cn_phone,
+            "province": "广东省",
+            "city": "广州市",
+            "district": "白云区",
+            "street": "mkexpress.uz ilovasidan shaxsiy ID kiritiladi",
+            "cn_address": CARGO_LINES["mk_express"].cn_address,
+            "route_rule": "O'zbekiston #1 tarmoq — MK Express (114 000 so'm/kg, 30+ filial, 5–12 kun)",
+        },
+        {
+            "key": "tujjor_avia",
+            "code": CARGO_LINES["tujjor_avia"].code,
+            "name": CARGO_LINES["tujjor_avia"].name,
+            "client_id": CARGO_LINES["tujjor_avia"].client_id,
+            "cn_recipient": CARGO_LINES["tujjor_avia"].cn_recipient,
+            "cn_phone": CARGO_LINES["tujjor_avia"].cn_phone,
+            "province": "浙江省",
+            "city": "金华市",
+            "district": "义乌市",
+            "street": "苏溪镇东洪新村11栋3单元1号门 (T-7621)",
+            "cn_address": CARGO_LINES["tujjor_avia"].cn_address,
+            "route_rule": "Zaxira ombor (5–12 kun)",
         },
     ]
 
@@ -111,10 +147,10 @@ class LogisticsAgent:
         self.s = settings
 
     def select_cargo_line(self, address: str) -> CargoLine:
-        """Mijoz manziliga qarab optimal kargo liniyasini tanlaydi."""
+        """Mijoz manziliga qarab eng ishonchli avia kargo liniyasini tanlaydi (DTD / MK Express)."""
         addr_low = (address or "").lower()
-        if any(k in addr_low for k in ("toshkent", "tashkent", "yunusobod", "chilonzor", "mirzo", "sergeli", "shayxontohur")):
-            return CARGO_LINES["tujjor_avia"]
+        if "mk" in addr_low:
+            return CARGO_LINES["mk_express"]
         return CARGO_LINES["door_to_door"]
 
     def build_vykup_card(self, order: dict[str, Any], look: dict[str, Any]) -> str:

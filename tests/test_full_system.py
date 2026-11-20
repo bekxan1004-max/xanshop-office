@@ -72,8 +72,9 @@ def test_pdd_sign_and_logistics(tmp_path):
         s = _make_settings(str(tmp_path / "logi.db"))
         logi = LogisticsAgent(db, s)
 
-        assert logi.select_cargo_line("Toshkent, Yunusobod 4").code == "TUJJOR-AVIA"
-        assert logi.select_cargo_line("Samarqand, Registon").code == "DOOR-AVIA"
+        assert logi.select_cargo_line("Toshkent, Yunusobod 4").code in ("DTD-AVIA", "MK-AVIA")
+        assert logi.select_cargo_line("Samarqand, Registon").code == "DTD-AVIA"
+        assert logi.select_cargo_line("Toshkent MK filial").code == "MK-AVIA"
 
         look_id = await db.add_look(
             title="Test Shoe Look",
@@ -111,16 +112,16 @@ def test_pdd_sign_and_logistics(tmp_path):
         assert order["source"] == "userbot"
 
         settlement = await logi.calculate_arrival_settlement(order, weight_kg=1.0)
-        assert settlement.cargo_line.code == "TUJJOR-AVIA"
+        assert settlement.cargo_line.code == "DTD-AVIA"
         assert settlement.remaining_50_uzs == 90000
         assert settlement.cargo_client_uzs == 130000
         assert settlement.total_due_unique_uzs == 220001  # 90000 + 130000 + (oid % 1000)
 
         card = logi.build_vykup_card(order, await db.get_look(look_id))
         assert "551029384756" in card
-        assert "TUJJOR-AVIA" in card
-        assert "T-7621" in card
-        assert "15757912326" in card
+        assert "DTD-AVIA" in card
+        assert "ID BP-1" in card
+        assert "18124205652" in card
         await db.close()
 
     asyncio.run(_run())
@@ -154,7 +155,8 @@ def test_dashboard_routes(tmp_path):
             r_state = await client.get("/api/state")
             assert r_state.status == 200
             st = await r_state.json()
-            assert len(st["agents"]) == 8
+            assert len(st["agents"]) == 9
+            assert any(a["agent_id"] == "photo_studio" for a in st["agents"])
             assert "weather" in st
             assert "channel_kit" in st
             assert "bank_transactions" in st

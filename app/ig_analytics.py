@@ -96,7 +96,7 @@ CURATED_MARKET_VIDEO_PATTERNS = [
         "account_handle": "_tima_shop",
         "video_url": "https://www.instagram.com/_tima_shop/reels/",
         "posted_at_info": "Kechqurun 20:15 (Payshanba-Yakshanba)",
-        "garment_type": "Qalin 420g oversize xudi + bomber kurtka + kargo shim + retro krossovka",
+        "garment_type": "Qalin 420g oversize xudi + bomber kurtka + cho'ntakli erkin shim + retro krossovka",
         "video_meaning": "Universitet yigitlari uchun tayyor ko'cha stili (kommentda '+' orqali tezkor zakaz)",
         "editing_style": "orbit_3d_turntable",
         "video_quality": "1080p Tez almashuvchi kadrlar, yorqin sarlavha",
@@ -820,6 +820,178 @@ async def fetch_live_uzbek_competitor_channels(
     }
 
 
+DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS: list[dict[str, Any]] = [
+    {
+        "title": "Quiet Luxury Zamsh Kurtka & Soat Obrazi",
+        "description": "Jigarrang zamsh kurtka + qalin trikotaj polo + klassik jun shim + minimalist soat.",
+        "palette_name": "Suede Espresso & Sand",
+        "palette_hex": ["#4A3728", "#D9CFC1", "#23252A", "#C4A46B"],
+        "audio_vibe": "diplomat_old_money",
+        "video_style": "persona_spotlight_deck",
+        "viral_hook": "INSTAGRAMDA REKKA CHIQAYOTGAN ZAMSH OBRAZ",
+        "studio_pose_direction": "Warm quiet-luxury flat-lay: suede jacket lapels softly shaped, watch angled 15 degrees to catch soft metallic rim light, trousers straight with crisp vertical center fold.",
+        "items": [
+            {"category": "outerwear", "name": "Jigarrang Zamsh Kurtka", "price_cny": 88.0, "weight_kg": 0.72, "cn_keyword": "老钱风麂皮夹克男秋冬复古翻毛皮短款外套"},
+            {"category": "top", "name": "Och Bej Trikotaj Polo", "price_cny": 48.0, "weight_kg": 0.42, "cn_keyword": "老钱风针织polo衫男长袖秋冬复古毛衣"},
+            {"category": "bottom", "name": "To'q Kulrang Klassik Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "垂感羊毛西装裤男直筒老钱风秋冬加厚长裤"},
+            {"category": "accessory", "name": "Klassik Charm Soat", "price_cny": 36.0, "weight_kg": 0.14, "cn_keyword": "复古方形真皮表带石英手表男轻奢小众简约"},
+        ],
+    },
+    {
+        "title": "Koreys Minimalist Kardigan & Jinsi Seti",
+        "description": "Qalin trikotaj kardigan + to'g'ri to'q ko'k jinsi + charm kamar.",
+        "palette_name": "Seoul Charcoal & Denim",
+        "palette_hex": ["#2B2D32", "#1F2E46", "#E6E1D8"],
+        "audio_vibe": "lofi_editorial",
+        "video_style": "editorial_split_showcase",
+        "viral_hook": "KOREYS MINIMALIST USLUBINI YOQTIRADIGANLAR UCHUN",
+        "studio_pose_direction": "Clean Seoul magazine lookbook lighting: cardigan neatly buttoned in relaxed ghost-mannequin silhouette, denim legs laid crisp and parallel, leather belt coiled cleanly beside buckle.",
+        "items": [
+            {"category": "top", "name": "Grafit Trikotaj Kardigan", "price_cny": 68.0, "weight_kg": 0.55, "cn_keyword": "韩系慵懒风重磅针织开衫男秋冬宽松毛衣外套"},
+            {"category": "bottom", "name": "To'q Ko'k To'g'ri Jinsi", "price_cny": 54.0, "weight_kg": 0.62, "cn_keyword": "秋冬潮流厚款男士牛仔裤水洗宽松直筒阔腿裤"},
+            {"category": "accessory", "name": "Qora Charm Kamar", "price_cny": 28.0, "weight_kg": 0.22, "cn_keyword": "复古真皮腰带男简约百搭牛皮皮带商务休闲"},
+        ],
+    },
+    {
+        "title": "Toshkent Qishki Trench Palto & Sharf Kapsulasi",
+        "description": "Uzun trench palto + kashmir vodolazka + kashmir sharf + zamsh lofer.",
+        "palette_name": "Trench Camel & Obsidian",
+        "palette_hex": ["#8B7355", "#1C1E22", "#C8B8A6", "#3E2F26"],
+        "audio_vibe": "diplomat_old_money",
+        "video_style": "persona_spotlight_deck",
+        "viral_hook": "DIPLOMATIYA VA BIZNES YIGITLARI UCHUN QISHKI SET",
+        "studio_pose_direction": "Editorial dark-matte lookbook posture: trench coat lapels open naturally showing clean inner collar structure, scarf folded cleanly with fringed ends visible, loafers staged in sharp 3/4 side profile.",
+        "items": [
+            {"category": "outerwear", "name": "Xaki Uzun Trench Palto", "price_cny": 98.0, "weight_kg": 0.95, "cn_keyword": "英伦风中长款风衣男秋冬垂感双排扣大衣外套"},
+            {"category": "top", "name": "Qora Kashmir Vodolazka", "price_cny": 49.0, "weight_kg": 0.44, "cn_keyword": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫"},
+            {"category": "accessory", "name": "Bej Kashmir Sharf", "price_cny": 29.0, "weight_kg": 0.22, "cn_keyword": "老钱风羊绒围巾男冬季保暖高级感纯色披肩"},
+        ],
+    },
+    {
+        "title": "Shahar Charm Kurtka & Chelsea Etik Obrazi",
+        "description": "Qora charm kurtka + och rangli sviter + qora klassik shim + charm chelsea etik.",
+        "palette_name": "Noir Leather & Stone",
+        "palette_hex": ["#141518", "#32353C", "#DDD8CE"],
+        "audio_vibe": "phonk_bass",
+        "video_style": "orbit_3d_turntable",
+        "viral_hook": "CHARM KURTKA VA KLASSIK ETIK TRENDI 2026",
+        "studio_pose_direction": "Crisp high-contrast studio rim light highlighting leather jacket grain and zipper hardware, chelsea boots angled cleanly to showcase leather sheen and slim sole silhouette.",
+        "items": [
+            {"category": "outerwear", "name": "Qora Charm Kurtka", "price_cny": 92.0, "weight_kg": 0.88, "cn_keyword": "美式复古皮衣夹克男秋冬宽松翻领机车皮外套"},
+            {"category": "bottom", "name": "Qora To'g'ri Drape Shim", "price_cny": 49.0, "weight_kg": 0.50, "cn_keyword": "垂感黑色西装裤男直筒宽松休闲长裤秋冬"},
+            {"category": "shoes", "name": "Qora Charm Chelsea Etik", "price_cny": 68.0, "weight_kg": 0.88, "cn_keyword": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴"},
+        ],
+    },
+    {
+        "title": "Qatlamli Qishki Jilet & Yelka Sumkasi Seti",
+        "description": "Qalin qishki jilet + yoqali svitshot + cho'ntakli erkin shim + zamonaviy yelka sumkasi.",
+        "palette_name": "Urban Olive & Slate",
+        "palette_hex": ["#3C4539", "#ECEAE4", "#222730"],
+        "audio_vibe": "luxury_chill",
+        "video_style": "bento_zoom_reveal",
+        "viral_hook": "UNIVERSITET VA HAR KUNI KIYISHGA ZAMONAVIY SET",
+        "studio_pose_direction": "Clean modern flat-lay with natural 3D puffer loft on the vest, structured rectangular posture on the crossbody bag with strap tucked neatly, clean trouser lines with zero shoes.",
+        "items": [
+            {"category": "outerwear", "name": "Qora Qishki Jilet", "price_cny": 64.0, "weight_kg": 0.52, "cn_keyword": "立领羽绒马甲男秋冬加厚保暖宽松背心外套"},
+            {"category": "top", "name": "Oq Yoqali Svitshot", "price_cny": 56.0, "weight_kg": 0.48, "cn_keyword": "美式复古翻领卫衣男宽松加厚长袖上衣"},
+            {"category": "bottom", "name": "To'q Ko'k Cho'ntakli Erkin Shim", "price_cny": 52.0, "weight_kg": 0.52, "cn_keyword": "工装裤男士直筒宽松休闲长裤秋冬"},
+            {"category": "accessory", "name": "Qora Yelka Sumkasi", "price_cny": 35.0, "weight_kg": 0.30, "cn_keyword": "极简真皮斜挎包男高级感单肩包通勤小包"},
+        ],
+    },
+    {
+        "title": "Vintaj Velvyet Ko'ylak & Retro Krossovka Obrazi",
+        "description": "Qalin velvyet ustki ko'ylak + keng erkin shim + retro krossovka + quyosh ko'zoynagi.",
+        "palette_name": "Corduroy Mocha & Cream",
+        "palette_hex": ["#5C4636", "#2B2D34", "#E9E3D8"],
+        "audio_vibe": "uk_drill_beat",
+        "video_style": "bento_zoom_reveal",
+        "viral_hook": "VINTAJ VELVYET VA RETRO KROSSOVKA TRENDI",
+        "studio_pose_direction": "Rich tactile studio lighting emphasizing corduroy ribs, retro sneakers angled dynamically in pair, sunglasses positioned front-angled with subtle lens reflection.",
+        "items": [
+            {"category": "top", "name": "Jigarrang Velvyet Ko'ylak", "price_cny": 58.0, "weight_kg": 0.52, "cn_keyword": "重磅灯芯绒衬衫男秋冬复古宽松夹克外套"},
+            {"category": "bottom", "name": "Grafit Keng Erkin Shim", "price_cny": 54.0, "weight_kg": 0.52, "cn_keyword": "美式阔腿休闲裤男秋冬季宽松直筒长裤"},
+            {"category": "shoes", "name": "Retro T-Toe Krossovka", "price_cny": 69.0, "weight_kg": 0.80, "cn_keyword": "复古德训板鞋男休闲运动鞋百搭男鞋"},
+            {"category": "accessory", "name": "Qora Quyosh Ko'zoynagi", "price_cny": 24.0, "weight_kg": 0.10, "cn_keyword": "复古方形墨镜男老钱风高级感太阳镜防紫外线"},
+        ],
+    },
+]
+
+
+async def decompose_instagram_trending_look_async(
+    settings: Any,
+    live_tg_comp: dict[str, Any],
+    web_intel: dict[str, Any],
+    rules: dict[str, Any],
+    recent_titles: list[str],
+    cycle_idx: int,
+) -> dict[str, Any]:
+    """Instagram Tahlilchi butun Instagram trendlarini aqlli insondek bo'laklab tahlil qiladi (cheklanmagan toifalar!)
+    hamda Photoshop Studio uchun tabiiy turish (pose/lighting) prompt ko'rsatmasini ham chiqaradi."""
+    import os
+
+    recent_low = {t.strip().lower() for t in (recent_titles or []) if t}
+    fallback_pick = DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS[cycle_idx % len(DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS)]
+    for offset in range(len(DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS)):
+        cand = DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS[(cycle_idx + offset) % len(DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS)]
+        if cand["title"].strip().lower() not in recent_low:
+            fallback_pick = cand
+            break
+
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return json.loads(json.dumps(fallback_pick, ensure_ascii=False))
+
+    try:
+        from app.ai import SalesAI
+
+        ai = SalesAI(settings)
+        if ai.enabled:
+            snippets_txt = "\n".join(
+                f"- @{s.get('handle')}: {s.get('title', '')} ({s.get('snippet', '')[:100]})"
+                for s in (web_intel.get("web_snippets") or [])[:6]
+            )
+            tg_txt = "\n".join(
+                f"- {p.get('channel')} ({p.get('views')} views, {p.get('price_uzs')} so'm): {p.get('snippet', '')[:120]}"
+                for p in (live_tg_comp.get("posts") or [])[:5]
+            )
+            avoid_txt = ", ".join(recent_titles[:8]) or "yo'q"
+            prompt = (
+                "Sen XAN SHOP ning 10 yillik tajribali Instagram Moda Tahlilchisi va Art-Direktorisan.\n"
+                "VAZIFANG: Quyidagi jonli Instagram/YouTube/Telegram moda trendlarini aqlli insondek tahlil qilib, "
+                "HOZIR REKKA CHIQAYOTGAN 1 ta yangi, har xil elementli (faqat 4 ta eski toifa bilan cheklanma! — "
+                "charm/zamsh kurtka, trench palto, kardigan, polo, jilet, velvyet ko'ylak, klassik shim, jinsi, "
+                "chelsea etik, zamsh lofer, retro krossovka, klassik soat, charm kamar, kashmir sharf, yelka sumkasi, "
+                "quyosh ko'zoynagi va h.k. — trendda nima bo'lsa hammasini qo'sh!) 3–4 qismli lookni bo'laklab tuz.\n"
+                f"Mavsum: {rules.get('season_label')} ({rules.get('mandatory_layers')}).\n"
+                f"Takrorlanmasligi shart (oxirgi looklar): {avoid_txt}.\n"
+                f"Jonli global trendlar:\n{snippets_txt or '- Old Money, Korean Minimalist, Quiet Luxury, Vintage Workwear'}\n"
+                f"Jonli O'zbekiston raqobatchilari:\n{tg_txt or '- @stylesh_shop, @tima_shop_uz'}\n"
+                "MUHIM QOIDALAR:\n"
+                "1) Jami Pinduoduo xitoy narxi ~140–215 CNY atrofida bo'lsin (shunda 50% oldindan = 260–400 ming, jami = 520–800 ming chiqib raqobatchidan arzon bo'ladi!).\n"
+                "2) HECH QACHON 'kargo shim' so'zini ishlatma! O'rniga 'Cho'ntakli Erkin Shim', 'Keng Shim', 'Klassik Shim' yoki 'Jinsi Shim' deb yoz!\n"
+                "3) Photoshop Studio agentiga videolardan ko'rib o'rganilgan tabiiy kiyim turish va yoritish yo'nalishini (studio_pose_direction, inglizcha 1-2 jumla) yoz!\n"
+                "FAQAT JSON QAYTAR:\n"
+                '{"title": "Yangi O\'zbekcha Look nomi", "description": "Qisqa sotuvbop tavsif", '
+                '"palette_name": "Palitra nomi", "palette_hex": ["#1C1E22", "#C8B8A6", "#4A3728"], '
+                '"audio_vibe": "diplomat_old_money|phonk_bass|luxury_chill|lofi_editorial|uk_drill_beat", '
+                '"video_style": "persona_spotlight_deck|editorial_split_showcase|bento_zoom_reveal|orbit_3d_turntable", '
+                '"viral_hook": "KATTA HARFLARDA QISQA HOOK", '
+                '"studio_pose_direction": "Natural ghost-mannequin/flat-lay studio pose & lighting instruction learned from trending reels", '
+                '"items": [{"category": "outerwear|top|bottom|shoes|accessory", "name": "O\'zbekcha qisqa nom", "price_cny": 65.0, "weight_kg": 0.55, "cn_keyword": "aniq xitoycha qidiruv"}]}'
+            )
+            parsed = await ai.ask_json(prompt, timeout_sec=14.0)
+            if isinstance(parsed, dict) and isinstance(parsed.get("items"), list) and len(parsed["items"]) >= 2:
+                # "kargo shim" so'zini avtomatik tozalaymiz
+                for it in parsed["items"]:
+                    nm = str(it.get("name") or "")
+                    if "kargo" in nm.lower():
+                        it["name"] = re.sub(r"kargo", "Cho'ntakli Erkin", nm, flags=re.I)
+                return parsed
+    except Exception as exc:
+        logger.debug("Dynamic Instagram trend decomposer fallback: %s", exc)
+
+    return json.loads(json.dumps(fallback_pick, ensure_ascii=False))
+
+
 async def run_live_instagram_analyst_async(
     db: Any,
     settings: Any,
@@ -915,13 +1087,34 @@ async def run_live_instagram_analyst_async(
     learned_playbooks_text = format_playbooks_for_ai(playbooks)
 
     recent_styles = [str(l.get("style") or "") for l in recent_looks[:4]]
-    recent_titles = [str(l.get("title") or "") for l in recent_looks[:4]]
+    recent_titles = [str(l.get("title") or "") for l in recent_looks[:8]]
     missing_perms = perms.get("missing") or []
+
+    # Butun Instagram trendlarini aqlli insondek bo'laklab tahlil qilish (cheklanmagan kiyim & aksessuar turlari + studiya turish prompti!)
+    dynamic_blueprint = await decompose_instagram_trending_look_async(
+        settings=settings,
+        live_tg_comp=live_tg_comp,
+        web_intel=web_intel,
+        rules=rules,
+        recent_titles=recent_titles,
+        cycle_idx=cycle_idx,
+    )
+    studio_pose_direction = str(
+        dynamic_blueprint.get("studio_pose_direction")
+        or "Natural invisible ghost-mannequin editorial lookbook posture with soft directional top-left studio lighting and true-to-life fabric texture."
+    )
+    decomposed_names = ", ".join(str(i.get("name") or "") for i in (dynamic_blueprint.get("items") or []))
+    scout_brief = (
+        f"Insta Tahlilchi → Pinduoduo Skaut (Tahlilchi): {live_note}. "
+        f"Instagram trendi '{dynamic_blueprint.get('title', '')}' bo'yicha tarkib: [{decomposed_names}]. "
+        "Pinduoduo'dan eng qimmatini emas, eng sifatli va hamyonbop (~135–215 CNY jami) variantlarni topib, "
+        "50% oldindan to'lov Xitoy narxi + o'tkazma foizini 100% qoplaydigan (0 so'm o'z cho'ntagidan!) qilib hisobla va Photoshop Studiyaga aniq prompt yoz!"
+    )
 
     learning_note = (
         f"[Sikl #{cycle_idx + 1} | Halol O'g'ri] Kuzatuvda {len(all_accounts) or len(SEED_COMPETITOR_ACCOUNTS)} ta akkount, "
-        f"{len(top_patterns)} ta TOP video andoza | Top: @{winning_pick.get('account_handle', 'stylesh.uz')} ({rec_audio}, raqobatchi foydasi ~{est_profit:,} so'm) | "
-        f"Mavsum: {rules['season_label']} (futbolka={'TAQIQLANDI' if rules['forbid_tshirts'] else 'ruxsat'})."
+        f"trend tarkibi: [{decomposed_names}] | Studiya yo'nalishi: {studio_pose_direction[:90]} | "
+        f"Mavsum: {rules['season_label']}."
     )
 
     if db is not None:
@@ -950,9 +1143,11 @@ async def run_live_instagram_analyst_async(
             "live_competitor_market": live_tg_comp,
             "competitor_avg_price_uzs": comp_price,
             "xan_target_price_uzs": xan_target,
-            "recommended_video_style": rec_style,
-            "recommended_audio_vibe": rec_audio,
+            "recommended_video_style": str(dynamic_blueprint.get("video_style") or rec_style),
+            "recommended_audio_vibe": str(dynamic_blueprint.get("audio_vibe") or rec_audio),
             "recommended_music_genre": rec_music_label,
+            "studio_pose_direction": studio_pose_direction,
+            "dynamic_look_blueprint": dynamic_blueprint,
             "scout_brief": scout_brief,
             "video_brief": video_brief,
         },

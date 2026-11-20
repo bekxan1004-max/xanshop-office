@@ -383,7 +383,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
     "bottom": [
         {
             "goods_id": "578192039481",
-            "title_uz": "Keng Bichimli Kargo Shim (Parachute)",
+            "title_uz": "Cho'ntakli Erkin Keng Shim",
             "title_cn": "美式工装裤男直筒宽松多口袋伞兵休闲裤",
             "price_cny": 52.0,
             "weight_kg": 0.50,
@@ -847,11 +847,12 @@ class PinduoduoConnector:
         if "男" in kw:
             tokens.append("男")
         for term in (
-            "羊毛呢大衣", "毛呢大衣", "风衣", "羽绒服", "飞行员夹克", "夹克", "西装外套", "西服", "外套",
-            "半拉链毛衣", "高领毛衣", "羊绒衫", "针织衫", "毛衣", "开衫", "连帽卫衣", "卫衣", "衬衫", "Polo", "T恤",
+            "羊毛呢大衣", "毛呢大衣", "风衣", "羽绒服", "羽绒马甲", "马甲", "皮衣", "翻毛皮", "麂皮夹克", "灯芯绒",
+            "飞行员夹克", "夹克", "西装外套", "西服", "外套",
+            "针织开衫", "开衫", "半拉链毛衣", "高领毛衣", "羊绒衫", "针织衫", "毛衣", "连帽卫衣", "卫衣", "衬衫", "Polo", "T恤",
             "西装裤", "西裤", "工装裤", "牛仔裤", "休闲裤", "卫裤", "运动裤", "长裤",
-            "切尔西靴", "马丁靴", "乐福鞋", "德训鞋", "板鞋", "老爹鞋", "皮鞋", "运动鞋", "男鞋",
-            "棒球帽", "斜挎包", "墨镜", "腰带",
+            "切尔西靴", "马丁靴", "乐福鞋", "德比鞋", "德训鞋", "板鞋", "老爹鞋", "皮鞋", "运动鞋", "男鞋",
+            "机械手表", "石英手表", "手表", "真皮皮带", "皮带", "腰带", "羊绒围巾", "围巾", "斜挎包", "单肩包", "手提包", "墨镜", "太阳镜", "棒球帽",
         ):
             if term in kw and not any(term in existing for existing in tokens):
                 tokens.append(term)
@@ -953,17 +954,55 @@ class PinduoduoConnector:
     @staticmethod
     def _category_bucket(keyword_cn: str) -> str:
         kw = keyword_cn or ""
-        if any(w in kw for w in ("靴", "鞋", "皮鞋", "乐福", "切尔西", "板鞋", "德训", "运动鞋")):
+        if any(w in kw for w in ("靴", "鞋", "皮鞋", "乐福", "切尔西", "板鞋", "德训", "德比", "运动鞋")):
             return "shoes"
+        if any(w in kw for w in ("手表", "腕表", "皮带", "腰带", "围巾", "墨镜", "太阳镜", "斜挎包", "单肩包", "手提包", "挎包", "背包", "鸭舌帽", "棒球帽", "冷帽", "帽子")):
+            return "accessory"
         if any(w in kw for w in ("裤", "西裤", "工装裤", "牛仔裤", "休闲裤", "卫裤")):
             return "bottom"
-        if any(w in kw for w in ("大衣", "风衣", "羽绒", "夹克", "外套", "棉衣", "棉服", "西装", "西服", "冲锋衣")):
+        if any(w in kw for w in ("大衣", "风衣", "羽绒", "马甲", "皮衣", "麂皮", "翻毛皮", "夹克", "外套", "棉衣", "棉服", "西装", "西服", "冲锋衣")):
             return "outerwear"
-        if any(w in kw for w in ("卫衣", "帽衫", "毛衣", "针织", "衬衫", "打底", "开衫", "T恤", "POLO", "polo")):
+        if any(w in kw for w in ("卫衣", "帽衫", "毛衣", "针织", "衬衫", "打底", "开衫", "T恤", "POLO", "polo", "灯芯绒")):
             return "top"
-        if any(w in kw for w in ("鸭舌帽", "棒球帽", "冷帽", "帽子", "挎包", "背包", "墨镜", "腰带", "皮带")):
-            return "accessory"
         return "top"
+
+    @staticmethod
+    def _subtype_key(keyword_cn: str) -> str:
+        """Aniq kiyim/aksessuar turi (24+ tur): yangi Instagram trendlari eski 4 ta keshga yopishib qolmasligi uchun!"""
+        kw = (keyword_cn or "").lower()
+        rules = (
+            ("watch", ("手表", "腕表", "机械表", "石英表")),
+            ("belt", ("皮带", "腰带")),
+            ("scarf", ("围巾", "披肩")),
+            ("sunglasses", ("墨镜", "太阳镜")),
+            ("bag", ("斜挎包", "单肩包", "手提包", "挎包", "背包", "公文包")),
+            ("cap", ("鸭舌帽", "棒球帽", "冷帽", "帽子")),
+            ("chelsea_boots", ("切尔西靴", "马丁靴", "短靴", "皮靴")),
+            ("loafers", ("乐福鞋", "德比鞋", "皮鞋")),
+            ("sneakers", ("板鞋", "德训", "运动鞋", "老爹鞋", "休闲鞋", "小白鞋")),
+            ("jeans", ("牛仔裤",)),
+            ("dress_trousers", ("西装裤", "西裤", "垂感")),
+            ("utility_pants", ("工装裤", "伞兵", "休闲裤", "阔腿裤", "卫裤")),
+            ("leather_jacket", ("皮衣", "真皮夹克", "皮夹克")),
+            ("suede_jacket", ("麂皮", "翻毛皮", "鹿皮绒")),
+            ("trench", ("风衣",)),
+            ("overcoat", ("大衣", "羊毛呢", "毛呢")),
+            ("vest", ("马甲", "背心")),
+            ("blazer", ("西装", "西服")),
+            ("puffer", ("羽绒服", "棉服", "棉衣", "棉袄")),
+            ("bomber", ("夹克", "冲锋衣", "外套")),
+            ("cardigan", ("开衫",)),
+            ("turtleneck", ("高领", "打底衫")),
+            ("halfzip", ("半拉链",)),
+            ("polo_knit", ("polo", "翻领针织")),
+            ("shirt", ("衬衫", "灯芯绒")),
+            ("hoodie", ("连帽卫衣", "帽衫", "卫衣")),
+            ("sweater", ("毛衣", "针织", "羊绒")),
+        )
+        for st, words in rules:
+            if any(w in kw for w in words):
+                return st
+        return PinduoduoConnector._category_bucket(keyword_cn)
 
     async def _check_apify_budget(self, session: aiohttp.ClientSession) -> tuple[bool, str]:
         """Apify $5 bepul limitdan oshib ketmaslik uchun kunlik (3 ta) va oylik ($4.20) xarajat himoyasi."""
@@ -1255,21 +1294,31 @@ class PinduoduoConnector:
             if clean_cached and (now_ts - first_ts) <= cache_ttl_sec:
                 return clean_cached[:page_size]
 
-        # 2) Xuddi shu kiyim turkumi (palto/shim/oyoq kiyim) bo'yicha hali ishlatilmagan jonli kesh bormi?
+        # 2) Xuddi shu ANIQ tur (masalan: leather_jacket, cardigan, watch, loafers...) bo'yicha hali ishlatilmagan kesh bormi?
+        # MUHIM: faqat aynan shu subtype keshda yetarli bo'lsa Apify tejab qolinadi; aks holda YANGI trend buyumni Apify orqali jonli qidiramiz!
+        target_subtype = self._subtype_key(kw_key)
+        subtype_fallback: list[PddProduct] = []
         bucket_fallback: list[PddProduct] = []
+        sub_seen: set[str] = set()
         bucket_seen: set[str] = set()
         for ck, crows in cached_map.items():
             for pr in _valid_pdd_rows(crows, apply_exclude=True, strict_bucket=True):
+                if self._subtype_key(pr.title_cn) == target_subtype and pr.goods_id not in sub_seen:
+                    sub_seen.add(pr.goods_id)
+                    subtype_fallback.append(pr)
                 if pr.goods_id not in bucket_seen:
                     bucket_seen.add(pr.goods_id)
                     bucket_fallback.append(pr)
+        subtype_fallback.sort(
+            key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny)
+        )
         bucket_fallback.sort(
             key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny)
         )
 
-        # Agar keshda shu kategoriya bo'yicha 4+ ta yangi ishlatilmagan real Pinduoduo tovar bo'lsa, ortiqcha Apify sarf qilmaymiz!
-        if len(bucket_fallback) >= 4:
-            return bucket_fallback[:page_size]
+        # Faqat aynan so'ralgan subtype (masalan: palto uchun palto, soat uchun soat!) keshda 3+ ta yangi tovar bo'lsagina keshdan olamiz
+        if len(subtype_fallback) >= 3:
+            return subtype_fallback[:page_size]
 
         search_query = f'site:mobile.yangkeduo.com/poros/h5 "goods_id" {short_q}'
 
@@ -1729,7 +1778,7 @@ class PinduoduoConnector:
             ("短袖T恤", "Qisqa Yeng Futbolka"),
             ("T恤", "Futbolka"),
             ("牛仔裤", "Jinsi Shim"),
-            ("工装裤", "Kargo Shim"),
+            ("工装裤", "Cho'ntakli Erkin Shim"),
             ("休闲裤", "Klassik Shim"),
             ("阔腿裤", "Keng Bichimli Shim"),
             ("运动鞋", "Krossovka"),
@@ -1876,15 +1925,15 @@ class PinduoduoConnector:
         )
         params = PriceParams(
             vykup_percent=float(getattr(settings, "vykup_percent", 0.0)),
-            profit_percent=float(getattr(settings, "profit_percent", 35.0)),
+            profit_percent=float(getattr(settings, "profit_percent", 0.0)),
             payment_fee_percent=float(getattr(settings, "payment_fee_percent", 0.0)),
             china_shipping_cny_per_item=float(getattr(settings, "china_shipping_cny_per_item", 0.0)),
             cargo_usd_per_kg=float(getattr(settings, "cargo_usd_per_kg", 9.5)),
             cargo_client_uzs_per_kg=float(getattr(settings, "cargo_client_uzs_per_kg", 120000.0)),
             round_to=1000,
-            prepay_round_to=int(getattr(settings, "prepay_round_to", 50000)),
+            prepay_round_to=int(getattr(settings, "prepay_round_to", 20000)),
             conversion_fee_percent=float(getattr(settings, "conversion_fee_percent", 2.5)),
-            ensure_50_covers_cost=bool(getattr(settings, "ensure_50_covers_cost", False)),
+            ensure_50_covers_cost=bool(getattr(settings, "ensure_50_covers_cost", True)),
         )
 
         item_obj = Item(name=title_uz, price_cny=price_cny, weight_kg=weight_kg, url=f"https://mobile.yangkeduo.com/goods.html?goods_id={goods_id}")

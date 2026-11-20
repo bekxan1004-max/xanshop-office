@@ -422,6 +422,43 @@ def test_agent_reach_deep_video_and_remotion():
     assert build_omniroute_app(None) is not None
 
 
+def test_zero_out_of_pocket_pricing_photo_studio_and_dynamic_trends():
+    from app.photo_studio import build_scout_studio_prompt, derive_insta_pose_direction
+    from app.pinduoduo import PinduoduoConnector
+    from app.ig_analytics import DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS
+
+    # 1) Foydalanuvchining aniq misoli: Xitoyda 283 000 so'm + 2.5% o'tkazma -> 300 000 oldindan + 300 000 kelganda = 600 000!
+    rates = Rates(cny_uzs=1800.0, usd_uzs=12000.0)
+    p = PriceParams(
+        vykup_percent=0.0,
+        profit_percent=0.0,
+        payment_fee_percent=0.0,
+        china_shipping_cny_per_item=0.0,
+        cargo_usd_per_kg=9.5,
+        cargo_client_uzs_per_kg=120000.0,
+        round_to=1000,
+        prepay_round_to=20000,
+        conversion_fee_percent=2.5,
+        ensure_50_covers_cost=True,
+    )
+    b = calculate([Item("Look", 283000.0 / 1800.0, 1.0)], rates, p)
+    assert b.prepay_50_uzs == 300000
+    assert b.remaining_50_uzs == 300000
+    assert b.prepay_uzs == 600000
+    assert b.prepay_50_uzs >= b.goods_cost_uzs
+    assert b.cargo_client_uzs == 120000
+
+    # 2) Photoshop Studio prompti: Pinduoduo mahsulotini o'zgartirmaslik + Insta turish ko'rsatmasi
+    pose = derive_insta_pose_direction({"halol_ogri": {"studio_pose_direction": "Editorial flat-lay pose"}}, category="bottom")
+    prompt = build_scout_studio_prompt({"name": "To'q Ko'k Keng Erkin Shim", "category": "bottom"}, insta_pose_direction=pose)
+    assert "100%" in prompt and "Editorial flat-lay pose" in prompt and "shoes" in prompt.lower()
+
+    # 3) Dinamik Instagram trendlari 4 toifaga qamab qo'yilmagan va "kargo shim" yo'q
+    subtypes = {PinduoduoConnector._subtype_key(it["cn_keyword"]) for bp in DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS for it in bp["items"]}
+    assert len(subtypes) >= 10
+    assert all("kargo" not in str(it["name"]).lower() for bp in DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS for it in bp["items"])
+
+
 if __name__ == "__main__":
     test_calculate_example()
     test_payment_fee_is_covered()

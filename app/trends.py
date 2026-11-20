@@ -67,7 +67,7 @@ def _classify_weather(temp_c: float, max_c: float, cur_temp: float | None = None
     if max_c <= 20.0:
         return (
             "salqin kuz / bahor",
-            prefix + "yengil shamolto'sar kurtka, half-zip svitshot, kargo shim va krossovkalar trendda.",
+            prefix + "yengil shamolto'sar kurtka, half-zip svitshot, keng erkin shim va krossovkalar trendda.",
         )
     if max_c <= 27.0:
         return (
@@ -125,7 +125,7 @@ async def fetch_tashkent_weather() -> WeatherForecast:
             season_uz="salqin kuz / erta bahor",
             clothing_advice=(
                 "Bugun ~11°C, 5–12 kunda (Avia yetib kelganda) ~10°C atrofida — "
-                "qalin 420g xudi, bomber/palto va kargo/jinsi kombinatsiyasi eng xaridorgir."
+                "qalin 420g xudi, bomber/palto va erkin/jinsi shim kombinatsiyasi eng xaridorgir."
             ),
             is_live=False,
             future_temp_c=10.5,
@@ -274,7 +274,7 @@ GLOBAL_IG_NICHES: list[dict[str, str]] = [
     },
     {
         "niche": "Oversize va Erkin Streetwear Yoqtiradiganlar",
-        "visual_style": "3D Orbit Turntable: Erkin bichimli xudi, bomber va keng kargo shimlar 3D aylanishda",
+        "visual_style": "3D Orbit Turntable: Erkin bichimli xudi, bomber va keng cho'ntakli shimlar 3D aylanishda",
         "honest_spec": "Erkin o'tiradigan oversize bichim — bo'y va vazningizga qarab aniq razmer tanlab beriladi",
     },
     {

@@ -921,13 +921,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
     // === 1. VIRTUAL AI AGENT OFIS SIMULYATORI (HTML5 Pixel/Isometric Studio) ===
     const DESKS = {
-      director:       { x: 165, y: 120, room: "👑 Boshqaruv & Strategiya", color: "#eab308", label: "Direktor", ecc: "chief-of-staff" },
-      skaut:          { x: 470, y: 120, room: "🔍 Pinduoduo & Trend Lab",  color: "#3b82f6", label: "Skaut",    ecc: "spec-miner" },
-      smm_manager:    { x: 800, y: 120, room: "📢 SMM & Kontent",          color: "#ec4899", label: "SMM",      ecc: "marketing-agent" },
-      video_employee: { x: 1100,y: 125, room: "🎬 Reels & Voice Studio",   color: "#8b5cf6", label: "Video AI", ecc: "video-editing" },
-      sales_stylist:  { x: 185, y: 315, room: "💬 Sotuv & VIP Telegram",   color: "#10b981", label: "Stilist",  ecc: "conversation-analyzer" },
-      accountant:     { x: 510, y: 315, room: "🧮 Hisobchi & Chek AI",     color: "#06b6d4", label: "Hisobchi", ecc: "security-reviewer" },
-      cargo_logistics:{ x: 850, y: 315, room: "✈️ Kargo BP-1 & T-7621",    color: "#f97316", label: "Kargo",    ecc: "loop-operator" }
+      director:       { x: 165, y: 120, room: "👑 Boshqaruv & Strategiya", color: "#eab308", label: "Direktor",     ecc: "chief-of-staff" },
+      insta_analyst:  { x: 325, y: 120, room: "📡 Insta Trend Tahlilchi",  color: "#f43f5e", label: "Insta AI",     ecc: "research-agent" },
+      skaut:          { x: 500, y: 120, room: "🔍 Pinduoduo Tahlilchi",    color: "#3b82f6", label: "PDD Skaut",    ecc: "spec-miner" },
+      photo_studio:   { x: 690, y: 120, room: "🎨 Photoshop Studio AI",    color: "#14b8a6", label: "Photo Studio", ecc: "studio-retouch" },
+      smm_manager:    { x: 890, y: 120, room: "📢 SMM & Kontent",          color: "#ec4899", label: "SMM",          ecc: "marketing-agent" },
+      video_employee: { x: 1100,y: 125, room: "🎬 Reels & Video Studio",   color: "#8b5cf6", label: "Video AI",     ecc: "video-editing" },
+      sales_stylist:  { x: 185, y: 315, room: "💬 Sotuv & VIP Telegram",   color: "#10b981", label: "Stilist",      ecc: "conversation-analyzer" },
+      accountant:     { x: 510, y: 315, room: "🧮 Hisobchi & Chek AI",     color: "#06b6d4", label: "Hisobchi",     ecc: "security-reviewer" },
+      cargo_logistics:{ x: 850, y: 315, room: "✈️ MK Express & DTD Kargo", color: "#f97316", label: "Kargo",        ecc: "loop-operator" }
     };
     const MEETING_SPOT = { x: 640, y: 225 };
     const SERVER_SPOT  = { x: 1135, y: 315 };

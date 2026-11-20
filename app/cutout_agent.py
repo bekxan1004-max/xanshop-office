@@ -305,8 +305,12 @@ def extract_main_item(
         else:
             head_above = _detect_human_head_above_garment(general, cloth)
             if category == "bottom":
-                # Shim kiygan modelda tepada ust kiyim (c0) va bosh bo'ladi
-                is_human_photo = head_above and (other_cov > 0.04) and cov_c >= 0.06
+                # Shim kiygan modelda (hatto boshi kadrga sig'magan bo'lsa ham!) pastda krossovka/oyoq va tepada futbolka bo'ladi:
+                # u2net_cloth_seg 1-kanali FAQAT shimni ajratib, krossovka va tepa kiyimni 100% olib tashlaydi!
+                is_human_photo = (
+                    (head_above and other_cov > 0.04 and cov_c >= 0.06)
+                    or (cov_c >= 0.12 and ratio_cg >= 0.45 and cov_c < cov_g * 0.94)
+                )
             else:
                 # Ust kiyim kiygan modelda tepada tor bosh + kiyim maskasi butun (ratio_cg >= 0.35)
                 is_human_photo = head_above and ratio_cg >= 0.35 and cov_c >= 0.07

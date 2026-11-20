@@ -172,14 +172,15 @@ ACTIVE_STATUSES = (
 )
 
 DEFAULT_AGENTS = [
-    ("director", "Boshqaruvchi AI (v3.0)", "10-Yillik E-Commerce CEO: Bozor, 65% Marja, 50k/100k Yaxlitlash & Buyruq Markazi", ""),
-    ("insta_analyst", "Instagram Razvedka & Trend Analitik (v3.0)", "10-Yillik Global Instagram & Raqobatchilar (@_tima_shop, @stylesh.uz, @lookzona.uz, @shams.labs) Tahlilchisi -> Video Montajchiga Kreativ Rejissyor", "director"),
-    ("skaut", "Skaut, Bozor & Dizayner Agent (v3.0)", "10-Yillik Pinduoduo Xaridori & Stilist: 7–14 kunlik Ob-havo + 100% Halol Mato QC + 50%/100% Narx", "director"),
-    ("smm_manager", "SMM Boshlig'i Agent (v3.0)", "10-Yillik Kontent & Voronka Direktori: Instagram Reels + '+' Komment Triggeri & Telegram Kanal", "director"),
-    ("video_employee", "AI Kreativ Rejissyor & Video Montajchi (v3.0)", "10-Yillik Luxury Reels Montajchi: Split-Screen Editorial, Qora Kapsula Subtitr, Halol Mato/Razmer Spec & Studio Beat (Ovozli TTS siz)", "smm_manager"),
-    ("sales_stylist", "Sotuvchi & Stilist AI (v3.0)", "10-Yillik Stilist-Konsultant (@Bekshop_style + Bot): Bo'y/Vazn Aniq Razmer & 100% Mijoz Rozi Bo'lish Kafolati", "director"),
+    ("director", "Boshqaruvchi AI (v3.0)", "10-Yillik E-Commerce CEO: Bozor, 0-Xarajat 50/50 Modeli & Buyruq Markazi", ""),
+    ("insta_analyst", "Instagram Razvedka & Trend Analitik (v3.0)", "Butun Instagram Moda Tahlilchisi: Trend Kiyim/Aksessuarlarni Bo'laklab Tahlil Qiladi + Studiya Turish & Video Yo'nalishini Yaxshilaydi", "director"),
+    ("skaut", "Pinduoduo Tahlilchi & Skaut Agent (v3.0)", "10-Yillik Pinduoduo Xaridori: Trenddagi Har Qanday Mahsulotni Sifatli/Arzon Topadi, Bazaga Saqlaydi va Photoshop Studiyaga Prompt Yozadi", "director"),
+    ("photo_studio", "Photoshop Studio AI (Nano Banana)", "10-Yillik AI Fotostudiya: Pinduoduo Rasmini O'zgartirmasdan Faqat Mahsulotning O'zini Tabiiy Studiya Ko'rinishida Chiqaradi", "smm_manager"),
+    ("smm_manager", "SMM Boshlig'i Agent (v3.0)", "10-Yillik Kontent & Voronka Direktori: Instagram Reels + '+' Komment Triggeri & Telegram Kanal (5–12 kun, 12k/100gr)", "director"),
+    ("video_employee", "AI Kreativ Rejissyor & Video Montajchi (v3.0)", "10-Yillik Luxury Reels Montajchi: Photoshop Studiya Rasmlari + Trend Musiqa (TTS siz) bilan 1080p Reels", "smm_manager"),
+    ("sales_stylist", "Sotuvchi & Stilist AI (v3.0)", "10-Yillik Stilist-Konsultant (@Bekshop_style + Bot): Do'kon Jadvali Bo'yicha Alohida Razmer & Color-Grading Maslahati", "director"),
     ("accountant", "AI Hisobchi Agent (v3.0)", "10-Yillik Moliyaviy Auditor: HUMO *4135 (POLVONOV BEKMUROD) Chek OCR Anti-Fake & Avto-Tasdiq", "director"),
-    ("cargo_logistics", "Vykup & Kargo Agent (v3.0)", "10-Yillik Xitoy-Toshkent Logisti: Pinduoduo Vykup (ID BP-1 / T-7621) & 5–10 kun Avia SLA", "director"),
+    ("cargo_logistics", "Vykup & Kargo Agent (v3.0)", "10-Yillik Xitoy-Toshkent Logisti: MK Express / DTD Avia (5–12 kun, 12 000 so'm / 100 gr)", "director"),
 ]
 
 INITIAL_AGENT_LEARNINGS: dict[str, list[str]] = {
@@ -202,6 +203,11 @@ INITIAL_AGENT_LEARNINGS: dict[str, list[str]] = {
         "Bio va barcha postlarda yetkazish muddati halol '5–10 kun (Avia)' va '@Bekshop_style' ko'rsatiladi.",
         "Har bir postda mijozning eng katta qo'rquvi — 'rasmdagidek chiqarmikan?' savoliga '50% hozir, qolgan 50% kiyim Toshkentga kelib sifatini ko'rganingizda' kafolati bilan javob beriladi.",
     ],
+    "photo_studio": [
+        "QAT'IY QOIDA: Mahsulotni qayta studiya ko'rinishida chiqarishda uning matosi, rangi, tugma/zamogi va logotipi 100% O'ZGARMASDAN qolishi shart!",
+        "Pinduoduo Tahlilchidan mahsulot promptini, Instagram Tahlilchidan esa tabiiy turish (pose/drape/lighting) ko'rsatmasini olib birlashtiradi.",
+        "Odam yuzi, qo'llari, shim tagidagi poyabzal, fon va xitoycha yozuvlar to'liq olib tashlanib, faqat toza mahsulotning o'zi qoldiriladi.",
+    ],
     "video_employee": [
         "QAT'IY QOIDA: Reels videoda robot/TTS ovoz (voiceover) ishlatilmaydi! Faqat toza studiya beat + kadr almashinuvida whoosh/shutter/sub-bass saund-dizayn.",
         "Shunchaki oddiy cut va zoom-in taqiqlanadi: 1-kadrdan Bento/Split-Screen preview, qora kapsuladagi kinetik tipografiya va halol mato/razmer (M–2XL) pasporti ko'rsatiladi.",
@@ -216,8 +222,8 @@ INITIAL_AGENT_LEARNINGS: dict[str, list[str]] = {
         "Og'zaki 'pul tashladim' xabariga hech qachon tasdiq berilmaydi — faqat haqiqiy chek skrinshoti (SHA-256 Anti-Duplicate) yoki bank bot tushumi asosida tasdiqlanadi.",
     ],
     "cargo_logistics": [
-        "Toshkent buyurtmalari TUJJOR-AVIA (T-7621, $9.5/kg), viloyat buyurtmalari DOOR-AVIA (ID BP-1, $9.5/kg) omboriga yo'naltiriladi.",
-        "5–10 kunlik Avia SLA doimiy nazoratda: Xitoy omborida QC rasm tekshiruvi o'tkazilib mijozga har bosqichda xabar beriladi.",
+        "Asosiy tasdiqlangan Avia Kargo liniyalari: MK Express (114 000 so'm/kg, 30+ filiallar) va DTD / Door-to-Door ($9.49/kg, DUR keshbek, ID BP-1).",
+        "5–12 kunlik Avia muddat va mijozga 12 000 so'm / 100 gr kargo tarifi doimiy nazoratda.",
     ],
 }
 

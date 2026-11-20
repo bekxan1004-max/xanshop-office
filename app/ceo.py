@@ -35,12 +35,12 @@ PRICING_PRESETS: dict[str, dict[str, Any]] = {
         "cargo_client_uzs_per_kg": 120000,
     },
     "safe_50": {
-        "label": "Yuqori marjali (45% foyda, 12 000 so'm/100gr kargo)",
-        "profit_percent": 45,
+        "label": "0-Xarajat Modeli (50% = Xitoy narxi + foiz, kelganda 50% sof foyda!)",
+        "profit_percent": 0,
         "vykup_percent": 0,
         "china_shipping_cny_per_item": 0,
         "conversion_fee_percent": 2.5,
-        "ensure_50_covers_cost": "0",
+        "ensure_50_covers_cost": "1",
         "cargo_client_uzs_per_kg": 120000,
     },
     "yatt_customs": {

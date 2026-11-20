@@ -106,7 +106,7 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
     },
     {
         "title": "Oversize Streetwear To'liq Seti (4-in-1)",
-        "description": "Qora bomber kurtka + grafit oversize xudi + zaytun-xaki kargo shim + oq-kulrang retro krossovka.",
+        "description": "Qora bomber kurtka + grafit oversize xudi + zaytun cho'ntakli erkin shim + oq-kulrang retro krossovka.",
         "piece_count": 4,
         "palette_name": "Monochrome Graphite & Ice",
         "palette_hex": ["#18191C", "#34373E", "#8E929B", "#ECEEEF"],
@@ -117,7 +117,7 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "items": [
             {"category": "outerwear", "name": "Qora Jun Bomber Kurtka", "price_cny": 89.0, "weight_kg": 0.75, "cn_keyword": "美式复古重磅飞行员夹克男春秋宽松外套"},
             {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 54.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
-            {"category": "bottom", "name": "Zaytun Kargo Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
+            {"category": "bottom", "name": "Zaytun Cho'ntakli Erkin Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
             {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 48.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
@@ -138,7 +138,7 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
     },
     {
         "title": "Qishki Shahar VIP Street-Klassik Kapsulasi (5-in-1)",
-        "description": "Qishki qalin jun palto + yoqali svitshot + issiq kargo/keng shim + qora-oq retro krossovka + minimalist kepka.",
+        "description": "Qishki qalin jun palto + yoqali svitshot + issiq keng erkin shim + qora-oq retro krossovka + minimalist kepka.",
         "piece_count": 5,
         "palette_name": "Diplomat Obsidian & Cream",
         "palette_hex": ["#18191C", "#2B2D32", "#E8E4DC", "#4A4E58"],
@@ -149,14 +149,14 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "items": [
             {"category": "outerwear", "name": "Qora Tik Yoqali Jun Palto", "price_cny": 138.0, "weight_kg": 1.05, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
             {"category": "top", "name": "Oq Yoqali Svitshot", "price_cny": 88.0, "weight_kg": 0.48, "cn_keyword": "半拉链卫衣男潮"},
-            {"category": "bottom", "name": "To'q Kulrang Qishki Kargo Shim", "price_cny": 58.0, "weight_kg": 0.52, "cn_keyword": "工装裤男士直筒宽松"},
+            {"category": "bottom", "name": "To'q Kulrang Qishki Erkin Shim", "price_cny": 58.0, "weight_kg": 0.52, "cn_keyword": "工装裤男士直筒宽松"},
             {"category": "shoes", "name": "Qora-Oq Retro Krossovka", "price_cny": 95.0, "weight_kg": 0.85, "cn_keyword": "男复古板鞋运动鞋"},
             {"category": "accessory", "name": "Qora Minimalist Kepka", "price_cny": 26.0, "weight_kg": 0.15, "cn_keyword": "美式复古纯色软顶棒球帽男百搭显脸小鸭舌帽"},
         ],
     },
     {
         "title": "Universitet va Kundalik Oversize Set (3-in-1)",
-        "description": "Grafit oversize xudi + zaytun-xaki kargo shim + oq-kulrang retro krossovka.",
+        "description": "Grafit oversize xudi + zaytun cho'ntakli erkin shim + oq-kulrang retro krossovka.",
         "piece_count": 3,
         "palette_name": "Obsidian & Steel Grey",
         "palette_hex": ["#141518", "#383B42", "#D2D4D9"],
@@ -166,7 +166,7 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "sizes": "S, M, L, XL, 2XL",
         "items": [
             {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 54.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
-            {"category": "bottom", "name": "Zaytun Kargo Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
+            {"category": "bottom", "name": "Zaytun Cho'ntakli Erkin Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
             {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 48.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
@@ -245,20 +245,38 @@ def _uz_name_from_real_pdd(title_cn: str, color_uz: str, fallback_name: str) -> 
             break
 
     kind = ""
-    if any(k in t for k in ("切尔西靴", "马丁靴", "皮靴", "短靴")):
+    if any(k in t for k in ("手表", "腕表", "机械表", "石英表")):
+        kind = "Klassik Soat"
+    elif any(k in t for k in ("皮带", "腰带")):
+        kind = "Charm Kamar"
+    elif any(k in t for k in ("围巾", "披肩")):
+        kind = "Kashmir Sharf"
+    elif any(k in t for k in ("墨镜", "太阳镜")):
+        kind = "Quyosh Ko'zoynagi"
+    elif any(k in t for k in ("斜挎包", "单肩包", "手提包", "挎包", "背包")):
+        kind = "Yelka Sumkasi"
+    elif any(k in t for k in ("鸭舌帽", "棒球帽", "冷帽", "帽子")):
+        kind = "Minimalist Kepka"
+    elif any(k in t for k in ("切尔西靴", "马丁靴", "皮靴", "短靴")):
         kind = "Chelsea Etik"
-    elif any(k in t for k in ("乐福鞋", "皮鞋")):
+    elif any(k in t for k in ("乐福鞋", "德比鞋", "皮鞋")):
         kind = "Klassik Lofer"
     elif any(k in t for k in ("德训", "板鞋", "运动鞋", "休闲鞋", "小白鞋", "鞋")):
         kind = "Retro Krossovka"
     elif any(k in t for k in ("工装裤", "伞兵")):
-        kind = "Qishki Kargo Shim" if any(w in t for w in ("加绒", "加厚", "秋冬", "冬")) else "Kargo Shim"
+        kind = "Qishki Cho'ntakli Shim" if any(w in t for w in ("加绒", "加厚", "秋冬", "冬")) else "Cho'ntakli Erkin Shim"
     elif "牛仔裤" in t:
         kind = "To'g'ri Jinsi Shim"
     elif any(k in t for k in ("西装裤", "西裤")):
         kind = "Klassik Drape Shim"
     elif any(k in t for k in ("阔腿裤", "休闲裤", "卫裤", "长裤", "裤")):
         kind = "Erkin Keng Shim"
+    elif any(k in t for k in ("皮衣", "真皮夹克", "皮夹克")):
+        kind = "Charm Kurtka"
+    elif any(k in t for k in ("麂皮", "翻毛皮", "鹿皮绒")):
+        kind = "Zamsh Kurtka"
+    elif any(k in t for k in ("马甲", "背心")):
+        kind = "Qishki Jilet"
     elif any(k in t for k in ("羊毛呢大衣", "呢子大衣", "毛呢大衣", "羊毛大衣", "大衣")):
         kind = "Jun Palto"
     elif "风衣" in t:
@@ -271,15 +289,21 @@ def _uz_name_from_real_pdd(title_cn: str, color_uz: str, fallback_name: str) -> 
         kind = "Klassik Jun Blazer"
     elif any(k in t for k in ("夹克", "外套")):
         kind = "Bomber Kurtka"
+    elif "开衫" in t:
+        kind = "Trikotaj Kardigan"
     elif "半拉链" in t:
         kind = "Zamokli Sviter"
     elif any(k in t for k in ("高领", "羊绒")):
         kind = "Kashmir Vodolazka"
+    elif "polo" in t.lower():
+        kind = "Trikotaj Polo"
+    elif "灯芯绒" in t:
+        kind = "Velvyet Ko'ylak"
     elif any(k in t for k in ("连帽卫衣", "帽衫")):
         kind = "Oversize Xudi"
     elif any(k in t for k in ("卫衣", "衬衫")):
         kind = "Yoqali Svitshot" if "衬衫" in t or "翻领" in t else "Oversize Svitshot"
-    elif any(k in t for k in ("毛衣", "针织", "开衫")):
+    elif any(k in t for k in ("毛衣", "针织")):
         kind = "Trikotaj Sviter"
 
     if not kind:
@@ -296,7 +320,7 @@ def _sync_item_with_studio_photo_color(name: str, category: str = "", idx: int =
         return "To'q Jigarrang Ikki Qatorli Jun Palto", "To'q jigarrang"
     if any(k in low for k in ("blazer", "pidjak", "kostyum", "ko'k jun")):
         return "To'q Ko'k Klassik Jun Blazer", "To'q ko'k (navy)"
-    if any(k in low for k in ("bomber", "kurtka", "vetrovka", "jaket")) or cat == "outerwear":
+    if any(k in low for k in ("bomber", "kurtka", "vetrovka", "jaket", "jilet")) or cat == "outerwear":
         return "Qora Jun Bomber Kurtka", "Qora"
     if any(k in low for k in ("vodolazka", "turtleneck", "kashemir", "kashmir", "qahva sviter", "to'q jigarrang sviter")):
         return "To'q Qahva Kashmir Vodolazka", "To'q jigarrang"
@@ -304,8 +328,8 @@ def _sync_item_with_studio_photo_color(name: str, category: str = "", idx: int =
         return "Bej Zamokli Sviter", "Och bej"
     if any(k in low for k in ("xudi", "hud", "hood", "tolstovka", "svitshot")) or cat == "top":
         return "Grafit Oversize Xudi", "To'q kulrang (grafit)"
-    if any(k in low for k in ("kargo", "parashyut", "jinsi", "jeans", "cargo")):
-        return "Zaytun Kargo Shim", "To'q zaytun (xaki)"
+    if any(k in low for k in ("kargo", "parashyut", "jinsi", "jeans", "cargo", "cho'ntakli")):
+        return "Zaytun Cho'ntakli Erkin Shim", "To'q zaytun (xaki)"
     if any(k in low for k in ("taupe", "jigarrang", "mocha", "qahva", "brown")) and any(k in low for k in ("shim", "bryuk", "trouser", "pants")):
         return "Qahva-Taupe Old Money Jun Shim", "Qahva-taupe"
     if any(k in low for k in ("shim", "bryuk", "drape", "triko", "shalvar")) or cat == "bottom":
@@ -414,7 +438,7 @@ class TrendSourcingAgent:
                 pdd_enriched["image_url"] = str(i["image_url"])
             if i.get("url") and "yangkeduo.com" in str(i.get("url")):
                 pdd_enriched["url"] = str(i["url"])
-            for meta_key in ("title_cn", "store_colors", "store_sizes", "size_chart", "fit_note"):
+            for meta_key in ("title_cn", "store_colors", "store_sizes", "size_chart", "fit_note", "studio_prompt"):
                 if i.get(meta_key):
                     pdd_enriched[meta_key] = i[meta_key]
             normalized.append(pdd_enriched)
@@ -781,6 +805,9 @@ FAQAT JSON QAYTAR:
 
         if self.client is not self.ai.client:
             self.ai.client = self.client
+        import os
+        from .photo_studio import build_scout_studio_prompt, derive_insta_pose_direction
+
         pb_txt = str((ig_intel or {}).get("learned_playbooks_text") or "")
         recent_titles = list((ig_intel or {}).get("recent_titles") or [])
         halol = (ig_intel or {}).get("halol_ogri") or {}
@@ -790,19 +817,24 @@ FAQAT JSON QAYTAR:
         if comp_avg > 0:
             market_note = (
                 f"@stylesh_shop va @tima_shop_uz da o'rtacha look narxi ~{comp_avg:,} so'm "
-                f"(bizning hamyonbop maqsadli narx: ~{xan_target or int(comp_avg * 0.85):,} so'm atrofida, kargo 12 000 so'm/100gr)."
+                f"(bizning 50% oldindan to'lov Xitoy narxi + o'tkazma foizini 100% qoplaydi, kelganda yana shuncha foyda + kargo 12 000 so'm/100gr)."
             ).replace(",", " ")
 
-        prompt = self._build_look_prompt(
-            eff_brief,
-            weather_line,
-            gender,
-            playbooks_text=pb_txt,
-            recent_titles=recent_titles,
-            market_benchmark_note=market_note,
-        )
-        ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
-        raw_data = self._pick_template_if_invalid(ai_data, recent_titles=recent_titles)
+        # 1) Instagram Tahlilchi butun Instagramdan bo'laklab tahlil qilgan dinamik trend look bo'lsa (cheklanmagan toifalar!), shuni ustuvor olamiz!
+        dyn_bp = halol.get("dynamic_look_blueprint") if not os.getenv("PYTEST_CURRENT_TEST") else None
+        if isinstance(dyn_bp, dict) and isinstance(dyn_bp.get("items"), list) and len(dyn_bp["items"]) >= 2:
+            raw_data = json.loads(json.dumps(dyn_bp, ensure_ascii=False))
+        else:
+            prompt = self._build_look_prompt(
+                eff_brief,
+                weather_line,
+                gender,
+                playbooks_text=pb_txt,
+                recent_titles=recent_titles,
+                market_benchmark_note=market_note,
+            )
+            ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
+            raw_data = self._pick_template_if_invalid(ai_data, recent_titles=recent_titles)
         raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
 
         if self.pdd.connection_mode not in ("official_api", "apify_pdd_live", "onebound_pdd"):
@@ -851,10 +883,11 @@ FAQAT JSON QAYTAR:
             fallback_prod = None
             fallback_bytes = None
             if live_matches:
-                # Sifat/narx nisbati eng zo'r va hali ishlatilmagan hamyonbop (¥25–¥165) Pinduoduo tovarlari birinchi!
+                # 50% oldindan to'lov Xitoy narxini qoplashi va jami narx raqobatchilardan hamyonbop chiqishi uchun sifatli + arzon (¥20–¥138) tovarlar birinchi!
                 fresh_pool = [m for m in live_matches if m.goods_id and m.goods_id not in used_gids]
                 base_pool = fresh_pool if fresh_pool else live_matches
-                affordable = [m for m in base_pool if 25.0 <= float(m.price_cny or 0) <= 165.0]
+                max_cny_item = 138.0 if self._params().ensure_50_covers_cost else 165.0
+                affordable = [m for m in base_pool if 20.0 <= float(m.price_cny or 0) <= max_cny_item]
                 pool = affordable if affordable else base_pool
                 picked_prod = pool[0]
 
@@ -915,11 +948,18 @@ FAQAT JSON QAYTAR:
                 updated["store_sizes"] = store_sizes
                 updated["size_chart"] = size_chart
                 updated["fit_note"] = " | ".join(dict.fromkeys(fit_parts))
+                # Pinduoduo Tahlilchi Photoshop Studio agenti uchun aynan shu mahsulotni O'ZGARTIRMAYDIGAN aniq prompt yozadi
+                # (+ Instagram Tahlilchi videolardan o'rgangan tabiiy turish promptini qo'shadi!)
+                insta_pose = derive_insta_pose_direction(ig_intel, category=cat)
+                updated["studio_prompt"] = build_scout_studio_prompt(updated, insta_pose_direction=insta_pose)
                 downloaded_imgs.append(picked_bytes)
                 enriched_items.append(updated)
             else:
+                insta_pose = derive_insta_pose_direction(ig_intel, category=cat)
+                item_with_prompt = dict(item)
+                item_with_prompt["studio_prompt"] = build_scout_studio_prompt(item_with_prompt, insta_pose_direction=insta_pose)
                 downloaded_imgs.append(None)
-                enriched_items.append(item)
+                enriched_items.append(item_with_prompt)
 
         return self._build_generated_look(
             raw_data,

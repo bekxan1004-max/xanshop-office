@@ -287,12 +287,9 @@ class AgentOffice:
             target_id="video_employee",
         )
 
-        # 4-QADAM: Video Montajchi Xodim (v3.2) 1080p Full HD kolaj + .mp4 Reels videoni montaj qiladi
-        await self.db.set_agent_status(
-            "video_employee",
-            "working",
-            f"Look #{look_id} uchun 1080x1920 Full HD ({video_style}, zvuk: {audio_vibe}) render qilinmoqda...",
-        )
+        # 3.5-QADAM: Photoshop Studio AI (Nano Banana) — Pinduoduo Tahlilchi bergan rasm va prompt +
+        # Instagram Tahlilchining tabiiy turish (pose/lighting) yo'nalishi bilan mahsulotni O'ZGARTIRMASDAN studiya sifatida chiqaradi!
+        from .photo_studio import PhotoStudioAgent, derive_insta_pose_direction
 
         item_names = [i["name"] for i in gen.raw_items]
         dl_imgs = gen.downloaded_images or []
@@ -317,7 +314,7 @@ class AgentOffice:
                 sales_tip=str(it_dict.get("sales_tip", "")),
             )
 
-        imgs_to_use = (
+        raw_pil_items = (
             [_ensure_pil(im, idx, gen.raw_items[min(idx, len(gen.raw_items) - 1)]) for idx, im in enumerate(raw_images)]
             if raw_images
             else [
@@ -326,16 +323,84 @@ class AgentOffice:
             ]
         )
 
+        studio_pose = str(halol_ogri.get("studio_pose_direction") or derive_insta_pose_direction(ig_intel))
+        await self.db.log_agent_action(
+            "insta_analyst",
+            f"🎨 Insta Tahlilchi → Photoshop Studio [Look #{look_id}]: Tabiiy turish & yoritish yo'nalishi yuborildi",
+            studio_pose[:220],
+            target_id="photo_studio",
+        )
+        await self.db.set_agent_status(
+            "photo_studio",
+            "working",
+            f"Look #{look_id} ({len(raw_pil_items)} ta mahsulot) Photoshop Studiyada tabiiy ko'rinishga keltirilmoqda...",
+        )
+        studio_agent = PhotoStudioAgent(self.s)
+        imgs_to_use = []
+        studio_models_used: list[str] = []
+        for idx_s, raw_im_pil in enumerate(raw_pil_items):
+            it_meta = gen.raw_items[min(idx_s, len(gen.raw_items) - 1)]
+            has_real_pdd_photo = bool(raw_images) or (idx_s < len(dl_imgs) and dl_imgs[idx_s] is not None)
+            if has_real_pdd_photo:
+                pose_i = derive_insta_pose_direction(ig_intel, category=str(it_meta.get("category") or ""))
+                st_res = await studio_agent.render_product_studio_async(
+                    raw_im_pil,
+                    item=it_meta,
+                    insta_pose_direction=pose_i,
+                )
+                imgs_to_use.append(st_res.image)
+                studio_models_used.append(st_res.model_used)
+            else:
+                imgs_to_use.append(raw_im_pil)
+                studio_models_used.append("studio_asset")
+
+        studio_engine_label = ", ".join(dict.fromkeys(studio_models_used)) or "studio"
+        await self.db.set_agent_status(
+            "photo_studio",
+            "idle",
+            f"Look #{look_id}: {len(imgs_to_use)} ta mahsulot studiyada tayyorlandi ({studio_engine_label})",
+            increment_done=True,
+        )
+        await self.db.log_agent_action(
+            "photo_studio",
+            f"Look #{look_id} uchun {len(imgs_to_use)} ta mahsulot 100% o'zgarishsiz studiya sifatida tayyorlandi → Video Montajchiga uzatildi",
+            f"Engine: {studio_engine_label} | Insta Pose: {studio_pose[:160]}",
+            target_id="video_employee",
+        )
+        await self.db.record_agent_learning(
+            "photo_studio",
+            f"Sikl #{look_id}: Pinduoduo prompti + Insta turish yo'nalishi bilan {len(imgs_to_use)} ta mahsulot ({studio_engine_label}) tayyorlandi.",
+            xp_gain=25,
+        )
+
+        # 4-QADAM: Video Montajchi Xodim (v3.2) 1080p Full HD kolaj + .mp4 Reels videoni montaj qiladi
+        await self.db.set_agent_status(
+            "video_employee",
+            "working",
+            f"Look #{look_id} uchun 1080x1920 Full HD ({video_style}, zvuk: {audio_vibe}) render qilinmoqda...",
+        )
+
         photo_path = os.path.join(self.media_dir, f"look_{look_id}.jpg")
         video_path = os.path.join(self.media_dir, f"look_{look_id}_reels.gif")
         mp4_path = os.path.join(self.media_dir, f"look_{look_id}_reels.mp4")
         item_photo_paths: list[str] = []
 
         def _render_media() -> None:
+            from PIL import Image as _PILIm, ImageOps as _PILOps
+
             for idx, im_obj in enumerate(imgs_to_use[:4]):
                 try:
                     ip = os.path.join(self.media_dir, f"look_{look_id}_item_{idx + 1}.jpg")
-                    im_obj.convert("RGB").save(ip, format="JPEG", quality=92)
+                    if im_obj.mode == "RGBA":
+                        bg_card = _PILIm.new("RGBA", (900, 1080), (46, 46, 49, 255))
+                        fitted_it = _PILOps.contain(im_obj, (800, 960), _PILIm.Resampling.LANCZOS)
+                        bg_card.alpha_composite(
+                            fitted_it,
+                            ((900 - fitted_it.width) // 2, (1080 - fitted_it.height) // 2),
+                        )
+                        bg_card.convert("RGB").save(ip, format="JPEG", quality=93)
+                    else:
+                        im_obj.convert("RGB").save(ip, format="JPEG", quality=92)
                     item_photo_paths.append(ip)
                 except Exception:
                     pass

@@ -146,7 +146,7 @@ DO'KON, HALOL SIFAT VA TO'LOV TARTIBI (50% / 100% MODELI):
   2) 100% TO'LIQ TO'LOV: Mijoz hozir 100% tovar narxini to'laydi, yuk Toshkentga kelganda faqat kargo pulini (12 000 so'm / 100 gr) to'laydi.
 - Yetkazish: {s.delivery_text} (5–12 kun Avia). Har bir bosqich haqida avtomatik xabar beriladi.
 - O'LCHAM VA BICHIM QOIDASI (ALOHIDA RAZMERLAR + DO'KON JADVALI):
-  • Lookdagi 3 ta turkum uchun ALOHIDA razmer tanlanadi: 1) Ust kiyim (kurtka, palto, sviter, xudi), 2) Shim (kargo, klassik, jinsi), 3) Oyoq kiyim (etik, lofer, krossovka).
+  • Lookdagi 3 ta turkum uchun ALOHIDA razmer tanlanadi: 1) Ust kiyim (kurtka, palto, sviter, xudi, kardigan), 2) Shim (klassik, jinsi, cho'ntakli erkin shim), 3) Oyoq kiyim (etik, lofer, krossovka).
   • MUHIM: OYOQ KIYIM HECH QACHON BO'Y VA VAZNGA QARAB TAXMIN QILINMAYDI! Oyoq kiyim uchun faqat mijozning o'zi kiyadigan oyoq razmerini (38–46) yoki oyoq uzunligini (sm) so'ra.
   • Ust kiyim va shim uchun birinchi navbatda yuqoridagi KATALOGda aynan o'sha mahsulot yonida berilgan do'kon razmer jadvali va bichim izohiga tayan!
   • QISHKI TASHQI KIYIM VA "1 RAZMER KATTA" QOIDASI: Asosan kiyimlarda (ayniqsa qishki tashqi kiyim — palto/kurtkada ichidan qalin sviter kiyilishini hisobga olib) FAQAT do'kon izohida "biroz tor / 1 razmer kattasini oling" deyilgan bo'lsa (yoki qishki qalin tashqi kiyimda ixtiyoriy maslahat sifatida) mijozga samimiy inson kabi tushuntir. Oyoq kiyim yoki odatiy kiyimlarga asossiz +1 razmer qo'shib yuborma!

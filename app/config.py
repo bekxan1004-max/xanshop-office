@@ -40,8 +40,8 @@ class Settings:
     cargo_collect_on_delivery: bool
     db_path: str
     conversion_fee_percent: float = 2.5
-    ensure_50_covers_cost: bool = False
-    prepay_round_to: int = 50000
+    ensure_50_covers_cost: bool = True
+    prepay_round_to: int = 20000
     channel_id: str = ""
     office_port: int = 8080
     # Shaxsiy Telegram Akkaunt (Userbot - MTProto)
@@ -101,7 +101,7 @@ def load_settings() -> Settings:
         cny_uzs=_float("CNY_UZS", "1800"),
         usd_uzs=_float("USD_UZS", "12000"),
         vykup_percent=_float("VYKUP_PERCENT", "0"),
-        profit_percent=_float("PROFIT_PERCENT", "35"),
+        profit_percent=_float("PROFIT_PERCENT", "0"),
         payment_fee_percent=_float("PAYMENT_FEE_PERCENT", "0"),
         china_shipping_cny_per_item=_float("CHINA_SHIPPING_CNY_PER_ITEM", "0"),
         cargo_usd_per_kg=_float("CARGO_USD_PER_KG", "9.5"),
@@ -109,8 +109,8 @@ def load_settings() -> Settings:
         cargo_collect_on_delivery=os.getenv("CARGO_COLLECT_ON_DELIVERY", "0") == "1",
         db_path=os.getenv("DB_PATH", "data/shop.db"),
         conversion_fee_percent=_float("CONVERSION_FEE_PERCENT", "2.5"),
-        ensure_50_covers_cost=os.getenv("ENSURE_50_COVERS_COST", "0") == "1",
-        prepay_round_to=int(float(os.getenv("PREPAY_ROUND_TO", "50000") or "50000")),
+        ensure_50_covers_cost=os.getenv("ENSURE_50_COVERS_COST", "1") == "1",
+        prepay_round_to=int(float(os.getenv("PREPAY_ROUND_TO", "20000") or "20000")),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
         office_port=int(float(port_raw)),
         tg_api_id=os.getenv("TG_API_ID", "").strip(),
