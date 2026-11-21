@@ -23,6 +23,7 @@ DEPARTMENT_TITLES_UZ: dict[str, str] = {
     "director": "Boshqaruv (Direktor)",
     "insta_analyst": "Instagram Razvedka & Tahlil",
     "skaut": "Skaut & Trendlar",
+    "photo_studio": "Photoshop Studio AI (Retouch)",
     "smm_manager": "SMM & Marketing",
     "video_employee": "Reels & Dizayn Studiyasi",
     "sales_stylist": "Sotuv & Stilist",
@@ -84,9 +85,9 @@ XAN_CURATED_AGENTS: dict[str, dict[str, str]] = {
         "role_uz": "Premium erkaklar look kolleksiyasi muqovalari va ovozli video ssenariysi",
     },
     "gan-evaluator": {
-        "department": "video_employee",
-        "title_uz": "Vizual Sifat Nazoratchisi",
-        "role_uz": "Tayyor Reels va mahsulot kartochkalarini sotuv standartiga tekshirish",
+        "department": "photo_studio",
+        "title_uz": "Vizual Sifat & Studio AI Nazoratchisi",
+        "role_uz": "Photoshop Studio natijasi va tayyor mahsulot kartochkalarini sotuv standartiga tekshirish",
     },
     "conversation-analyzer": {
         "department": "sales_stylist",

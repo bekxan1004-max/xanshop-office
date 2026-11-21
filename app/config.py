@@ -41,7 +41,7 @@ class Settings:
     db_path: str
     conversion_fee_percent: float = 2.5
     ensure_50_covers_cost: bool = True
-    prepay_round_to: int = 20000
+    prepay_round_to: int = 50000
     channel_id: str = ""
     office_port: int = 8080
     # Shaxsiy Telegram Akkaunt (Userbot - MTProto)
@@ -110,7 +110,7 @@ def load_settings() -> Settings:
         db_path=os.getenv("DB_PATH", "data/shop.db"),
         conversion_fee_percent=_float("CONVERSION_FEE_PERCENT", "2.5"),
         ensure_50_covers_cost=os.getenv("ENSURE_50_COVERS_COST", "1") == "1",
-        prepay_round_to=int(float(os.getenv("PREPAY_ROUND_TO", "20000") or "20000")),
+        prepay_round_to=int(float(os.getenv("PREPAY_ROUND_TO", "50000") or "50000")),
         channel_id=os.getenv("CHANNEL_ID", "").strip(),
         office_port=int(float(port_raw)),
         tg_api_id=os.getenv("TG_API_ID", "").strip(),

@@ -448,6 +448,13 @@ def test_zero_out_of_pocket_pricing_photo_studio_and_dynamic_trends():
     assert b.prepay_50_uzs >= b.goods_cost_uzs
     assert b.cargo_client_uzs == 120000
 
+    # 1b) 50 000 so'm yuqoriga yaxlitlash: 321k -> 350k (50%) / 700k (100%), 359k -> 400k (50%) / 800k (100%)
+    p50 = PriceParams(**{**p.__dict__, "prepay_round_to": 50000, "conversion_fee_percent": 0.0})
+    b321 = calculate([Item("Look321", 321000.0 / 1800.0, 1.0)], rates, p50)
+    assert b321.prepay_50_uzs == 350000 and b321.prepay_uzs == 700000
+    b359 = calculate([Item("Look359", 359000.0 / 1800.0, 1.0)], rates, p50)
+    assert b359.prepay_50_uzs == 400000 and b359.prepay_uzs == 800000
+
     # 2) Photoshop Studio prompti: Pinduoduo mahsulotini o'zgartirmaslik + Insta turish ko'rsatmasi
     pose = derive_insta_pose_direction({"halol_ogri": {"studio_pose_direction": "Editorial flat-lay pose"}}, category="bottom")
     prompt = build_scout_studio_prompt({"name": "To'q Ko'k Keng Erkin Shim", "category": "bottom"}, insta_pose_direction=pose)

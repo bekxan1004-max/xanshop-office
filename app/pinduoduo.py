@@ -1969,7 +1969,7 @@ class PinduoduoConnector:
             cargo_usd_per_kg=float(getattr(settings, "cargo_usd_per_kg", 9.5)),
             cargo_client_uzs_per_kg=float(getattr(settings, "cargo_client_uzs_per_kg", 120000.0)),
             round_to=1000,
-            prepay_round_to=int(getattr(settings, "prepay_round_to", 20000)),
+            prepay_round_to=int(getattr(settings, "prepay_round_to", 50000)),
             conversion_fee_percent=float(getattr(settings, "conversion_fee_percent", 2.5)),
             ensure_50_covers_cost=bool(getattr(settings, "ensure_50_covers_cost", True)),
         )

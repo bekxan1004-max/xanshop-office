@@ -121,7 +121,7 @@
     // Customs $200 Monthly Tracker
     const estUsedUsd = Math.round(paidOrders.reduce((s, o) => s + Number(o.goods_cost_uzs || 0), 0) / Math.max(1, rates.usd_uzs || 12150));
     $("kpi-cargo-val").textContent = `$${estUsedUsd} / $200`;
-    $("kpi-cargo-sub").textContent = "TUJJOR-AVIA ($9.5/kg) • Door-to-Door ($9.5/kg)";
+    $("kpi-cargo-sub").textContent = "MK Express (114k/kg) • DTD ($9.49/kg)";
 
     // Live 3D Office Update
     if (office3d) {
@@ -597,7 +597,7 @@
           <div class="kanban-col"><strong>1. Skaut & G'oya</strong><div class="kanban-card">Pinduoduo trend kiyimlar saralanmoqda</div></div>
           <div class="kanban-col"><strong>2. Reels Studio</strong>${looks.slice(0, 3).map((l) => `<div class="kanban-card">${escapeHtml(l.title)}</div>`).join("")}</div>
           <div class="kanban-col"><strong>3. Sotuv & Chek</strong>${orders.slice(0, 3).map((o) => `<div class="kanban-card">#${o.id} — ${escapeHtml(o.status)}</div>`).join("") || `<div class="kanban-card">Mijozlar kutilmoqda</div>`}</div>
-          <div class="kanban-col"><strong>4. Kargo & Toshkent</strong><div class="kanban-card">TUJJOR-AVIA ($9.5/kg) / Door ($9.5/kg)</div></div>
+          <div class="kanban-col"><strong>4. Kargo & Toshkent</strong><div class="kanban-card">MK Express (114k/kg) / DTD ($9.49/kg)</div></div>
         </div>`
       );
     } else if (actionId === "reyting") {

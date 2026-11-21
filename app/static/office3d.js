@@ -10,6 +10,7 @@
     skaut: { pos: [-10.2, 7.8, 11.4], target: [-10.2, 1.0, 3.2] },
     smm_manager: { pos: [-3.5, 7.2, 5.0], target: [-3.5, 1.1, -4.2] },
     briefing: { pos: [-2.0, 8.2, 12.2], target: [-2.0, 1.0, 3.5] },
+    photo_studio: { pos: [2.2, 6.8, 4.6], target: [2.2, 1.0, -2.0] },
     sales_stylist: { pos: [3.6, 7.4, 7.0], target: [3.6, 1.1, -3.8] },
     video_employee: { pos: [2.2, 7.2, 6.4], target: [2.2, 1.1, -4.2] },
     accountant: { pos: [10.6, 7.4, 5.8], target: [10.6, 1.1, -4.0] },
@@ -64,11 +65,22 @@
       accessory: "cap",
     },
     {
+      id: "photo_studio",
+      label: "🎨 Photo Studio AI",
+      role: "9-Agent: AI Fotostudiya & Retouch",
+      room: "photo_studio",
+      desk: [2.2, -2.0],
+      briefPos: [-2.2, 1.5],
+      color: 0x14b8a6,
+      accent: "#14b8a6",
+      accessory: "camera",
+    },
+    {
       id: "video_employee",
       label: "Reels Studio",
-      role: "Video Montaj & Ovoz (TTS)",
+      role: "Video Montaj & Studio Beat (TTS siz)",
       room: "video_employee",
-      desk: [1.8, -4.2],
+      desk: [1.8, -4.4],
       briefPos: [0.4, 2.8],
       color: 0xa855f7,
       accent: "#a855f7",
@@ -112,7 +124,9 @@
   const WORKFLOW_EDGES = [
     ["director", "insta_analyst"],
     ["insta_analyst", "skaut"],
-    ["skaut", "video_employee"],
+    ["insta_analyst", "photo_studio"],
+    ["skaut", "photo_studio"],
+    ["photo_studio", "video_employee"],
     ["video_employee", "smm_manager"],
     ["smm_manager", "sales_stylist"],
     ["sales_stylist", "accountant"],
@@ -498,10 +512,31 @@
     addWorkstation(-5.1, -3.2);
     addWorkstation(-2.0, -3.2);
     addWorkstation(1.8, -4.8);
+    addWorkstation(2.2, -2.4, 0, 0xccfbf1); // 9-Agent: Photoshop Studio AI workstation
     addWorkstation(5.4, -4.0);
     addWorkstation(5.4, -2.0);
     addWorkstation(10.6, -4.6);
     addWorkstation(7.2, 3.0);
+
+    // 9-Agent Photoshop Studio AI: Glowing Teal Floor Zone + Softbox Lightbox Rig
+    const photoStudioPad = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 0.05, 2.3),
+      new THREE.MeshStandardMaterial({ color: 0x0d9488, emissive: 0x14b8a6, emissiveIntensity: 0.25, roughness: 0.5 })
+    );
+    photoStudioPad.position.set(2.2, 0.05, -2.15);
+    photoStudioPad.receiveShadow = true;
+    scene.add(photoStudioPad);
+
+    const softboxPole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 1.55, 8), trimMat);
+    softboxPole.position.set(0.85, 0.78, -2.35);
+    scene.add(softboxPole);
+    const softboxHead = new THREE.Mesh(
+      new THREE.BoxGeometry(0.56, 0.56, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x5eead4, emissiveIntensity: 0.95 })
+    );
+    softboxHead.position.set(0.95, 1.52, -2.35);
+    softboxHead.rotation.y = Math.PI / 4;
+    scene.add(softboxHead);
 
     // Floating Golden Holographic Market Globe on CEO Desk
     const ceoGlobe = new THREE.Mesh(
@@ -550,7 +585,7 @@
       ctx.fillText("XAN SHOP • STRATEGIK AI SHTAB", 26, 48);
       ctx.fillStyle = "#94a3b8";
       ctx.font = "17px Inter, sans-serif";
-      ctx.fillText("50k/100k yaxlitlash | 5–10 kun Avia | $200/YaTT", 26, 80);
+      ctx.fillText("9 AI Agent | 50k yaxlitlash | 5–12 kun Avia", 26, 80);
       const baseBars = [110, 158, 95, 192, 165, 208];
       baseBars.forEach((v, i) => {
         const wave = Math.sin(tickVal * 1.4 + i * 0.8) * 14;
@@ -817,6 +852,21 @@
         halo.rotation.x = Math.PI / 2;
         halo.position.y = 1.56;
         root.add(halo);
+      } else if (def.accessory === "camera") {
+        const studioHalo = new THREE.Mesh(
+          new THREE.TorusGeometry(0.24, 0.04, 10, 24),
+          new THREE.MeshStandardMaterial({ color: 0x14b8a6, emissive: 0x2dd4bf, emissiveIntensity: 0.95 })
+        );
+        studioHalo.rotation.x = Math.PI / 2;
+        studioHalo.position.y = 1.54;
+        root.add(studioHalo);
+        const lens = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.09, 0.09, 0.12, 12),
+          new THREE.MeshStandardMaterial({ color: 0x0f172a, emissive: 0x5eead4, emissiveIntensity: 0.8 })
+        );
+        lens.rotation.x = Math.PI / 2;
+        lens.position.set(0, 1.16, 0.31);
+        root.add(lens);
       } else {
         const ant = new THREE.Mesh(
           new THREE.SphereGeometry(0.06, 8, 8),

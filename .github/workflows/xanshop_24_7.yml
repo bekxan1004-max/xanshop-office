@@ -79,7 +79,7 @@ jobs:
           APIFY_MAX_DAILY_CALLS: "20"
           PROFIT_PERCENT: "0"
           ENSURE_50_COVERS_COST: "1"
-          PREPAY_ROUND_TO: "20000"
+          PREPAY_ROUND_TO: "50000"
           USE_OMNIROUTE: "1"
         run: |
           if [ -n "$IG_BROWSER_SESSION_B64" ]; then

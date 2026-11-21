@@ -117,7 +117,12 @@ def calculate(items: list[Item], rates: Rates, p: PriceParams) -> PriceBreakdown
     if p.ensure_50_covers_cost:
         # 50% oldindan to'lov Xitoydagi tovar narxi + barcha o'tkazma/foizlarni 100% qoplaydi (0 so'm o'z cho'ntagidan!),
         # kelganda mijoz yana xuddi shuncha 50% to'laydi (sof foyda) + kargo!
-        half_step = max(p.round_to, eff_prepay_step // 2) if eff_prepay_step >= p.round_to * 2 else p.round_to
+        if eff_prepay_step >= 50_000:
+            half_step = eff_prepay_step
+        elif eff_prepay_step >= p.round_to * 2:
+            half_step = max(p.round_to, eff_prepay_step // 2)
+        else:
+            half_step = p.round_to
         min_half = round_up(landed_cost / (1 - total_fee_share), half_step)
         min_full = min_half * 2
         prepay = max(round_up(raw_full_price, eff_prepay_step), min_full)

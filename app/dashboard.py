@@ -1323,10 +1323,11 @@ def build_dashboard_app(
         return web.json_response({"status": "ok", "shop": settings.shop_name})
 
     async def index(_request: web.Request) -> web.Response:
+        no_cache = {"Cache-Control": "no-store, no-cache, must-revalidate"}
         v2_file = Path(__file__).resolve().parent / "static" / "dashboard_v2.html"
         if v2_file.is_file():
-            return web.Response(text=v2_file.read_text(encoding="utf-8"), content_type="text/html")
-        return web.Response(text=DASHBOARD_HTML, content_type="text/html")
+            return web.Response(text=v2_file.read_text(encoding="utf-8"), content_type="text/html", headers=no_cache)
+        return web.Response(text=DASHBOARD_HTML, content_type="text/html", headers=no_cache)
 
     async def api_state(_request: web.Request) -> web.Response:
         now = time.time()

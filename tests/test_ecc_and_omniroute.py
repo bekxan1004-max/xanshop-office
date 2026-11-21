@@ -79,7 +79,7 @@ def test_dashboard_ecc_catalog_endpoint(tmp_path):
                 assert r_comp.status == 200
                 c_comp = await r_comp.json()
                 assert 300000 <= c_comp["prepay_uzs"] <= 450000
-                assert c_comp["prepay_uzs"] % 20000 == 0
+                assert c_comp["prepay_uzs"] % 50000 == 0
 
                 r_yatt = await client.get("/api/calc?cny=135&weight=1.3&mode=yatt_customs")
                 assert r_yatt.status == 200

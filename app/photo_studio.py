@@ -167,7 +167,10 @@ class PhotoStudioAgent:
             try:
                 from google import genai
 
-                self._client = genai.Client(api_key=self.api_key)
+                try:
+                    self._client = genai.Client(api_key=self.api_key, http_options={"timeout": 20000})
+                except TypeError:
+                    self._client = genai.Client(api_key=self.api_key)
             except Exception as e:
                 log.warning("PhotoStudio Gemini client ulanmadi: %s", e)
 
