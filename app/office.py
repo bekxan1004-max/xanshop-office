@@ -117,6 +117,11 @@ class AgentOffice:
         raw_images: list[Any] | None = None,
         delete_previous: bool = False,
         notify_admin_on_publish: bool = True,
+        custom_prompt: str = "",
+        reference_media_bytes: bytes | None = None,
+        reference_media_mime: str = "",
+        piece_count: int | None = None,
+        max_prepay_50_uzs: int | None = None,
     ) -> OfficePipelineResult:
         """To'liq avtonom zanjir: Instagram Tahlil + Ob-havo -> Pinduoduo Skaut -> SMM -> 1080p Video Xodim -> Nashr + Admin Xabar."""
         os.makedirs(self.media_dir, exist_ok=True)
@@ -186,10 +191,37 @@ class AgentOffice:
         )
 
         # 2-QADAM: Skaut & Dizayner Agent (jonli Toshkent ob-havosi + Raqobatchi narxlar + Pinduoduo API) yangi Look yig'adi
+        has_custom_order = bool((custom_prompt or "").strip() or reference_media_bytes or piece_count or max_prepay_50_uzs)
+        custom_blueprint: dict[str, Any] | None = None
+        if has_custom_order:
+            await self.db.set_agent_status(
+                "insta_analyst",
+                "working",
+                f"Admin yuborgan maxsus buyruq/media AI Vision orqali tahlil qilinmoqda...",
+            )
+            custom_blueprint = await skaut.build_custom_look_blueprint_async(
+                prompt_text=custom_prompt,
+                media_bytes=reference_media_bytes,
+                media_mime=reference_media_mime,
+                piece_count=piece_count,
+                max_prepay_50_uzs=max_prepay_50_uzs,
+                weather=weather,
+            )
+            await self.db.log_agent_action(
+                "insta_analyst",
+                f"✨ Admin Maxsus Buyrug'i Tahlili: '{custom_blueprint.get('title', 'Maxsus Look')}'",
+                f"Buyruq: {custom_prompt[:140] or '(Media namuna)'} | Qismlar: {len(custom_blueprint.get('items') or [])} ta",
+                target_id="skaut",
+            )
+
         await self.db.set_agent_status(
             "skaut",
             "working",
-            f"Toshkent ob-havosi va Pinduoduo'dan {brief.recommended_piece_count} qismli YANGI Look yig'ilmoqda...",
+            (
+                f"Admin buyrug'i asosida Pinduoduo'dan {len((custom_blueprint or {}).get('items') or []) or brief.recommended_piece_count} qismli Look yig'ilmoqda..."
+                if has_custom_order
+                else f"Toshkent ob-havosi va Pinduoduo'dan {brief.recommended_piece_count} qismli YANGI Look yig'ilmoqda..."
+            ),
         )
         gen = await skaut.generate_look_async(
             season,
@@ -200,6 +232,8 @@ class AgentOffice:
             ig_intel=ig_intel,
             exclude_goods_ids=used_goods_ids,
             exclude_titles_cn=used_titles_cn,
+            custom_blueprint=custom_blueprint,
+            max_prepay_50_uzs=max_prepay_50_uzs,
         )
         b = gen.breakdown
 

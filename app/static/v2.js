@@ -907,7 +907,7 @@
       );
     });
 
-    // Look Generator & Clear Looks
+    // Look Generator & Clear Looks + Custom AI Look Creator
     const genBtn = $("btn-generate-look");
     if (genBtn) {
       genBtn.addEventListener("click", async () => {
@@ -915,10 +915,111 @@
         genBtn.textContent = "⏳ Yaratilmoqda...";
         try {
           await fetch("/api/run_pipeline", { method: "POST" });
+          state.lastLooksSig = "";
           await fetchState();
         } finally {
           genBtn.disabled = false;
-          genBtn.textContent = "🎬 +1 Look & Reels Yaratish";
+          genBtn.textContent = "🎲 +1 Avto Trend Look";
+        }
+      });
+    }
+
+    let customMediaB64 = "";
+    let customMediaMime = "";
+    let customMediaName = "";
+    const fileInp = $("custom-look-file");
+    const pickBtn = $("btn-custom-look-pick");
+    const clearFileBtn = $("custom-look-file-clear");
+    const filePrev = $("custom-look-file-preview");
+    const customBtn = $("btn-custom-look-create");
+    const customStatus = $("custom-look-status");
+
+    if (pickBtn && fileInp) {
+      pickBtn.addEventListener("click", () => fileInp.click());
+      fileInp.addEventListener("change", () => {
+        const f = fileInp.files && fileInp.files[0];
+        if (!f) return;
+        if (f.size > 50 * 1024 * 1024) {
+          if (filePrev) filePrev.textContent = "⚠️ Fayl 50 MB dan oshmasin";
+          return;
+        }
+        customMediaMime = f.type || "";
+        customMediaName = f.name || "";
+        if (filePrev) {
+          const kind = (customMediaMime.startsWith("video/") || /\.(mp4|mov|webm)$/i.test(customMediaName)) ? "🎥 Video" : "🖼️ Rasm";
+          filePrev.innerHTML = `<span style="color:var(--accent);font-weight:700">${kind}: ${escapeHtml(f.name)}</span> (${Math.max(1, Math.round(f.size / 1024))} KB)`;
+        }
+        if (clearFileBtn) clearFileBtn.style.display = "inline-flex";
+        const reader = new FileReader();
+        reader.onload = () => {
+          customMediaB64 = String(reader.result || "");
+        };
+        reader.readAsDataURL(f);
+      });
+    }
+    if (clearFileBtn) {
+      clearFileBtn.addEventListener("click", () => {
+        customMediaB64 = "";
+        customMediaMime = "";
+        customMediaName = "";
+        if (fileInp) fileInp.value = "";
+        if (filePrev) filePrev.textContent = "Namuna media tanlanmagan (ixtiyoriy)";
+        clearFileBtn.style.display = "none";
+      });
+    }
+    document.querySelectorAll("[data-custom-look-preset]").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        if ($("custom-look-prompt")) $("custom-look-prompt").value = chip.dataset.customLookPreset || "";
+      });
+    });
+    if (customBtn) {
+      customBtn.addEventListener("click", async () => {
+        const promptVal = ($("custom-look-prompt") && $("custom-look-prompt").value.trim()) || "";
+        const piecesVal = ($("custom-look-pieces") && $("custom-look-pieces").value) || "";
+        const budgetVal = ($("custom-look-budget") && $("custom-look-budget").value) || "";
+        if (!promptVal && !customMediaB64) {
+          if (customStatus) {
+            customStatus.style.display = "block";
+            customStatus.textContent = "⚠️ Iltimos, look tavsifini yozing yoki namuna rasm/video yuklang.";
+          }
+          return;
+        }
+        customBtn.disabled = true;
+        const origTxt = customBtn.textContent;
+        customBtn.textContent = "⏳ AI Vision + Photo Studio + PDD ishlamoqda...";
+        if (customStatus) {
+          customStatus.style.display = "block";
+          customStatus.textContent = "🧠 Insta Tahlilchi va Skaut buyrug'ingizni o'rganmoqda, Pinduoduo'dan buyumlarni saralab FLUX Photo Studio orqali qayta chizmoqda (30–60s)...";
+        }
+        try {
+          const r = await fetch("/api/looks/custom_create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: promptVal,
+              media_b64: customMediaB64,
+              media_mime: customMediaMime,
+              media_name: customMediaName,
+              piece_count: piecesVal ? Number(piecesVal) : null,
+              max_prepay_50_uzs: budgetVal ? Number(budgetVal) : null,
+            }),
+          });
+          const res = await r.json();
+          if (res.ok) {
+            if (customStatus) {
+              customStatus.innerHTML = `✅ <b>Look #${res.look_id} "${escapeHtml(res.title)}" yaratildi!</b> (${res.piece_count} qism • 50%: <b>${fmtSum(res.prepay_50_uzs)}</b> • 100%: <b>${fmtSum(res.prepay_uzs)}</b>)`;
+            }
+            $("ticker-msg").textContent = `✨ Maxsus Look #${res.look_id} ("${res.title}") Photo Studio va Reels bilan tayyor!`;
+            state.lastLooksSig = "";
+            await fetchState();
+          } else if (customStatus) {
+            customStatus.textContent = `⚠️ Xatolik: ${res.error || "Look yaratilmadi"}`;
+          }
+        } catch (err) {
+          if (customStatus) customStatus.textContent = `⚠️ Tarmoq xatosi: ${err.message}`;
+        } finally {
+          customBtn.disabled = false;
+          customBtn.textContent = origTxt;
         }
       });
     }

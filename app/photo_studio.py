@@ -20,17 +20,27 @@ import asyncio
 import base64
 import hashlib
 import io
+import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
+import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
+from scipy import ndimage
 
 from .config import Settings
-from .cutout_agent import extract_main_item, guess_category
+from .cutout_agent import (
+    _cloth_masks_all,
+    _detect_human_head_above_garment,
+    extract_main_item,
+    guess_category,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,9 +48,16 @@ STUDIO_CACHE_DIR = Path("data/studio_cache")
 STUDIO_MODELS = (
     "gemini-nano-banana-2.1",
     "gemini-3.1-flash-lite-image",
+    "gemini-2.5-flash-image",
     "gemini-3-pro-image",
 )
+VISION_MODELS = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+)
 _STUDIO_COOLDOWN_UNTIL: float = 0.0
+_VISION_COOLDOWN_UNTIL: float = 0.0
 
 DEFAULT_INSTA_POSE_DIRECTIONS: dict[str, str] = {
     "outerwear": (
@@ -156,12 +173,338 @@ def build_scout_studio_prompt(
     )
 
 
+def _translate_uz_color_to_en(color_uz: str) -> str:
+    low = (color_uz or "").lower()
+    mapping = (
+        ("to'q jigarrang", "dark espresso brown"),
+        ("qahva", "rich espresso coffee brown"),
+        ("jigarrang", "warm vintage brown"),
+        ("taupe", "muted taupe brown"),
+        ("grafit", "dark charcoal graphite grey"),
+        ("kulrang", "slate grey"),
+        ("qora", "deep matte black"),
+        ("to'q ko'k", "deep navy blue"),
+        ("ko'k", "classic blue"),
+        ("zaytun", "olive green"),
+        ("yashil", "forest green"),
+        ("xaki", "khaki olive"),
+        ("och bej", "light warm beige"),
+        ("bej", "warm beige"),
+        ("krem", "soft cream ivory"),
+        ("bordo", "deep burgundy maroon"),
+        ("oq", "crisp white"),
+    )
+    for uz_k, en_v in mapping:
+        if uz_k in low:
+            return en_v
+    return ""
+
+
+def _deterministic_studio_regen_prompt(item: dict[str, Any], insta_pose_direction: str = "") -> str:
+    """Vision API vaqtincha javob bermasa ham mahsulot nomi va kategoriyasidan toza studiya prompti tuzadi."""
+    name_uz = str(item.get("name") or "menswear garment").strip()
+    color_uz = str(item.get("color_uz") or "").strip()
+    cat = str(item.get("category") or guess_category(name_uz) or "top").lower()
+    custom_spec = str(item.get("studio_regen_prompt") or "").strip()
+    en_color = _translate_uz_color_to_en(f"{name_uz} {color_uz}") or "classic neutral"
+    low = f"{name_uz} {item.get('title_cn', '')} {custom_spec}".lower()
+
+    if custom_spec:
+        garment_desc = custom_spec
+    elif cat == "outerwear":
+        if any(k in low for k in ("palto", "overcoat", "trench", "大衣")):
+            garment_desc = f"mens {en_color} tailored wool double-breasted overcoat with structured lapels and full long sleeves"
+        elif any(k in low for k in ("blazer", "pidjak", "西装")):
+            garment_desc = f"mens {en_color} tailored structured wool blazer jacket with notched lapel"
+        elif any(k in low for k in ("zamsh", "suede", "kurtka", "shearling", "加绒", "bomber", "夹克")):
+            lining = "with cream shearling fleece collar and inner placket trim, " if any(k in low for k in ("qo'y", "jun", "加绒", "shearling", "zamsh", "suede")) else ""
+            garment_desc = f"mens {en_color} vintage suede bomber jacket {lining}ribbed collar, full-zip front, ribbed cuffs and hem, full symmetrical sleeves"
+        else:
+            garment_desc = f"mens {en_color} structured tailored winter jacket with clean seams and full sleeves"
+    elif cat == "bottom":
+        if any(k in low for k in ("jinsi", "denim", "jeans", "牛仔")):
+            garment_desc = f"mens {en_color} relaxed wide-straight denim jeans from full waistband cleanly down to full uncut ankle hems"
+        elif any(k in low for k in ("cho'ntak", "工装", "parashut", "cargo")):
+            garment_desc = f"mens {en_color} relaxed wide-leg utility trousers with flap side pockets from full waistband down to complete uncut ankle hems"
+        else:
+            garment_desc = f"mens {en_color} tailored relaxed wide-straight pleated drape trousers from full structured waistband cleanly down to full uncut ankle hems"
+    elif cat == "shoes":
+        if any(k in low for k in ("chelsea", "etik", "botinka", "靴")):
+            garment_desc = f"pair of mens {en_color} leather ankle chelsea combat boots with thick lugged sole, 3/4 side-front studio angle"
+        elif any(k in low for k in ("lofer", "moccasin", "乐福")):
+            garment_desc = f"pair of mens {en_color} luxury suede penny loafers, 3/4 side-front studio angle"
+        else:
+            garment_desc = f"pair of mens {en_color} luxury low-top chunky leather and suede sneakers, 3/4 dynamic studio angle"
+    elif cat == "accessory":
+        garment_desc = f"single menswear {en_color} luxury accessory ({name_uz}) with clean metallic/leather hardware details"
+    else:
+        if any(k in low for k in ("vodolazka", "turtleneck", "高领")):
+            garment_desc = f"mens {en_color} fine-knit cashmere turtleneck sweater with full symmetrical sleeves and ribbed hem"
+        elif any(k in low for k in ("xudi", "hoodie", "卫衣" if "连帽" in low else "hood")):
+            garment_desc = f"mens {en_color} heavyweight oversized cotton hoodie sweatshirt with structured hood and full sleeves"
+        elif any(k in low for k in ("half-zip", "zamok", "半拉链")):
+            garment_desc = f"mens {en_color} heavyweight knitted half-zip collar pullover sweater with full symmetrical sleeves"
+        else:
+            garment_desc = f"mens {en_color} heavyweight oversized crewneck cotton fleece sweatshirt with ribbed crewneck, ribbed cuffs and hem, full symmetrical sleeves"
+
+    posture = "3D invisible ghost-mannequin editorial volume" if cat in ("outerwear", "top", "bottom") else "luxury commercial e-commerce studio shot"
+    pose_hint = (insta_pose_direction or "").split(".")[0].strip()
+    if pose_hint and len(pose_hint) > 100:
+        pose_hint = ""
+    return (
+        f"Luxury e-commerce catalog product photograph of ONE {garment_desc}, {posture}, "
+        f"{pose_hint + ', ' if pose_hint else ''}"
+        "complete full-length uncut garment centered with comfortable margins, strictly isolated on a completely solid pure white #FFFFFF studio background, "
+        "no human model, no hands, no face, no feet, no Chinese characters, no text, no fire icons, no price stickers, no badges, sharp fabric texture, 8k softbox lighting."
+    )
+
+
+def _build_forensic_vision_prompt(
+    item: dict[str, Any],
+    scout_prompt: str = "",
+    insta_pose_direction: str = "",
+) -> str:
+    """Gemini Vision uchun Pinduoduo xom rasmiga qarab faqat maqsadli kiyimning forensik studio promptini tuzish buyrug'i."""
+    name_uz = str(item.get("name") or "kiyim").strip()
+    title_cn = str(item.get("title_cn") or item.get("cn_keyword") or "").strip()
+    cat = str(item.get("category") or guess_category(name_uz) or "top").lower()
+    color_uz = str(item.get("color_uz") or "").strip()
+    en_color = _translate_uz_color_to_en(f"{name_uz} {color_uz}")
+    custom_spec = str(item.get("studio_regen_prompt") or "").strip()
+
+    pose_snippet = (insta_pose_direction or DEFAULT_INSTA_POSE_DIRECTIONS.get(cat, "")).strip()[:220]
+    color_rule = (
+        f"Target variant color in capsule: '{en_color}' (Uzbek label: '{color_uz}'). If the photo clearly matches this color keep the exact shade; if it shows multiple variants or another tint, regenerate this EXACT garment design in clean {en_color}. "
+        if en_color
+        else "Keep the exact garment color visible in the photo. "
+    )
+    length_rule = (
+        "CRITICAL FOR TROUSERS/JEANS: Even if the bottom of the trousers in the input photo is cut off or hidden behind shoes/watermarks, describe the FULL complete waist-to-ankle trousers down to clean flat ankle hems with ZERO shoes, feet, or uneven cropped legs. "
+        if cat == "bottom"
+        else "Ensure BOTH sleeves/sides and the complete hem/silhouette are fully visible, symmetrical, and NEVER cropped at the edges. "
+    )
+
+    return (
+        f"You are an expert menswear studio photography director regenerating a noisy Pinduoduo marketplace image into a clean studio product prompt.\n"
+        f"Target Item Name (Uzbek): '{name_uz}' | Category: '{cat}' | Raw Chinese title: '{title_cn[:80]}'.\n"
+        + (f"Admin/Custom visual requirement: {custom_spec}\n" if custom_spec else "")
+        + f"{color_rule}\n"
+        f"{length_rule}\n"
+        "INSTRUCTIONS:\n"
+        "1. Look closely at the target clothing/shoe/accessory in this Pinduoduo image and capture its EXACT design details: fabric texture (suede, fleece, wool, knit, leather), collar/lapel/hood shape, inner shearling lining if visible, front zipper/button count, pockets, cuffs, sole tread/stitching.\n"
+        "2. COMPLETELY IGNORE all Chinese promo banners, fire stickers, discount badges, yellow vertical text strips, background scenery, hangers, and any human model face, hair, hands, or legs wearing it.\n"
+        f"3. Apply natural studio staging: {pose_snippet}.\n"
+        "4. Output ONLY ONE single plain-English image generation prompt (55-85 words, no quotes, no markdown, no labels) ready for a studio product generator. "
+        "It MUST specify: 'isolated completely alone on a solid pure white #FFFFFF studio background, ghost-mannequin editorial volume, full uncut edges, no human body parts, no text, no badges, no watermarks, softbox commercial lighting'."
+    )
+
+
+def _build_kontext_edit_instruction(
+    item: dict[str, Any],
+    insta_pose_direction: str = "",
+) -> str:
+    """FLUX.1-Kontext-Dev (haqiqiy Image-to-Image) uchun aynan Pinduoduo kiyimini o'zgartirmasdan tozalash buyrug'i."""
+    name_uz = str(item.get("name") or "garment").strip()
+    color_uz = str(item.get("color_uz") or "").strip()
+    cat = str(item.get("category") or guess_category(name_uz) or "top").lower()
+    en_color = _translate_uz_color_to_en(f"{name_uz} {color_uz}")
+    custom_spec = str(item.get("studio_regen_prompt") or "").strip()
+    preserve_custom = bool(item.get("_preserve_custom_spec"))
+
+    low = f"{name_uz} {item.get('title_cn', '')} {custom_spec}".lower()
+    if cat == "outerwear":
+        instr = (
+            "Remove the orange fire sticker badge, all Chinese text banners, hangers, human hands, neck, face, and background clutter. "
+            "Reconstruct the clean covered shoulder seam cleanly and keep ONLY the exact jacket or coat from the input image "
+            "(keeping 100% of its exact original color shade, fabric texture, inner lining, collar, zipper, and pockets) "
+            "isolated alone on a solid pure white #FFFFFF studio background."
+        )
+    elif cat == "bottom":
+        instr = (
+            "Remove the black shoes and boots at the bottom, the shirt sleeves at the waist, all floor shadows, Chinese text or badges, and the room wall and wooden floor background. "
+            "Keep ONLY the exact full-length wide-leg trousers or jeans from waistband down to clean symmetrical ankle hems "
+            "(keeping 100% of its exact color and fabric) isolated alone on a solid pure white #FFFFFF studio background."
+        )
+    elif cat == "shoes":
+        instr = (
+            "Remove the human hand, wristwatch, ankles, socks, wooden table or floor surface, corner round logos, and all Chinese promotional text or calligraphy. "
+            "Keep ONLY the exact footwear / boots from the input image (keeping 100% of the exact original colors, olive/black/brown panels, sole, laces, and stitching) "
+            "isolated alone on a solid pure white #FFFFFF studio background."
+        )
+    elif cat == "accessory":
+        instr = (
+            "Remove any human hand, wrist, face, display stand, and all Chinese text or promotional stickers. "
+            "Keep ONLY the exact single accessory from the input image isolated alone on a solid pure white #FFFFFF studio background."
+        )
+    else:
+        garment_label = (
+            f"{en_color} heavyweight oversized sweatshirt"
+            if (en_color and ("svitshot" in low or "sviter" in low))
+            else f"{en_color} garment".strip()
+        )
+        instr = (
+            "Remove the yellow vertical Chinese banner, orange fire sticker, hangers, extra garments behind, and human hand. "
+            f"Reconstruct and show the complete full-length {garment_label} with full symmetrical long sleeves and ribbed hem "
+            "in a clean front-facing flat-lay or invisible ghost-mannequin studio shot isolated alone on a solid pure white #FFFFFF background, "
+            "with no mannequin head, no human model, no hands, and no pants."
+        )
+
+    if custom_spec and preserve_custom:
+        instr += f" Exact visual detail: {custom_spec[:140]}."
+    elif insta_pose_direction and cat == "shoes":
+        first_sentence = insta_pose_direction.split(".")[0].strip()
+        if first_sentence and len(first_sentence) <= 100:
+            instr += f" Angle: {first_sentence}."
+    return instr
+
+
+def _isolate_from_clean_white_studio_bg(studio_pil: Image.Image, category: str = "") -> Image.Image:
+    """Qayta generatsiya qilingan toza studiya rasmidan (#FFFFFF / tekis fon) mahsulotni matosini yemirmasdan va oq qirrasiz ajratadi."""
+    rgb_im = studio_pil.convert("RGB")
+    arr = np.asarray(rgb_im, dtype=np.float32)
+    h, w, _ = arr.shape
+    if h < 64 or w < 64:
+        return studio_pil.convert("RGBA")
+
+    border = np.concatenate(
+        [
+            arr[:10, :, :].reshape(-1, 3),
+            arr[h - 10 :, :, :].reshape(-1, 3),
+            arr[:, :10, :].reshape(-1, 3),
+            arr[:, w - 10 :, :].reshape(-1, 3),
+        ],
+        axis=0,
+    )
+    bg_col = np.median(border, axis=0)
+    dist = np.linalg.norm(arr - bg_col[None, None, :], axis=2)
+    lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+    chroma = np.max(arr, axis=2) - np.min(arr, axis=2)
+
+    cat_low = (category or "").lower()
+    is_white_backdrop = float(np.mean(bg_col)) > 205.0
+    if is_white_backdrop:
+        is_bg_cand = (dist < 38.0) | ((lum > 214.0) & (chroma < 24.0))
+        y_frac = np.linspace(0.0, 1.0, h)[:, None]
+        if cat_low == "shoes":
+            is_bg_cand = is_bg_cand | ((y_frac > 0.62) & (lum > 170.0) & (chroma < 20.0) & (dist < 90.0))
+        else:
+            is_bg_cand = is_bg_cand | ((y_frac > 0.70) & (lum > 186.0) & (chroma < 18.0) & (dist < 72.0))
+    else:
+        is_bg_cand = (dist < 26.0) & (chroma < 24.0)
+
+    labeled_bg, num_bg = ndimage.label(is_bg_cand)
+    if num_bg > 0:
+        edge_labels = np.unique(
+            np.concatenate(
+                [
+                    labeled_bg[0, :],
+                    labeled_bg[h - 1, :],
+                    labeled_bg[:, 0],
+                    labeled_bg[:, w - 1],
+                ]
+            )
+        )
+        edge_labels = edge_labels[edge_labels > 0]
+        outer_bg = np.isin(labeled_bg, edge_labels)
+    else:
+        outer_bg = is_bg_cand
+
+    fg_mask = ~outer_bg
+    inner_holes = ndimage.binary_fill_holes(fg_mask) ^ fg_mask
+    if np.any(inner_holes):
+        hole_thr = 192.0 if (category or "").lower() == "bottom" else 212.0
+        pure_bg_holes = inner_holes & ((dist < 28.0) | ((lum > hole_thr) & (chroma < 24.0)))
+        fg_mask = fg_mask & ~pure_bg_holes
+
+    if cat_low in ("top", "outerwear") and os.getenv("XAN_DISABLE_AI_CUTOUT") != "1":
+        try:
+            all_ch = _cloth_masks_all(rgb_im)
+            if all_ch is not None:
+                c0, c1, c2 = all_ch
+                upper_cloth = np.maximum(c0, c2) if cat_low == "outerwear" else c0
+                has_pants = float((c1 > 0.45).mean()) > 0.025
+                has_head = _detect_human_head_above_garment(fg_mask.astype(np.float32), upper_cloth)
+                if (has_pants or has_head) and float((upper_cloth > 0.5).mean()) >= 0.06:
+                    upper_keep = upper_cloth > 0.45
+                    fg_mask = ndimage.binary_opening(fg_mask & upper_keep & (c1 < 0.20), iterations=2)
+                    if has_pants:
+                        p_rows = np.where((c1 > 0.45).mean(axis=1) > 0.10)[0]
+                        if len(p_rows):
+                            fg_mask[int(p_rows[0]) + 4 :, :] = False
+        except Exception as exc:
+            log.debug("Maneken tozalash zaxiraga o'tdi: %s", exc)
+
+    labeled_fg, num_fg = ndimage.label(fg_mask)
+    if num_fg > 1:
+        sizes = ndimage.sum(fg_mask, labeled_fg, range(1, num_fg + 1))
+        max_sz = float(np.max(sizes)) if len(sizes) else 0.0
+        keep = [idx_c + 1 for idx_c, sz in enumerate(sizes) if sz >= max(max_sz * 0.04, 150.0)]
+        fg_mask = np.isin(labeled_fg, keep)
+
+    if float(np.mean(fg_mask)) < 0.04:
+        return studio_pil.convert("RGBA")
+
+    # 2px ichkari kirib oq fon halo'sini kesamiz va qirra rangini ichki mato rangiga almashtiramiz
+    eroded = ndimage.binary_erosion(fg_mask, iterations=2)
+    if float(np.mean(eroded)) < 0.03:
+        eroded = fg_mask
+    soft_alpha = ndimage.gaussian_filter(eroded.astype(np.float32), sigma=0.75)
+    soft_alpha = np.where(eroded, np.clip(soft_alpha * 1.15, 0.0, 1.0), 0.0)
+    interior = ndimage.binary_erosion(eroded, iterations=2)
+    soft_alpha = np.where(interior, 1.0, soft_alpha)
+
+    rgb_out = arr.copy()
+    if is_white_backdrop and np.any(interior):
+        edge_zone = (soft_alpha > 0.01) & (~interior)
+        if np.any(edge_zone):
+            # Yaqin ichki piksel rangini ko'chirib oq chiziq (white halo) ni 100% yo'qotamiz
+            _, nearest_idx = ndimage.distance_transform_edt(~interior, return_indices=True)
+            nearest_rgb = arr[nearest_idx[0], nearest_idx[1]]
+            rgb_out[edge_zone] = np.clip(nearest_rgb[edge_zone] * 0.85 + arr[edge_zone] * 0.15, 0.0, 255.0)
+
+    mask_u8 = np.clip(soft_alpha * 255.0, 0, 255).astype(np.uint8)
+    mask_im = Image.fromarray(mask_u8, mode="L")
+    rgba = Image.fromarray(np.clip(rgb_out, 0, 255).astype(np.uint8), mode="RGB").convert("RGBA")
+    rgba.putalpha(mask_im)
+    rgba.info["xan_studio_fg_ratio"] = f"{float(np.mean(soft_alpha > 0.15)):.4f}"
+
+    bb = mask_im.point(lambda p: 255 if p > 22 else 0).getbbox()
+    if bb:
+        pad = 6
+        x0 = max(0, bb[0] - pad)
+        y0 = max(0, bb[1] - pad)
+        x1 = min(w, bb[2] + pad)
+        y1 = min(h, bb[3] + pad)
+        rgba = rgba.crop((x0, y0, x1, y1))
+    rgba.info["xan_studio_regenerated"] = "1"
+    return rgba
+
+
+def _verify_regenerated_rgba(rgba: Image.Image) -> bool:
+    """Qayta yaratilgan studiya rasmi sifat darvozasidan o'tishini tekshiradi."""
+    if rgba.width < 120 or rgba.height < 120:
+        return False
+    ratio_str = rgba.info.get("xan_studio_fg_ratio")
+    if ratio_str:
+        try:
+            fg_ratio = float(ratio_str)
+            if not (0.10 <= fg_ratio <= 0.88):
+                return False
+        except ValueError:
+            pass
+    alpha = np.asarray(rgba.convert("RGBA").split()[3])
+    crop_fg = float(np.mean(alpha > 25))
+    return 0.12 <= crop_fg <= 0.96
+
+
 class PhotoStudioAgent:
-    """9-asosiy AI agent: Gemini Nano Banana orqali mahsulot rasmini professional fotostudiyada qayta ishlaydi."""
+    """9-asosiy AI agent: Pinduoduo xom rasmidan toza, to'liq va xitoycha yozuvsiz studiya rasmini AI orqali qayta yaratadi."""
 
     def __init__(self, settings: Settings):
         self.s = settings
-        self.api_key = (getattr(settings, "gemini_api_key", "") or os.getenv("GEMINI_API_KEY", "")).strip()
+        env_key = "" if os.getenv("PYTEST_CURRENT_TEST") else os.getenv("GEMINI_API_KEY", "")
+        self.api_key = (getattr(settings, "gemini_api_key", "") or env_key).strip()
+        self.hf_token = (getattr(settings, "hf_token", "") or os.getenv("HF_TOKEN", "")).strip()
         self._client = None
         if self.api_key:
             try:
@@ -182,9 +525,18 @@ class PhotoStudioAgent:
             return False
         return self._client is not None
 
+    @property
+    def cloud_regen_enabled(self) -> bool:
+        if os.getenv("XAN_DISABLE_PHOTO_STUDIO") == "1":
+            return False
+        if os.getenv("PYTEST_CURRENT_TEST") and os.getenv("XAN_PHOTO_STUDIO_IN_TESTS") != "1":
+            return False
+        return True
+
     @staticmethod
     def _cache_key(img_bytes: bytes, prompt: str) -> str:
         h = hashlib.sha1()
+        h.update(b"kontext_v4|")
         h.update(img_bytes[:16384])
         h.update(str(len(img_bytes)).encode("utf-8"))
         h.update(prompt.encode("utf-8"))
@@ -201,6 +553,28 @@ class PhotoStudioAgent:
     def _call_nano_banana_sync(self, model_name: str, img_bytes: bytes, prompt: str) -> bytes | None:
         if self._client is None:
             return None
+        try:
+            from google.genai import types
+
+            resp = self._client.models.generate_content(
+                model=model_name,
+                contents=[
+                    types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"),
+                    prompt,
+                ],
+                config=types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"]),
+            )
+            for cand in getattr(resp, "candidates", None) or []:
+                content = getattr(cand, "content", None)
+                for part in getattr(content, "parts", None) or []:
+                    inline = getattr(part, "inline_data", None)
+                    if inline and getattr(inline, "data", None):
+                        raw_d = inline.data
+                        return base64.b64decode(raw_d) if isinstance(raw_d, str) else bytes(raw_d)
+        except Exception as exc:
+            err_s = str(exc)
+            if "429" in err_s or "RESOURCE_EXHAUSTED" in err_s or "quota" in err_s.lower():
+                raise
         inter = self._client.interactions.create(
             model=model_name,
             input=[
@@ -217,18 +591,167 @@ class PhotoStudioAgent:
             return base64.b64decode(out_img.data)
         return None
 
+    def _extract_forensic_garment_prompt_sync(
+        self,
+        raw_bytes: bytes,
+        item: dict[str, Any],
+        scout_prompt: str = "",
+        insta_pose_direction: str = "",
+    ) -> str:
+        """Gemini Vision orqali Pinduoduo xom rasmidan xitoycha yozuvsiz aniq inglizcha studiya promptini chiqaradi."""
+        global _VISION_COOLDOWN_UNTIL
+        fallback = _deterministic_studio_regen_prompt(item, insta_pose_direction=insta_pose_direction)
+        if self._client is None or not raw_bytes or time.monotonic() < _VISION_COOLDOWN_UNTIL:
+            return fallback
+
+        vision_q = _build_forensic_vision_prompt(
+            item,
+            scout_prompt=scout_prompt,
+            insta_pose_direction=insta_pose_direction,
+        )
+        from google.genai import types
+
+        for model_name in VISION_MODELS:
+            try:
+                resp = self._client.models.generate_content(
+                    model=model_name,
+                    contents=[
+                        types.Part.from_bytes(data=raw_bytes, mime_type="image/jpeg"),
+                        vision_q,
+                    ],
+                )
+                txt = re.sub(r"\s+", " ", (getattr(resp, "text", None) or "").strip()).strip("\"'` ")
+                if len(txt) >= 45 and not txt.startswith("{"):
+                    if "#ffffff" not in txt.lower() and "white background" not in txt.lower():
+                        txt += ", isolated alone on a solid pure white #FFFFFF background, no text, no badges, no human model"
+                    return txt[:480]
+            except Exception as exc:
+                err_s = str(exc)
+                log.warning("PhotoStudio Vision (%s) zaxiraga o'tdi: %s", model_name, err_s[:120])
+                if "429" in err_s or "RESOURCE_EXHAUSTED" in err_s:
+                    _VISION_COOLDOWN_UNTIL = time.monotonic() + 180.0
+                    break
+        return fallback
+
+    def _call_hf_kontext_img2img_sync(
+        self,
+        raw_bytes: bytes,
+        edit_prompt: str,
+        seed: int = 42,
+    ) -> bytes | None:
+        """FLUX.1-Kontext-Dev haqiqiy Image-to-Image API orqali mahsulotni o'zgartirmasdan toza studiya rasmini yaratadi."""
+        base = "https://black-forest-labs-flux-1-kontext-dev.hf.space"
+        headers = {"User-Agent": "Mozilla/5.0 XANSHOP-PhotoStudio/3.0"}
+        if self.hf_token:
+            headers["Authorization"] = f"Bearer {self.hf_token}"
+        try:
+            with httpx.Client(timeout=45.0, follow_redirects=True, headers=headers) as client:
+                up = client.post(
+                    f"{base}/gradio_api/upload",
+                    files={"files": ("product.jpg", raw_bytes, "image/jpeg")},
+                )
+                if up.status_code != 200 or not isinstance(up.json(), list) or not up.json():
+                    log.warning("HF Kontext upload xatosi (%s): %s", up.status_code, up.text[:120])
+                    return None
+                srv_path = up.json()[0]
+                call = client.post(
+                    f"{base}/gradio_api/call/infer",
+                    json={
+                        "data": [
+                            {"path": srv_path, "meta": {"_type": "gradio.FileData"}},
+                            edit_prompt,
+                            int(seed),
+                            False,
+                            2.5,
+                            20,
+                        ]
+                    },
+                )
+                if call.status_code != 200:
+                    log.warning("HF Kontext call xatosi (%s): %s", call.status_code, call.text[:120])
+                    return None
+                ev = call.json().get("event_id")
+                if not ev:
+                    return None
+                out_url = ""
+                with client.stream("GET", f"{base}/gradio_api/call/infer/{ev}", timeout=50.0) as stream:
+                    cur_event = ""
+                    for line in stream.iter_lines():
+                        if not line:
+                            continue
+                        if line.startswith("event:"):
+                            cur_event = line.split(":", 1)[1].strip()
+                            if cur_event == "error":
+                                log.warning("HF Kontext SSE error qaytardi")
+                                return None
+                        elif line.startswith("data: [") and cur_event in ("complete", ""):
+                            arr = json.loads(line[5:].strip())
+                            if isinstance(arr, list) and arr and isinstance(arr[0], dict):
+                                out_url = str(arr[0].get("url") or "").strip()
+                                break
+                if not out_url:
+                    return None
+                img_resp = client.get(out_url)
+                if img_resp.status_code == 200 and len(img_resp.content) > 6000:
+                    im = Image.open(io.BytesIO(img_resp.content)).convert("RGB")
+                    buf = io.BytesIO()
+                    im.save(buf, format="PNG")
+                    return buf.getvalue()
+        except Exception as exc:
+            log.warning("HF Kontext img2img xatosi: %s", exc)
+        return None
+
+    def _call_hf_flux_schnell_sync(self, regen_prompt: str, seed: int = 42) -> bytes | None:
+        """Zaxira AI Studio generator (Hugging Face FLUX.1-schnell) orqali toza studiya rasmini yaratadi."""
+        base = "https://black-forest-labs-flux-1-schnell.hf.space"
+        headers = {"User-Agent": "Mozilla/5.0 XANSHOP-PhotoStudio/3.0"}
+        if self.hf_token:
+            headers["Authorization"] = f"Bearer {self.hf_token}"
+        try:
+            with httpx.Client(timeout=35.0, follow_redirects=True, headers=headers) as client:
+                call = client.post(
+                    f"{base}/gradio_api/call/infer",
+                    json={"data": [regen_prompt[:480], int(seed), False, 768, 768, 4]},
+                )
+                if call.status_code != 200:
+                    return None
+                ev = call.json().get("event_id")
+                if not ev:
+                    return None
+                out_url = ""
+                with client.stream("GET", f"{base}/gradio_api/call/infer/{ev}", timeout=35.0) as stream:
+                    for line in stream.iter_lines():
+                        if line.startswith("data: ["):
+                            arr = json.loads(line[5:].strip())
+                            if isinstance(arr, list) and arr and isinstance(arr[0], dict):
+                                out_url = str(arr[0].get("url") or "").strip()
+                                break
+                if not out_url:
+                    return None
+                img_resp = client.get(out_url)
+                if img_resp.status_code == 200 and len(img_resp.content) > 6000:
+                    im = Image.open(io.BytesIO(img_resp.content)).convert("RGB")
+                    buf = io.BytesIO()
+                    im.save(buf, format="PNG")
+                    return buf.getvalue()
+        except Exception as exc:
+            log.warning("HF FLUX.1-schnell zaxira xatosi: %s", exc)
+        return None
+
     @staticmethod
     def _polish_studio_lighting(rgba_img: Image.Image) -> Image.Image:
         """Mahsulotning rangini va fasonini O'ZGARTIRMASDAN yumshoq studiya yoritishi va mato aniqligini kuchaytiradi."""
         im = rgba_img.convert("RGBA")
         rgb = im.convert("RGB")
         alpha = im.split()[3]
-        # Yumshoq studiya kontrasti + mato to'qimasini aniqlashtirish (100% haqiqiy rang saqlanadi)
         rgb = ImageEnhance.Contrast(rgb).enhance(1.06)
         rgb = ImageEnhance.Sharpness(rgb).enhance(1.18)
         rgb = ImageEnhance.Brightness(rgb).enhance(1.02)
         out = rgb.convert("RGBA")
         out.putalpha(alpha)
+        for k, v in rgba_img.info.items():
+            out.info[k] = v
+        out.info["xan_studio_regenerated"] = "1"
         return out
 
     async def render_product_studio_async(
@@ -239,7 +762,7 @@ class PhotoStudioAgent:
         timeout_sec: float = 28.0,
         use_cache: bool = True,
     ) -> StudioRenderResult:
-        """Pinduoduo rasmini Nano Banana Photoshop Studio orqali tabiiy toza mahsulot rasmiga aylantiradi."""
+        """Pinduoduo rasmini haqiqiy AI Image-to-Image Regenerator (Nano Banana / FLUX.1-Kontext-Dev) orqali to'liq va xitoycha yozuvsiz studiya rasmiga aylantiradi."""
         global _STUDIO_COOLDOWN_UNTIL
 
         cat = str(item.get("category") or guess_category(str(item.get("name") or "")) or "top").lower()
@@ -253,21 +776,25 @@ class PhotoStudioAgent:
             else Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
         )
 
-        ckey = self._cache_key(raw_bytes, scout_prompt)
+        regen_sig = f"{cat}|{bool(item.get('_preserve_custom_spec'))}|{item.get('studio_regen_prompt', '')}|{item.get('name', '') if item.get('_preserve_custom_spec') else ''}"
+        ckey = self._cache_key(raw_bytes, regen_sig)
         cache_file = STUDIO_CACHE_DIR / f"{ckey}.png"
         if use_cache and cache_file.is_file():
             try:
                 cached_im = Image.open(cache_file).convert("RGBA")
-                return StudioRenderResult(
-                    image=cached_im,
-                    used_nano_banana=True,
-                    model_used="cache",
-                    prompt_used=scout_prompt,
-                    cache_hit=True,
-                )
+                cached_im.info["xan_studio_regenerated"] = "1"
+                if _verify_regenerated_rgba(cached_im):
+                    return StudioRenderResult(
+                        image=cached_im,
+                        used_nano_banana=True,
+                        model_used="cache_kontext_v3",
+                        prompt_used=scout_prompt,
+                        cache_hit=True,
+                    )
             except Exception:
                 pass
 
+        # 1-ENGINE: Gemini Nano Banana Image-to-Image (to'lovli kalit ulanganda avtomatik ishlaydi)
         if self.enabled and time.monotonic() >= _STUDIO_COOLDOWN_UNTIL:
             for model_name in STUDIO_MODELS:
                 try:
@@ -277,8 +804,86 @@ class PhotoStudioAgent:
                     )
                     if out_bytes and len(out_bytes) > 4000:
                         studio_pil = Image.open(io.BytesIO(out_bytes)).convert("RGBA")
-                        isolated = extract_main_item(studio_pil, category=cat, use_cache=False, has_human=False)
-                        final_im = self._polish_studio_lighting(isolated if isolated is not None else studio_pil)
+                        isolated = _isolate_from_clean_white_studio_bg(studio_pil, category=cat)
+                        final_im = self._polish_studio_lighting(isolated)
+                        if _verify_regenerated_rgba(final_im):
+                            if use_cache:
+                                try:
+                                    STUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                                    final_im.save(cache_file, format="PNG")
+                                except Exception:
+                                    pass
+                            return StudioRenderResult(
+                                image=final_im,
+                                used_nano_banana=True,
+                                model_used=model_name,
+                                prompt_used=scout_prompt,
+                                cache_hit=False,
+                            )
+                except Exception as exc:
+                    err_s = str(exc)
+                    log.warning("Photoshop Studio (%s) zaxiraga o'tdi (%s): %s", model_name, type(exc).__name__, err_s[:140])
+                    if "429" in err_s or "RESOURCE_EXHAUSTED" in err_s or "quota" in err_s.lower() or isinstance(exc, TimeoutError):
+                        _STUDIO_COOLDOWN_UNTIL = time.monotonic() + 600.0
+                        break
+
+        # 2-ENGINE: FLUX.1-Kontext-Dev haqiqiy Image-to-Image Regenerator (xuddi ChatGPT kabi rasmni tozalab qayta chizadi!)
+        if self.cloud_regen_enabled:
+            edit_prompt = _build_kontext_edit_instruction(item, insta_pose_direction=insta_pose_direction)
+            seed_base = int(hashlib.sha1(ckey.encode("utf-8")).hexdigest()[:8], 16) % 100000
+            try:
+                for attempt in range(2):
+                    kontext_bytes = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self._call_hf_kontext_img2img_sync,
+                            raw_bytes,
+                            edit_prompt,
+                            seed_base + attempt * 13,
+                        ),
+                        timeout=55.0,
+                    )
+                    if kontext_bytes and len(kontext_bytes) > 500:
+                        studio_pil = Image.open(io.BytesIO(kontext_bytes)).convert("RGBA")
+                        isolated = _isolate_from_clean_white_studio_bg(studio_pil, category=cat)
+                        final_im = self._polish_studio_lighting(isolated)
+                        if _verify_regenerated_rgba(final_im):
+                            if use_cache:
+                                try:
+                                    STUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                                    final_im.save(cache_file, format="PNG")
+                                except Exception:
+                                    pass
+                            return StudioRenderResult(
+                                image=final_im,
+                                used_nano_banana=True,
+                                model_used="hf_flux_kontext_img2img",
+                                prompt_used=edit_prompt,
+                                cache_hit=False,
+                            )
+            except Exception as exc:
+                log.warning("HF FLUX.1-Kontext-Dev zaxiraga tushdi: %s", exc)
+
+            # 2B-ENGINE: Gemini Vision Forensik Tahlil + HF FLUX.1-schnell (agar Kontext xato bersa)
+            try:
+                regen_prompt = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._extract_forensic_garment_prompt_sync,
+                        raw_bytes,
+                        item,
+                        scout_prompt,
+                        insta_pose_direction,
+                    ),
+                    timeout=18.0,
+                )
+                flux_bytes = await asyncio.wait_for(
+                    asyncio.to_thread(self._call_hf_flux_schnell_sync, regen_prompt, seed_base),
+                    timeout=40.0,
+                )
+                if flux_bytes and len(flux_bytes) > 500:
+                    studio_pil = Image.open(io.BytesIO(flux_bytes)).convert("RGBA")
+                    isolated = _isolate_from_clean_white_studio_bg(studio_pil, category=cat)
+                    final_im = self._polish_studio_lighting(isolated)
+                    if _verify_regenerated_rgba(final_im):
                         if use_cache:
                             try:
                                 STUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -288,19 +893,38 @@ class PhotoStudioAgent:
                         return StudioRenderResult(
                             image=final_im,
                             used_nano_banana=True,
-                            model_used=model_name,
-                            prompt_used=scout_prompt,
+                            model_used="hf_flux_schnell_regen",
+                            prompt_used=regen_prompt,
                             cache_hit=False,
                         )
-                except Exception as exc:
-                    err_s = str(exc)
-                    log.warning("Photoshop Studio (%s) zaxiraga o'tdi (%s): %s", model_name, type(exc).__name__, err_s[:140])
-                    if "429" in err_s or "RESOURCE_EXHAUSTED" in err_s or "quota" in err_s.lower() or isinstance(exc, TimeoutError):
-                        _STUDIO_COOLDOWN_UNTIL = time.monotonic() + 600.0
-                        break
+            except Exception as exc:
+                log.warning("HF FLUX.1-schnell zaxiraga tushdi: %s", exc)
 
-        # Lokal Fotostudiya zaxirasi: AI mato ajratish + studiya yoritishi (API kvotasi yopiq bo'lganda ham 0 xato!)
+        # 3-ZAXIRA (bulutli GPU band/oflayn bo'lganda): reklama stikerlarini o'tkazmasdan toza studiya natijasini berish
+        from .media import resolve_real_item_photo
+
         fallback = extract_main_item(raw_pil, category=cat, use_cache=use_cache)
+        # Agar xom rasmda sariq/olovli xitoy reklama stikerlari ustun bo'lsa va fallback faqat kichik/sariq dog' qoldirsa, toza studiya rasmini olamiz
+        raw_rgb_arr = np.asarray(raw_pil.convert("RGB"), dtype=np.float32)
+        yellow_orange_ratio = float(
+            np.mean((raw_rgb_arr[:, :, 0] > 200) & (raw_rgb_arr[:, :, 1] > 110) & (raw_rgb_arr[:, :, 2] < 85))
+        )
+        fb_is_bad = (fallback is None) or (not _verify_regenerated_rgba(fallback))
+        if fallback is not None and not fb_is_bad:
+            fb_alpha = np.asarray(fallback.convert("RGBA").split()[3]) > 30
+            fb_rgb = np.asarray(fallback.convert("RGB"), dtype=np.float32)
+            if np.any(fb_alpha):
+                fb_yo = float(
+                    np.mean((fb_rgb[fb_alpha, 0] > 195) & (fb_rgb[fb_alpha, 1] > 110) & (fb_rgb[fb_alpha, 2] < 85))
+                )
+                if (yellow_orange_ratio > 0.08 and fb_yo > 0.18) or (
+                    fallback.width * fallback.height < raw_pil.width * raw_pil.height * 0.22
+                ):
+                    fb_is_bad = True
+        if fb_is_bad:
+            asset_fallback = resolve_real_item_photo(str(item.get("name") or ""), 0, cat)
+            if asset_fallback is not None:
+                fallback = _isolate_from_clean_white_studio_bg(asset_fallback, category=cat)
         polished = self._polish_studio_lighting(fallback) if fallback is not None else raw_pil
         return StudioRenderResult(
             image=polished,

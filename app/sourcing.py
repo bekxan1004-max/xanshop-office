@@ -10,8 +10,13 @@ Vazifalari:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
+import re
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from typing import Any
 
@@ -438,7 +443,17 @@ class TrendSourcingAgent:
                 pdd_enriched["image_url"] = str(i["image_url"])
             if i.get("url") and "yangkeduo.com" in str(i.get("url")):
                 pdd_enriched["url"] = str(i["url"])
-            for meta_key in ("title_cn", "store_colors", "store_sizes", "size_chart", "fit_note", "studio_prompt"):
+            for meta_key in (
+                "title_cn",
+                "store_colors",
+                "store_sizes",
+                "size_chart",
+                "fit_note",
+                "studio_prompt",
+                "studio_regen_prompt",
+                "color_uz",
+                "_preserve_custom_spec",
+            ):
                 if i.get(meta_key):
                     pdd_enriched[meta_key] = i[meta_key]
             normalized.append(pdd_enriched)
@@ -679,11 +694,16 @@ FAQAT JSON QAYTAR:
         for idx, it in enumerate(norm_items):
             live_img = downloaded_images[idx] if (downloaded_images and idx < len(downloaded_images)) else None
             if live_img:
-                # Jonli Pinduoduo rasmi bor: kiyimning o'zbekcha nomini haqiqiy Pinduoduo tovari va rangiga 100% moslaymiz
-                st_cols = it.get("store_colors") or []
-                det_col = (st_cols[0] if len(st_cols) == 1 else "") or _detect_garment_color_uz(live_img) or str(it.get("color_uz") or "Qora")
-                it["name"] = _uz_name_from_real_pdd(str(it.get("title_cn") or ""), det_col, str(it.get("name") or "Buyum"))
-                it["color_uz"] = det_col
+                # Jonli Pinduoduo rasmi bor: maxsus buyruq (custom look) bo'lmasa kiyim nomini Pinduoduo tovariga moslaymiz
+                if it.get("_preserve_custom_spec") and str(it.get("name") or "").strip():
+                    det_col = str(it.get("color_uz") or "").strip() or _detect_garment_color_uz(live_img) or "Qora"
+                    it["color_uz"] = det_col
+                else:
+                    st_cols = it.get("store_colors") or []
+                    det_col = (st_cols[0] if len(st_cols) == 1 else "") or _detect_garment_color_uz(live_img) or str(it.get("color_uz") or "Qora")
+                    it["name"] = _uz_name_from_real_pdd(str(it.get("title_cn") or ""), det_col, str(it.get("name") or "Buyum"))
+                    it["color_uz"] = det_col
+                it.pop("_preserve_custom_spec", None)
                 if det_col and det_col not in exact_colors:
                     exact_colors.append(det_col)
             else:
@@ -791,6 +811,310 @@ FAQAT JSON QAYTAR:
             )
         return self.analyze_instagram_trends(idx)
 
+    @staticmethod
+    def _extract_video_frame_jpeg(video_bytes: bytes) -> bytes | None:
+        """Admin yuklagan MP4/MOV videodan o'rta kadrni FFmpeg bilan JPEG sifatida ajratib oladi."""
+        if not video_bytes or len(video_bytes) < 512:
+            return None
+        from .media import find_ffmpeg_binary
+
+        ffmpeg_bin = find_ffmpeg_binary()
+        if not ffmpeg_bin:
+            return None
+        vid_tmp = None
+        img_tmp = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as vf:
+                vf.write(video_bytes)
+                vid_tmp = vf.name
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as imf:
+                img_tmp = imf.name
+            for seek_ts in ("00:00:01.0", "00:00:00.2"):
+                proc = subprocess.run(
+                    [ffmpeg_bin, "-y", "-ss", seek_ts, "-i", vid_tmp, "-frames:v", "1", "-q:v", "2", img_tmp],
+                    capture_output=True,
+                    timeout=20,
+                )
+                if proc.returncode == 0 and os.path.isfile(img_tmp) and os.path.getsize(img_tmp) > 1500:
+                    with open(img_tmp, "rb") as rf:
+                        return rf.read()
+        except Exception as exc:
+            log.warning("Yuklangan videodan kadr olish xatosi: %s", exc)
+        finally:
+            for p_rm in (vid_tmp, img_tmp):
+                if p_rm and os.path.isfile(p_rm):
+                    try:
+                        os.remove(p_rm)
+                    except OSError:
+                        pass
+        return None
+
+    @staticmethod
+    def _parse_custom_prompt_fallback(
+        prompt_text: str = "",
+        piece_count: int | None = None,
+    ) -> dict[str, Any]:
+        """AI Vision/LLM oflayn bo'lganda ham foydalanuvchining matn buyrug'idan aniq kiyim tarkibini tuzadi."""
+        low = (prompt_text or "").lower()
+        picked_items: list[dict[str, Any]] = []
+
+        def _detect_color(snippet: str, default_col: str) -> str:
+            for kw_c, label in (
+                ("to'q jigarrang", "To'q jigarrang"),
+                ("jigarrang", "Jigarrang"),
+                ("qahva", "Qahva rang"),
+                ("qora", "Qora"),
+                ("to'q ko'k", "To'q ko'k"),
+                ("ko'k", "Ko'k"),
+                ("kulrang", "Grafit"),
+                ("grafit", "Grafit"),
+                ("och bej", "Och bej"),
+                ("bej", "Bej"),
+                ("krem", "Krem"),
+                ("yashil", "Zaytun"),
+                ("zaytun", "Zaytun"),
+                ("oq", "Oq"),
+                ("коричнев", "Jigarrang"),
+                ("черн", "Qora"),
+                ("сер", "Grafit"),
+                ("беж", "Bej"),
+                ("brown", "Jigarrang"),
+                ("black", "Qora"),
+                ("navy", "To'q ko'k"),
+                ("grey", "Grafit"),
+                ("beige", "Bej"),
+            ):
+                if kw_c in snippet:
+                    return label
+            return default_col
+
+        def _match_spec(keys: tuple[str, ...]) -> str | None:
+            for m in re.finditer(r"[^,;\.\n]+", low):
+                seg = m.group(0)
+                if any(k in seg for k in keys):
+                    return seg
+            return None
+
+        seg_outer = _match_spec(("zamsh", "kurtka", "palto", "blazer", "pidjak", "bomber", "jacket", "coat", "куртк", "пальт"))
+        if seg_outer:
+            col = _detect_color(seg_outer, "Jigarrang")
+            if any(k in seg_outer for k in ("palto", "coat", "пальт")):
+                picked_items.append({"category": "outerwear", "name": f"{col} Jun Palto", "color_uz": col, "price_cny": 62.0, "weight_kg": 1.05, "cn_keyword": "羊毛呢大衣男秋冬加厚"})
+            elif any(k in seg_outer for k in ("blazer", "pidjak")):
+                picked_items.append({"category": "outerwear", "name": f"{col} Klassik Blazer", "color_uz": col, "price_cny": 58.0, "weight_kg": 0.78, "cn_keyword": "老钱风羊毛西装外套男"})
+            elif any(k in seg_outer for k in ("zamsh", "suede")):
+                picked_items.append({"category": "outerwear", "name": f"{col} Zamsh Kurtka", "color_uz": col, "price_cny": 54.0, "weight_kg": 0.85, "cn_keyword": "麂皮绒翻领羊羔毛夹克男秋冬"})
+            else:
+                picked_items.append({"category": "outerwear", "name": f"{col} Bomber Kurtka", "color_uz": col, "price_cny": 54.0, "weight_kg": 0.82, "cn_keyword": "美式复古飞行员夹克男秋冬"})
+
+        seg_top = _match_spec(("svitshot", "vodolazka", "sviter", "xudi", "hoodie", "ko'ylak", "polo", "futbolka", "свитшот", "водолазк", "свитер", "худи"))
+        if seg_top:
+            col = _detect_color(seg_top, "Qora")
+            if any(k in seg_top for k in ("vodolazka", "turtleneck", "водолазк")):
+                picked_items.append({"category": "top", "name": f"{col} Kashmir Vodolazka", "color_uz": col, "price_cny": 34.0, "weight_kg": 0.45, "cn_keyword": "羊绒高领打底毛衣男秋冬"})
+            elif any(k in seg_top for k in ("xudi", "hoodie", "худи")):
+                picked_items.append({"category": "top", "name": f"{col} Oversize Xudi", "color_uz": col, "price_cny": 36.0, "weight_kg": 0.55, "cn_keyword": "重磅纯色连帽卫衣男秋冬"})
+            elif any(k in seg_top for k in ("ko'ylak", "shirt")):
+                picked_items.append({"category": "top", "name": f"{col} Klassik Ko'ylak", "color_uz": col, "price_cny": 32.0, "weight_kg": 0.35, "cn_keyword": "修身长袖衬衫男商务"})
+            else:
+                picked_items.append({"category": "top", "name": f"{col} Oversize Svitshot", "color_uz": col, "price_cny": 34.0, "weight_kg": 0.52, "cn_keyword": "纯色重磅加绒圆领卫衣男"})
+
+        seg_bot = _match_spec(("shim", "bryuk", "jinsi", "jeans", "drape", "trousers", "pants", "брюк", "джинс"))
+        if seg_bot:
+            col = _detect_color(seg_bot, "Qora")
+            if any(k in seg_bot for k in ("jinsi", "jeans", "джинс")):
+                picked_items.append({"category": "bottom", "name": f"{col} To'g'ri Jinsi Shim", "color_uz": col, "price_cny": 38.0, "weight_kg": 0.62, "cn_keyword": "直筒宽松牛仔裤男垂感"})
+            else:
+                picked_items.append({"category": "bottom", "name": f"{col} Klassik Drape Shim", "color_uz": col, "price_cny": 36.0, "weight_kg": 0.50, "cn_keyword": "垂感宽松直筒西裤男秋冬"})
+
+        seg_shoe = _match_spec(("botinka", "etik", "chelsea", "lofer", "krossovka", "tufli", "poyabzal", "boots", "loafer", "sneaker", "ботинк", "кроссов", "лофер"))
+        if seg_shoe:
+            col = _detect_color(seg_shoe, "Qora")
+            if any(k in seg_shoe for k in ("lofer", "loafer", "лофер")):
+                picked_items.append({"category": "shoes", "name": f"{col} Zamsh Lofer", "color_uz": col, "price_cny": 44.0, "weight_kg": 0.78, "cn_keyword": "翻毛皮乐福鞋男英伦"})
+            elif any(k in seg_shoe for k in ("krossovka", "sneaker", "кроссов")):
+                picked_items.append({"category": "shoes", "name": f"{col} Retro Krossovka", "color_uz": col, "price_cny": 46.0, "weight_kg": 0.80, "cn_keyword": "复古运动休闲鞋男"})
+            else:
+                picked_items.append({"category": "shoes", "name": f"{col} Qishki Botinka", "color_uz": col, "price_cny": 48.0, "weight_kg": 0.90, "cn_keyword": "工装马丁靴男秋冬季厚底"})
+
+        if not picked_items:
+            picked_items = [
+                {"category": "outerwear", "name": "Jigarrang Zamsh Kurtka", "color_uz": "Jigarrang", "price_cny": 54.0, "weight_kg": 0.85, "cn_keyword": "麂皮绒羊羔毛夹克男"},
+                {"category": "top", "name": "Qora Kashmir Vodolazka", "color_uz": "Qora", "price_cny": 34.0, "weight_kg": 0.45, "cn_keyword": "羊绒高领毛衣男"},
+                {"category": "bottom", "name": "Grafit Klassik Drape Shim", "color_uz": "Grafit", "price_cny": 36.0, "weight_kg": 0.50, "cn_keyword": "垂感西装裤男直筒"},
+                {"category": "shoes", "name": "Qora Chelsea Etik", "color_uz": "Qora", "price_cny": 48.0, "weight_kg": 0.90, "cn_keyword": "切尔西靴男加绒"},
+            ]
+
+        defaults = [
+            {"category": "outerwear", "name": "Qora Bomber Kurtka", "color_uz": "Qora", "price_cny": 52.0, "weight_kg": 0.82, "cn_keyword": "复古夹克外套男"},
+            {"category": "top", "name": "Qora Oversize Svitshot", "color_uz": "Qora", "price_cny": 34.0, "weight_kg": 0.50, "cn_keyword": "重磅圆领卫衣男"},
+            {"category": "bottom", "name": "Qora Klassik Drape Shim", "color_uz": "Qora", "price_cny": 36.0, "weight_kg": 0.50, "cn_keyword": "垂感直筒西裤男"},
+            {"category": "shoes", "name": "Qora Qishki Botinka", "color_uz": "Qora", "price_cny": 46.0, "weight_kg": 0.88, "cn_keyword": "马丁靴男秋冬"},
+        ]
+        target_cnt = max(2, min(4, int(piece_count))) if piece_count else len(picked_items)
+        if len(picked_items) < max(2, target_cnt):
+            have_cats = {x["category"] for x in picked_items}
+            for d_it in defaults:
+                if len(picked_items) >= max(2, target_cnt):
+                    break
+                if d_it["category"] not in have_cats:
+                    picked_items.append(d_it)
+                    have_cats.add(d_it["category"])
+        picked_items = picked_items[:4]
+
+        title_hint = re.sub(r"\s+", " ", (prompt_text or "").strip())
+        if "old money" in low or "diplomat" in low or "klassik" in low:
+            title = "Maxsus Old Money Klassik Kapsulasi"
+            vibe = "diplomat_old_money"
+        elif title_hint and 8 <= len(title_hint) <= 46:
+            title = title_hint.rstrip(".,!?").capitalize()
+            vibe = "phonk_bass"
+        else:
+            title = f"Maxsus AI Obraz ({len(picked_items)}-in-1)"
+            vibe = "phonk_bass"
+
+        colors = ", ".join(dict.fromkeys(x.get("color_uz", "Qora") for x in picked_items))
+        return {
+            "title": title,
+            "description": prompt_text.strip() or "Admin buyrug'i va AI Vision asosida Pinduoduo'dan saralangan maxsus kapsula.",
+            "colors": colors,
+            "sizes": "M, L, XL, 2XL",
+            "palette_name": "Maxsus Studio Palitra",
+            "palette_hex": ["#1C1D22", "#5C4738", "#D6CFC4"],
+            "viral_hook": f"{title.upper()} — SIZ SO'RAGAN MAXSUS OBRAZ",
+            "audio_vibe": vibe,
+            "items": picked_items,
+        }
+
+    async def build_custom_look_blueprint_async(
+        self,
+        prompt_text: str = "",
+        media_bytes: bytes | None = None,
+        media_mime: str = "",
+        piece_count: int | None = None,
+        max_prepay_50_uzs: int | None = None,
+        weather: WeatherForecast | None = None,
+    ) -> dict[str, Any]:
+        """Admin yuborgan rasm, video yoki matn buyrug'idan AI Vision + Skaut orqali to'liq Look rejasi tuzadi."""
+        if self.client is not self.ai.client:
+            self.ai.client = self.client
+
+        image_bytes: bytes | None = None
+        image_mime = "image/jpeg"
+        if media_bytes:
+            is_video = (
+                (media_mime or "").lower().startswith("video/")
+                or b"ftyp" in media_bytes[:64]
+                or media_bytes[:4] == b"\x1aE\xdf\xa3"
+            )
+            if is_video:
+                image_bytes = await asyncio.to_thread(self._extract_video_frame_jpeg, media_bytes)
+            else:
+                image_bytes = media_bytes
+                if media_mime and media_mime.lower().startswith("image/"):
+                    image_mime = media_mime
+
+        w_line = (
+            f"{weather.city}: {weather.temp_c}°C ({weather.season_uz})"
+            if weather
+            else "Toshkent mavsumi"
+        )
+        budget_note = (
+            f"Maqsadli 50% oldindan to'lov <= {max_prepay_50_uzs:,} so'm (butun kapsula <= {int(max_prepay_50_uzs / 1900)} CNY)."
+            if max_prepay_50_uzs
+            else "Hamyoнbop oltin o'rtalik: ust kiyim 40–65 CNY, shim/sviter 24–45 CNY, oyoq kiyim 32–52 CNY."
+        )
+        count_note = f"Aynan {piece_count} ta buyum bo'lsin." if piece_count in (2, 3, 4) else "2 dan 4 tagacha uyg'un buyum bo'lsin."
+
+        ai_prompt = f"""Sen "XAN SHOP" Bosh Dizayneri, Instagram Trend Tahlilchisi va Pinduoduo Skaut Agentisan.
+Admin senga quyidagi MAXSUS BUYRUQ va/yoki namunaviy rasm/video yubordi:
+- Admin buyrug'i: "{prompt_text or "Yuklangan rasm/videodagi lookka aynan o'xshash kapsula yig'"}"
+- Buyumlar soni: {count_note}
+- Byudjet talabi: {budget_note}
+- Ob-havo: {w_line}
+
+VAZIFANG:
+1. Agar rasm/video berilgan bo'lsa, undagi HAR BIR kiyim, poyabzal va aksessuarni aniq ajratib chiq (rangi, matosi, fasoni, yoqasi, bichimi).
+2. Admin matnida so'ralgan talablarni 100% inobatga ol.
+3. Har bir buyum uchun:
+   - `category`: FAQAT `outerwear`, `top`, `bottom`, `shoes`, yoki `accessory`
+   - `name`: FAQAT O'ZBEK TILIDA qisqa nom (masalan `Jigarrang Zamsh Kurtka`, `Qora Oversize Svitshot`, `Qora Klassik Drape Shim`, `Qora Chelsea Etik`). HECH QACHON `kargo shim` deb yozma (`Cho'ntakli Erkin Shim` deb yoz)!
+   - `color_uz`: asosiy rangi (masalan `Jigarrang`, `Qora`, `Grafit`)
+   - `cn_keyword`: Pinduoduo'dan aynan o'shanday kiyimni topish uchun aniq xitoycha qidiruv so'zi
+   - `price_cny`: real Pinduoduo narxi (yuan)
+   - `weight_kg`: taxminiy vazni (kg)
+   - `studio_regen_prompt`: ingliz tilida 25-40 so'zlik aniq vizual tavsif (FLUX Image-to-Image studio regeneratsiyasi uchun rangi, matosi va fasoni).
+
+FAQAT JSON QAYTAR:
+{{
+  "title": "O'zbekcha chiroyli Look nomi",
+  "description": "Qisqa sotuv tavsifi",
+  "colors": "Ranglar ro'yxati",
+  "sizes": "M, L, XL, 2XL",
+  "palette_name": "Palitra nomi",
+  "palette_hex": ["#1C1D22", "#5C4738", "#D6CFC4"],
+  "viral_hook": "O'ZBEKCHA QISQA HOOK",
+  "audio_vibe": "diplomat_old_money yoki phonk_bass",
+  "items": [
+    {{"category": "outerwear", "name": "Jigarrang Zamsh Kurtka", "color_uz": "Jigarrang", "price_cny": 54.0, "weight_kg": 0.85, "cn_keyword": "麂皮绒夹克男", "studio_regen_prompt": "vintage dark brown suede bomber jacket with cream shearling collar lining"}}
+  ]
+}}"""
+
+        parsed: dict[str, Any] | None = None
+        if (self.ai.enabled or self.client) and (not os.getenv("PYTEST_CURRENT_TEST") or os.getenv("XAN_AI_CUSTOM_LOOK_IN_TESTS") == "1"):
+            try:
+                parsed = await self.ai.ask_json(
+                    ai_prompt,
+                    media_bytes=image_bytes,
+                    mime_type=image_mime,
+                    timeout_sec=20.0,
+                )
+            except Exception as exc:
+                log.warning("Custom look Gemini Vision/AI xatosi: %s", exc)
+
+        bp = (
+            parsed
+            if isinstance(parsed, dict) and isinstance(parsed.get("items"), list) and len(parsed["items"]) >= 2
+            else self._parse_custom_prompt_fallback(prompt_text, piece_count=piece_count)
+        )
+
+        # Kargo shim taqiqi + maydonlarni normallashtirish + custom spetsifikatsiyani saqlash flagi
+        bp["title"] = re.sub(r"kargo\s+shim", "Cho'ntakli Erkin Shim", str(bp.get("title") or "Maxsus AI Look"), flags=re.I)
+        clean_items: list[dict[str, Any]] = []
+        for idx_c, raw_it in enumerate(bp.get("items") or []):
+            if not isinstance(raw_it, dict):
+                continue
+            it = dict(raw_it)
+            it["name"] = re.sub(r"kargo\s+shim", "Cho'ntakli Erkin Shim", str(it.get("name") or f"Buyum {idx_c + 1}"), flags=re.I)
+            cat_val = str(it.get("category") or "top").lower()
+            if cat_val not in ("outerwear", "top", "bottom", "shoes", "accessory"):
+                cat_val = "top"
+            it["category"] = cat_val
+            it["color_uz"] = str(it.get("color_uz") or "Qora").strip()
+            it["price_cny"] = float(it.get("price_cny") or 38.0)
+            it["weight_kg"] = float(it.get("weight_kg") or 0.55)
+            it["cn_keyword"] = str(it.get("cn_keyword") or it["name"]).strip()
+            it["_preserve_custom_spec"] = True
+            clean_items.append(it)
+            if len(clean_items) >= 5:
+                break
+
+        if piece_count in (2, 3, 4) and len(clean_items) > piece_count:
+            clean_items = clean_items[:piece_count]
+        elif piece_count in (2, 3, 4) and len(clean_items) < piece_count:
+            fb_pad = self._parse_custom_prompt_fallback(prompt_text, piece_count=piece_count)["items"]
+            have = {x["category"] for x in clean_items}
+            for pad_it in fb_pad:
+                if len(clean_items) >= piece_count:
+                    break
+                if pad_it["category"] not in have:
+                    pad_it["_preserve_custom_spec"] = True
+                    clean_items.append(pad_it)
+                    have.add(pad_it["category"])
+
+        bp["items"] = clean_items
+        return bp
+
     async def generate_look_async(
         self,
         season: str = "avtomatik ob-havo",
@@ -801,6 +1125,8 @@ FAQAT JSON QAYTAR:
         ig_intel: dict[str, Any] | None = None,
         exclude_goods_ids: set[str] | None = None,
         exclude_titles_cn: set[str] | None = None,
+        custom_blueprint: dict[str, Any] | None = None,
+        max_prepay_50_uzs: int | None = None,
     ) -> GeneratedLook:
         """Jonli Toshkent ob-havosi + Raqobatchi narx tahlili + OmniRoute/Gemini AI + haqiqiy Pinduoduo API bilan asinxron Look yaratadi."""
         weather = weather or await fetch_tashkent_weather()
@@ -813,14 +1139,12 @@ FAQAT JSON QAYTAR:
 
         if self.client is not self.ai.client:
             self.ai.client = self.client
-        import os
         from .photo_studio import build_scout_studio_prompt, derive_insta_pose_direction
 
         pb_txt = str((ig_intel or {}).get("learned_playbooks_text") or "")
         recent_titles = list((ig_intel or {}).get("recent_titles") or [])
         halol = (ig_intel or {}).get("halol_ogri") or {}
         comp_avg = int(halol.get("competitor_avg_price_uzs") or 0)
-        xan_target = int(halol.get("xan_target_price_uzs") or 0)
         market_note = ""
         if comp_avg > 0:
             market_note = (
@@ -828,9 +1152,14 @@ FAQAT JSON QAYTAR:
                 f"(bizning 50% oldindan to'lov Xitoy narxi + o'tkazma foizini 100% qoplaydi, kelganda yana shuncha foyda + kargo 12 000 so'm/100gr)."
             ).replace(",", " ")
 
-        # 1) Instagram Tahlilchi butun Instagramdan bo'laklab tahlil qilgan dinamik trend look bo'lsa (cheklanmagan toifalar!), shuni ustuvor olamiz!
+        is_custom = isinstance(custom_blueprint, dict) and isinstance(custom_blueprint.get("items"), list) and len(custom_blueprint["items"]) >= 2
         dyn_bp = halol.get("dynamic_look_blueprint") if not os.getenv("PYTEST_CURRENT_TEST") else None
-        if isinstance(dyn_bp, dict) and isinstance(dyn_bp.get("items"), list) and len(dyn_bp["items"]) >= 2:
+        if is_custom:
+            raw_data = json.loads(json.dumps(custom_blueprint, ensure_ascii=False))
+            for cit in raw_data.get("items") or []:
+                if isinstance(cit, dict):
+                    cit["_preserve_custom_spec"] = True
+        elif isinstance(dyn_bp, dict) and isinstance(dyn_bp.get("items"), list) and len(dyn_bp["items"]) >= 2:
             raw_data = json.loads(json.dumps(dyn_bp, ensure_ascii=False))
         else:
             prompt = self._build_look_prompt(
@@ -843,7 +1172,8 @@ FAQAT JSON QAYTAR:
             )
             ai_data = await self.ai.ask_json(prompt, timeout_sec=16.0) if (self.ai.enabled or self.client) else None
             raw_data = self._pick_template_if_invalid(ai_data, recent_titles=recent_titles)
-        raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
+        if not is_custom:
+            raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
 
         if self.pdd.connection_mode not in ("official_api", "apify_pdd_live", "onebound_pdd"):
             return self._build_generated_look(raw_data, eff_brief, weather_line)
@@ -1045,6 +1375,9 @@ FAQAT JSON QAYTAR:
         # Aqlli Insoncha Kapsula Byudjeti Muvofiqlashtirgichi (Capsule Budget Rebalancer)
         default_cap = 115.0 if len(enriched_items) <= 2 else (148.0 if len(enriched_items) == 3 else 172.0)
         max_capsule_cny = float(halol.get("max_capsule_cny") or default_cap)
+        if max_prepay_50_uzs and int(max_prepay_50_uzs) > 0:
+            target_budget_cny = max(65.0, float(max_prepay_50_uzs) / (max(self.rates.cny_uzs, 1750.0) * 1.055))
+            max_capsule_cny = min(max_capsule_cny, target_budget_cny)
         drop_indices: set[int] = set()
         ranked_indices = sorted(range(len(enriched_items)), key=lambda idx: -float(enriched_items[idx].get("price_cny") or 0))
         for r_idx in ranked_indices:
@@ -1095,10 +1428,13 @@ FAQAT JSON QAYTAR:
         for it in enriched_items:
             it.pop("_from_live_pdd", None)
 
-        return self._build_generated_look(
+        res_look = self._build_generated_look(
             raw_data,
             eff_brief,
             weather_line,
             raw_items_override=enriched_items,
             downloaded_images=downloaded_imgs,
         )
+        for it in res_look.raw_items:
+            it.pop("_preserve_custom_spec", None)
+        return res_look

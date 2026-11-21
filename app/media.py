@@ -116,12 +116,15 @@ def _auto_crop_studio_subject(img: Image.Image) -> Image.Image:
 
 
 def _extract_garment_cutout_rgba(img: Image.Image, category: str = "") -> Image.Image:
-    """Asosiy buyumni ajratadi: 1) AI Cutout Agent (BiRefNet/ISNet/cloth-seg), 2) zaxira — klassik fon-qirqish."""
+    """Asosiy buyumni ajratadi: 1) AI PhotoStudio regeneratsiyasi bo'lsa shundoq qaytaradi, 2) AI Cutout Agent, 3) zaxira."""
     if img.mode == "RGBA":
         a = np.asarray(img.split()[3])
-        if (a < 250).mean() > 0.05:  # allaqachon kesilgan (shaffof) rasm
+        if img.info.get("xan_studio_regenerated") or (a < 250).mean() > 0.03:  # allaqachon toza RGBA / studiya
             bb = img.getbbox()
-            return img.crop(bb) if bb else img
+            out = img.crop(bb) if bb else img
+            if img.info.get("xan_studio_regenerated"):
+                out.info["xan_studio_regenerated"] = "1"
+            return out
     try:
         from .cutout_agent import extract_main_item
 
@@ -360,7 +363,12 @@ def _load_raw_image(
         if isinstance(raw, bytes):
             return Image.open(io.BytesIO(raw)).convert("RGBA")
         if isinstance(raw, Image.Image):
-            return raw.convert("RGBA")
+            if raw.mode == "RGBA":
+                return raw
+            out = raw.convert("RGBA")
+            if raw.info.get("xan_studio_regenerated"):
+                out.info["xan_studio_regenerated"] = "1"
+            return out
     except Exception:
         pass
     real_photo = resolve_real_item_photo(fallback_name, idx)

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from aiohttp.test_utils import TestClient, TestServer
 
 from app.accountant import AccountantAgent, is_verbal_payment_claim, parse_bank_deposit_text
@@ -293,6 +294,94 @@ def test_accountant_parser_duplicate_and_webhook(tmp_path):
             assert msg3 is None
             assert (await db.get_order(o3_id))["status"] == "paid"
 
+        await db.close()
+
+    asyncio.run(_run())
+
+
+def test_photo_studio_kontext_and_custom_look_creator(tmp_path):
+    async def _run():
+        import base64
+        import io
+        from PIL import Image, ImageDraw
+        from app.photo_studio import (
+            PhotoStudioAgent,
+            _build_kontext_edit_instruction,
+            _isolate_from_clean_white_studio_bg,
+            _verify_regenerated_rgba,
+        )
+        from app.sourcing import TrendSourcingAgent
+
+        s = _make_settings(str(tmp_path / "custom.db"))
+        # 1) Studio isolatori oq fondan qora shimni ham, ustki kurtkani ham oq qirrasiz va kesmasdan ajratadi
+        studio_sheet = Image.new("RGB", (300, 300), (255, 255, 255))
+        drw = ImageDraw.Draw(studio_sheet)
+        drw.rectangle([60, 40, 240, 260], fill=(18, 20, 24))
+        rgba = _isolate_from_clean_white_studio_bg(studio_sheet, category="bottom")
+        assert rgba.mode == "RGBA"
+        assert _verify_regenerated_rgba(rgba) is True
+        assert rgba.info.get("xan_studio_regenerated") == "1"
+
+        # 2) Kontext buyrug'i kategoriyaga mos yoziladi
+        p_bot = _build_kontext_edit_instruction({"name": "Qora Klassik Drape Shim", "category": "bottom"})
+        assert "shoes" in p_bot.lower() and "ankle hems" in p_bot.lower()
+
+        # 3) PhotoStudioAgent kontekst regeneratsiyasi mock orqali 100% ishlaydi
+        agent = PhotoStudioAgent(s)
+        buf = io.BytesIO()
+        studio_sheet.save(buf, format="PNG")
+        agent._call_hf_kontext_img2img_sync = lambda *_a, **_kw: buf.getvalue()
+        monkey_orig = os.environ.get("PYTEST_CURRENT_TEST")
+        os.environ["XAN_PHOTO_STUDIO_IN_TESTS"] = "1"
+        try:
+            st_res = await agent.render_product_studio_async(
+                studio_sheet,
+                {"name": "Qora Oversize Svitshot", "category": "top"},
+                use_cache=False,
+            )
+            assert st_res.used_nano_banana is True
+            assert st_res.model_used == "hf_flux_kontext_img2img"
+        finally:
+            os.environ.pop("XAN_PHOTO_STUDIO_IN_TESTS", None)
+            if monkey_orig is not None:
+                os.environ["PYTEST_CURRENT_TEST"] = monkey_orig
+
+        # 4) Custom Look Blueprint Parser (matn + rasm + kargo shim taqiqi)
+        skaut = TrendSourcingAgent(s)
+        bp = await skaut.build_custom_look_blueprint_async(
+            prompt_text="Jigarrang zamsh kurtka, qora svitshot, qora kargo shim va chelsea etik yig'",
+            piece_count=4,
+        )
+        assert len(bp["items"]) == 4
+        assert all("kargo" not in str(it["name"]).lower() for it in bp["items"])
+
+        # 5) Dashboard /api/looks/custom_create endpointi rasm + buyruq bilan Look yaratadi
+        db_file = str(tmp_path / "dash_custom.db")
+        db = Database(db_file)
+        await db.connect()
+        s_dash = _make_settings(db_file)
+        office = AgentOffice(db=db, settings=s_dash, media_dir=str(tmp_path / "media"))
+        app = build_dashboard_app(db, s_dash, office)
+        img_b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+        async with TestClient(TestServer(app)) as client:
+            r_bad = await client.post("/api/looks/custom_create", json={})
+            assert r_bad.status == 400
+
+            r_ok = await client.post(
+                "/api/looks/custom_create",
+                json={
+                    "prompt": "Jigarrang zamsh kurtka va qora klassik shimdan iborat 3 qismli look yig'",
+                    "media_b64": img_b64,
+                    "media_mime": "image/png",
+                    "piece_count": 3,
+                    "max_prepay_50_uzs": 350000,
+                },
+            )
+            assert r_ok.status == 200
+            payload = await r_ok.json()
+            assert payload["ok"] is True
+            assert payload["piece_count"] >= 2
+            assert payload["prepay_50_uzs"] % 50000 == 0
         await db.close()
 
     asyncio.run(_run())

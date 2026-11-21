@@ -5,6 +5,7 @@ Manzil: http://localhost:8080 (yoki 24/7 Cloud Server domeni).
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -1301,7 +1302,7 @@ def build_dashboard_app(
     settings: Settings,
     office: AgentOffice,
 ) -> web.Application:
-    app = web.Application()
+    app = web.Application(client_max_size=65 * 1024 * 1024)
     weather_cache: dict[str, object] = {"ts": 0.0, "data": None}
     ecc_registry = ECCRegistry(getattr(settings, "ecc_root", "vendor/ecc"))
     graph_index = build_graphify_context_index("app")
@@ -1623,7 +1624,17 @@ def build_dashboard_app(
         except Exception:
             body = {}
         season = body.get("season", "avtomatik ob-havo")
-        res = await office.run_look_pipeline(season=season)
+        custom_prompt = str(body.get("custom_prompt") or body.get("prompt") or "").strip()
+        pc_raw = body.get("piece_count")
+        budget_raw = body.get("max_prepay_50_uzs")
+        piece_count = int(pc_raw) if str(pc_raw or "").isdigit() else None
+        max_prepay_50 = int(budget_raw) if str(budget_raw or "").isdigit() else None
+        res = await office.run_look_pipeline(
+            season=season,
+            custom_prompt=custom_prompt,
+            piece_count=piece_count,
+            max_prepay_50_uzs=max_prepay_50,
+        )
         return web.json_response({
             "ok": True,
             "look_id": res.look_id,
@@ -1634,6 +1645,94 @@ def build_dashboard_app(
             "prepay_50_uzs": res.prepay_50_uzs,
             "remaining_50_uzs": res.remaining_50_uzs,
             "mp4_path": res.mp4_path,
+        })
+
+    async def api_custom_create_look(request: web.Request) -> web.Response:
+        """Admin yuborgan rasm, video va/yoki matn buyrug'i asosida AI Look + 1080p Reels yaratadi."""
+        prompt_text = ""
+        media_b64 = ""
+        media_bytes: bytes | None = None
+        media_mime = ""
+        piece_count: int | None = None
+        max_prepay_50_uzs: int | None = None
+        ctype = (request.headers.get("Content-Type") or "").lower()
+
+        if "multipart/form-data" in ctype:
+            reader = await request.multipart()
+            while True:
+                part = await reader.next()
+                if part is None:
+                    break
+                pname = str(part.name or "")
+                if pname == "prompt":
+                    prompt_text = (await part.text()).strip()
+                elif pname == "piece_count":
+                    v = (await part.text()).strip()
+                    if v.isdigit():
+                        piece_count = int(v)
+                elif pname == "max_prepay_50_uzs":
+                    v = (await part.text()).strip()
+                    if v.isdigit():
+                        max_prepay_50_uzs = int(v)
+                elif pname in ("media", "file"):
+                    media_bytes = await part.read(decode=False)
+                    media_mime = str(part.headers.get("Content-Type") or "").strip()
+        else:
+            try:
+                body = await request.json()
+            except Exception:
+                body = {}
+            prompt_text = str(body.get("prompt") or body.get("custom_prompt") or "").strip()
+            media_b64 = str(body.get("media_b64") or body.get("file_b64") or "").strip()
+            media_mime = str(body.get("media_mime") or "").strip()
+            media_name = str(body.get("media_name") or "").strip().lower()
+            pc_raw = body.get("piece_count")
+            bd_raw = body.get("max_prepay_50_uzs")
+            if str(pc_raw or "").isdigit():
+                piece_count = int(pc_raw)
+            if str(bd_raw or "").isdigit():
+                max_prepay_50_uzs = int(bd_raw)
+            if media_b64:
+                if "," in media_b64 and media_b64.startswith("data:"):
+                    hdr_part, b64_data = media_b64.split(",", 1)
+                    if not media_mime and ";" in hdr_part:
+                        media_mime = hdr_part[5:].split(";", 1)[0].strip()
+                    media_b64 = b64_data
+                if not media_mime and any(media_name.endswith(ext) for ext in (".mp4", ".mov", ".webm", ".mkv")):
+                    media_mime = "video/mp4"
+                try:
+                    media_bytes = base64.b64decode(media_b64)
+                except Exception:
+                    return web.json_response({"ok": False, "error": "Yuklangan fayl formati noto'g'ri"}, status=400)
+
+        if not prompt_text and not media_bytes:
+            return web.json_response(
+                {"ok": False, "error": "Iltimos, look haqida buyruq yozing yoki rasm/video yuklang"},
+                status=400,
+            )
+
+        res = await office.run_look_pipeline(
+            custom_prompt=prompt_text,
+            reference_media_bytes=media_bytes,
+            reference_media_mime=media_mime,
+            piece_count=piece_count,
+            max_prepay_50_uzs=max_prepay_50_uzs,
+        )
+        look_row = await db.get_look(res.look_id)
+        p_name = os.path.basename((look_row or {}).get("photo_path") or f"look_{res.look_id}.jpg")
+        v_name = os.path.basename((look_row or {}).get("video_path") or res.mp4_path or "")
+        return web.json_response({
+            "ok": True,
+            "look_id": res.look_id,
+            "title": res.title,
+            "piece_count": res.piece_count,
+            "palette_name": res.palette_name,
+            "prepay_uzs": res.prepay_uzs,
+            "prepay_50_uzs": res.prepay_50_uzs,
+            "remaining_50_uzs": res.remaining_50_uzs,
+            "photo_url": f"/media/{p_name}" if p_name else "",
+            "video_url": f"/media/{v_name}" if v_name else "",
+            "items": look_items(look_row) if look_row else [],
         })
 
     async def api_calc(request: web.Request) -> web.Response:
@@ -2057,6 +2156,7 @@ def build_dashboard_app(
     app.router.add_post("/api/ceo/analyze", api_ceo_analyze)
     app.router.add_post("/api/ceo/apply_pricing", api_ceo_apply_pricing)
     app.router.add_post("/api/looks/{id}/delete", api_delete_look)
+    app.router.add_post("/api/looks/custom_create", api_custom_create_look)
     app.router.add_post("/api/looks/clear", api_clear_looks)
     app.router.add_post("/api/omniroute/start", api_omniroute_start)
     app.router.add_post("/api/bank_webhook", api_bank_webhook)

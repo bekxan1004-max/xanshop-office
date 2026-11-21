@@ -131,6 +131,9 @@ def _cloth_mask(img: Image.Image, category: str) -> np.ndarray | None:
     if category == "outerwear":
         # Uzun palto/trench ba'zan 0-kanal va 2-kanalga bo'linadi -> ikkalasini birlashtiramiz
         return np.maximum(all_ch[0], all_ch[2])
+    if category == "bottom":
+        # Keng drape/to'g'ri shimlar ba'zan 1-kanal va 2-kanalga bo'linadi -> tepa kiyimsiz ikkalasini birlashtiramiz
+        return np.maximum(all_ch[1], all_ch[2]) * (all_ch[0] < 0.35)
     return all_ch[ch]
 
 
@@ -294,6 +297,8 @@ def extract_main_item(
         c0, c1, c2 = all_cloth
         if category == "outerwear":
             cloth = np.maximum(c0, c2)
+        elif category == "bottom":
+            cloth = np.maximum(c1, c2) * (c0 < 0.35)
         else:
             cloth = all_cloth[_CLOTH_CHANNEL[category]]
         cov_g = float((general > 0.5).mean())

@@ -221,12 +221,64 @@
     <section id="tab-studio" class="tab-panel">
       <div class="card" style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-size:15px;font-weight:800">🎬 Look & Reels Generator (Pinduoduo + 7–14 Kunlik Ob-Havo + AI Ovoz)</div>
-          <div style="font-size:12px;color:var(--text-3)">Insta Tahlilchi (@_tima_shop, @stylesh.uz) + 5–10 kun oldingi ob-havo → 65% marja va 50k/100k yaxlitlash → Tayyor Reels</div>
+          <div style="font-size:15px;font-weight:800">🎬 Look & Reels Generator (Pinduoduo + 7–14 Kunlik Ob-Havo + AI Photo Studio)</div>
+          <div style="font-size:12px;color:var(--text-3)">Insta Tahlilchi (@_tima_shop, @stylesh.uz) + Photo Studio AI Regenerator → 50k yaxlitlash → 1080p Reels</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button type="button" class="btn-secondary" id="btn-clear-looks">🗑️ Omborni tozalash</button>
-          <button type="button" class="btn-primary" id="btn-generate-look">🎬 +1 Look & Reels Yaratish</button>
+          <button type="button" class="btn-primary" id="btn-generate-look">🎲 +1 Avto Trend Look</button>
+        </div>
+      </div>
+
+      <!-- EXPANDED CUSTOM AI LOOK CREATOR (IMAGE / VIDEO / PROMPT) -->
+      <div class="card" style="margin-bottom:14px;border:1px solid rgba(245,158,11,0.35);background:linear-gradient(145deg,rgba(15,23,42,.92),rgba(30,41,59,.78))" id="custom-look-builder-card">
+        <div class="card-title">
+          <span>✨ Maxsus AI Look & Reels Studiyasi (Rasm / Video / Buyruq asosida)</span>
+          <span class="badge ok">AI Vision + FLUX Image-to-Image + PDD</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:10px;line-height:1.5">
+          Namuna <b>rasm yoki video (.mp4)</b> yuklab <i>«shu kabi look yig'»</i> deng YOKI tarkibi va uslubini matnda buyuring — AI agentlar Pinduoduo'dan mos mahsulotlarni topib, Photo Studioda toza qayta chizib, tayyor Look va Reels chiqaradi.
+        </div>
+
+        <div style="display:grid;gap:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border-radius:10px;border:1px dashed rgba(148,163,184,0.45);background:rgba(2,6,23,0.45)">
+            <input id="custom-look-file" type="file" accept="image/*,video/mp4,video/webm,video/quicktime" style="display:none" />
+            <button type="button" class="btn-secondary btn-sm" id="btn-custom-look-pick">📎 Rasm yoki Video Yuklash (.jpg, .png, .mp4)</button>
+            <span id="custom-look-file-preview" style="font-size:12px;color:var(--text-2)">Namuna media tanlanmagan (ixtiyoriy)</span>
+            <button type="button" class="btn-secondary btn-sm" id="custom-look-file-clear" style="display:none;margin-left:auto">✕ Olib tashlash</button>
+          </div>
+
+          <textarea id="custom-look-prompt" class="form-control" rows="2" placeholder="Masalan: Shu yuklangan rasm/videodagi kabi look yig' YOKI Jigarrang zamsh kurtka, qora oversize svitshot, qora klassik drape shim va qishki botinkadan iborat 4 qismli Old Money look yig', 50% oldindan to'lovi 350 ming atrofida bo'lsin..."></textarea>
+
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:11.5px;color:var(--text-3)">Tez buyruqlar:</span>
+            <button type="button" class="skill-chip" data-custom-look-preset="Shu yuklangan rasm/videodagi kabi zamonaviy look yig', ranglari va matosi mos bo'lsin.">📸 Shu rasm/videodek look</button>
+            <button type="button" class="skill-chip" data-custom-look-preset="Jigarrang zamsh kurtka, qora kashmir vodolazka, grafit klassik drape shim va qora chelsea etikdan iborat Diplomat Old Money kapsula yig'.">🏛️ Diplomat Old Money</button>
+            <button type="button" class="skill-chip" data-custom-look-preset="Qora bomber kurtka, qora oversize svitshot, to'q kulrang cho'ntakli erkin shim va qishki botinkadan iborat streetwear kapsula tayyorla.">⚡ Toshkent Clean Streetwear</button>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <label style="font-size:12px;color:var(--text-3)">Qismlar:
+                <select id="custom-look-pieces" class="form-control" style="display:inline-block;width:auto;padding:5px 10px;font-size:12px;margin-left:4px">
+                  <option value="">Avto (AI tanlaydi)</option>
+                  <option value="2">2 qismli Set</option>
+                  <option value="3">3 qismli Kapsula</option>
+                  <option value="4">4 qismli To'liq Look</option>
+                </select>
+              </label>
+              <label style="font-size:12px;color:var(--text-3)">50% Byudjet:
+                <select id="custom-look-budget" class="form-control" style="display:inline-block;width:auto;padding:5px 10px;font-size:12px;margin-left:4px">
+                  <option value="">Avto (Sweet-Spot)</option>
+                  <option value="300000">≤ 300 000 so'm</option>
+                  <option value="350000">≤ 350 000 so'm</option>
+                  <option value="450000">≤ 450 000 so'm</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" class="btn-primary" id="btn-custom-look-create">✨ AI Buyruq / Media Asosida Look Yaratish</button>
+          </div>
+          <div id="custom-look-status" class="ai-output" style="display:none;font-size:12px"></div>
         </div>
       </div>
 
@@ -339,6 +391,6 @@
 
   <script src="/static/three.min.js"></script>
   <script src="/static/office3d.js?v=9"></script>
-  <script src="/static/v2.js?v=9"></script>
+  <script src="/static/v2.js?v=10"></script>
 </body>
 </html>
