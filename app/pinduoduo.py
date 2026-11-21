@@ -291,7 +291,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "619842109312",
             "title_uz": "Oversize Heavyweight Bomber Kurtka",
             "title_cn": "美式复古重磅飞行员夹克男春秋宽松外套",
-            "price_cny": 89.0,
+            "price_cny": 56.0,
             "weight_kg": 0.75,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "outerwear",
@@ -301,7 +301,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "638192041185",
             "title_uz": "Old Money Ikki Qatorli Jun Palto",
             "title_cn": "老钱风双排扣羊毛呢大衣男秋冬加厚长款英伦外套",
-            "price_cny": 138.0,
+            "price_cny": 68.0,
             "weight_kg": 1.15,
             "sales_tip": "5.8万+件 (58,000+ sotilgan)",
             "category": "outerwear",
@@ -311,7 +311,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "645120981144",
             "title_uz": "To'q Ko'k Klassik Jun Blazer",
             "title_cn": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克",
-            "price_cny": 115.0,
+            "price_cny": 64.0,
             "weight_kg": 0.78,
             "sales_tip": "4.6万+件 (46,000+ sotilgan)",
             "category": "outerwear",
@@ -321,7 +321,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "650918273641",
             "title_uz": "Techwear Shamolto'sar Gore-Tex Kurtka",
             "title_cn": "冲锋衣男三合一防风防水户外机能连帽夹克",
-            "price_cny": 86.0,
+            "price_cny": 54.0,
             "weight_kg": 0.68,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "outerwear",
@@ -331,7 +331,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "662019482710",
             "title_uz": "Minimalist Zamokli Kardigan-Kurtka",
             "title_cn": "Cleanfit双拉链针织开衫男立领夹克外套",
-            "price_cny": 74.0,
+            "price_cny": 48.0,
             "weight_kg": 0.58,
             "sales_tip": "4.2万+件 (42,000+ sotilgan)",
             "category": "outerwear",
@@ -343,7 +343,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "591029384711",
             "title_uz": "Qalin 420g Oversize Xudi",
             "title_cn": "420g重磅纯棉连帽卫衣男宽松美式帽衫",
-            "price_cny": 54.0,
+            "price_cny": 34.0,
             "weight_kg": 0.55,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "top",
@@ -353,7 +353,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "598271635490",
             "title_uz": "Old Money Yarim-Zamok Svitshot (Half-Zip)",
             "title_cn": "美式复古半拉链立领卫衣男宽松华夫格上衣",
-            "price_cny": 48.0,
+            "price_cny": 32.0,
             "weight_kg": 0.45,
             "sales_tip": "8.5万+件 (85,000+ sotilgan)",
             "category": "top",
@@ -363,7 +363,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "604918273512",
             "title_uz": "Qalin Trikotaj Kashemir Vodolazka (Qish)",
             "title_cn": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫",
-            "price_cny": 64.0,
+            "price_cny": 38.0,
             "weight_kg": 0.48,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "top",
@@ -373,7 +373,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "612938475601",
             "title_uz": "Trikotaj Polo-Sviter (Kuzgi/Bahorgi)",
             "title_cn": "翻领针织衫男长袖秋冬季高级感毛衣外套",
-            "price_cny": 59.0,
+            "price_cny": 36.0,
             "weight_kg": 0.48,
             "sales_tip": "6.1万+件 (61,000+ sotilgan)",
             "category": "top",
@@ -385,7 +385,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "578192039481",
             "title_uz": "Cho'ntakli Erkin Keng Shim",
             "title_cn": "美式工装裤男直筒宽松多口袋伞兵休闲裤",
-            "price_cny": 52.0,
+            "price_cny": 35.0,
             "weight_kg": 0.50,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "bottom",
@@ -395,7 +395,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "583910293847",
             "title_uz": "Klassik To'g'ri Bichimli Bryuk (Grafit Drape)",
             "title_cn": "垂感西装裤男直筒宽松老钱风休闲长裤",
-            "price_cny": 55.0,
+            "price_cny": 36.0,
             "weight_kg": 0.48,
             "sales_tip": "9.3万+件 (93,000+ sotilgan)",
             "category": "bottom",
@@ -405,7 +405,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "587612093814",
             "title_uz": "Taupe-Jigarrang Old Money Jun Shim",
             "title_cn": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚",
-            "price_cny": 64.0,
+            "price_cny": 42.0,
             "weight_kg": 0.52,
             "sales_tip": "6.8万+件 (68,000+ sotilgan)",
             "category": "bottom",
@@ -415,7 +415,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "589102938412",
             "title_uz": "Vintaj Grafit Keng Jinsi Shim",
             "title_cn": "复古水洗黑灰色直筒阔腿牛仔裤男宽松",
-            "price_cny": 62.0,
+            "price_cny": 39.0,
             "weight_kg": 0.60,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "bottom",
@@ -425,7 +425,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "594019283746",
             "title_uz": "Qalin Sport-Joger Shim (Fleece)",
             "title_cn": "重磅纯色束脚卫裤男春秋宽松运动休闲裤",
-            "price_cny": 45.0,
+            "price_cny": 32.0,
             "weight_kg": 0.48,
             "sales_tip": "7.7万+件 (77,000+ sotilgan)",
             "category": "bottom",
@@ -437,7 +437,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "551029384756",
             "title_uz": "Retro Street Krossovka",
             "title_cn": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋",
-            "price_cny": 42.0,
+            "price_cny": 39.0,
             "weight_kg": 0.80,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "shoes",
@@ -447,7 +447,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "558910239481",
             "title_uz": "Old Money Zamsh Lofer / Moccasin",
             "title_cn": "老钱风翻毛皮乐福鞋男一脚蹬英伦休闲皮鞋",
-            "price_cny": 49.0,
+            "price_cny": 44.0,
             "weight_kg": 0.75,
             "sales_tip": "4.9万+件 (49,000+ sotilgan)",
             "category": "shoes",
@@ -457,7 +457,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "561920384712",
             "title_uz": "Qora Charm Qishki Chelsea Etik",
             "title_cn": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴",
-            "price_cny": 78.0,
+            "price_cny": 52.0,
             "weight_kg": 0.92,
             "sales_tip": "7.4万+件 (74,000+ sotilgan)",
             "category": "shoes",
@@ -467,7 +467,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "564019283711",
             "title_uz": "Chunky Runner Sport Krossovka",
             "title_cn": "老爹鞋男透气网面运动休闲跑步增高潮鞋",
-            "price_cny": 42.0,
+            "price_cny": 38.0,
             "weight_kg": 0.82,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "shoes",
@@ -479,7 +479,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "531092837465",
             "title_uz": "Minimalist Streetwear Kepka",
             "title_cn": "韩版百搭软顶棒球帽男女显脸小遮阳鸭舌帽",
-            "price_cny": 18.0,
+            "price_cny": 15.0,
             "weight_kg": 0.12,
             "sales_tip": "10万+件 (100,000+ sotilgan)",
             "category": "accessory",
@@ -489,7 +489,7 @@ PDD_VERIFIED_CATALOG: dict[str, list[dict[str, Any]]] = {
             "goods_id": "539182736450",
             "title_uz": "Crossbody Eko-Charm Sumka",
             "title_cn": "极简风斜挎包男潮牌单肩大容量机能邮差包",
-            "price_cny": 35.0,
+            "price_cny": 26.0,
             "weight_kg": 0.32,
             "sales_tip": "6.4万+件 (64,000+ sotilgan)",
             "category": "accessory",
@@ -1005,11 +1005,11 @@ class PinduoduoConnector:
         return PinduoduoConnector._category_bucket(keyword_cn)
 
     async def _check_apify_budget(self, session: aiohttp.ClientSession) -> tuple[bool, str]:
-        """Apify $5 bepul limitdan oshib ketmaslik uchun kunlik (3 ta) va oylik ($4.20) xarajat himoyasi."""
+        """Apify $5 bepul limitdan oshib ketmaslik uchun kunlik (20 ta = ~$0.09/kun) va oylik ($4.20) xarajat himoyasi."""
         if os.getenv("PYTEST_CURRENT_TEST"):
             return True, ""
         max_monthly = float(os.getenv("APIFY_MAX_MONTHLY_USD", "4.20") or "4.20")
-        max_daily = int(float(os.getenv("APIFY_MAX_DAILY_CALLS", "3") or "3"))
+        max_daily = int(float(os.getenv("APIFY_MAX_DAILY_CALLS", "20") or "20"))
         budget_file = "data/apify_budget.json"
         today_str = time.strftime("%Y-%m-%d")
         now_ts = int(time.time())
@@ -1071,7 +1071,7 @@ class PinduoduoConnector:
             state["day"] = today_str
             state["daily_calls"] = 0
         state["daily_calls"] = int(state.get("daily_calls") or 0) + 1
-        state["monthly_usd"] = round(float(state.get("monthly_usd") or 0.0) + 0.03, 4)
+        state["monthly_usd"] = round(float(state.get("monthly_usd") or 0.0) + 0.005, 4)
         try:
             os.makedirs("data", exist_ok=True)
             with open(budget_file, "w", encoding="utf-8") as f:
@@ -1166,7 +1166,7 @@ class PinduoduoConnector:
 
     @classmethod
     def _score_value_quality(cls, prod: PddProduct, kw_terms: list[str], wants_men: bool = True) -> float:
-        """Sifat + hamyonbop narx formulasi: eng qimmatini emas, eng ko'p sotilgan sifatli va arzon Pinduoduo tovarini 1-o'ringa chiqaradi."""
+        """Sifat + hamyonbop narx ('Oltin O'rtalik') formulasi: na sifatsiz chiqindi, na qimmat — raqobatchidan arzonroq sotiladigan eng zo'r sifat-narx nisbati!"""
         title_cn = prod.title_cn or ""
         price_cny = float(prod.price_cny or 0)
         score = 0.0
@@ -1178,14 +1178,16 @@ class PinduoduoConnector:
         # Sotuv hajmi = sifat va ishonch isboti
         sales_n = cls._parse_cn_sales_num(prod.sales_tip)
         if sales_n >= 5000:
-            score += 5.0
-        elif sales_n >= 500:
-            score += 3.0
-        elif sales_n >= 50:
-            score += 1.5
-        # Mato va sifat belgilari
-        if any(q in title_cn for q in ("羊毛", "纯棉", "重磅", "真皮", "头层牛皮", "垂感", "加绒", "羊绒", "加厚")):
+            score += 5.5
+        elif sales_n >= 1000:
+            score += 4.0
+        elif sales_n >= 200:
             score += 2.0
+        elif sales_n >= 50:
+            score += 1.0
+        # Mato va sifat belgilari
+        if any(q in title_cn for q in ("纯棉", "重磅", "加厚", "垂感", "加绒", "羊毛", "真皮", "头层牛皮", "羊绒")):
+            score += 2.5
         # Sovuq/kuz-qish kiyimi so'ralganda arzon yupqa yozgi futbolkalarni pasaytirish
         kw_joined = " ".join(kw_terms)
         item_bucket = cls._category_bucket(title_cn)
@@ -1193,25 +1195,50 @@ class PinduoduoConnector:
             bad in title_cn.lower() for bad in ("短袖", "薄款", "t恤", "夏季")
         ):
             score -= 7.5
-        # Narx nisbati: eng qimmatini EMAS, eng arzon sifatsizini HAM EMAS — sifat + hamyonbop o'rtacha narx!
+        # Kategoriya bo'yicha Oltin O'rtalik CNY zonasi (hamyonbop + sifatli, raqobatchidan 15-25% arzon chiqish uchun)
         if item_bucket == "outerwear":
-            if 68.0 <= price_cny <= 165.0:
-                score += 6.5
-            elif 165.0 < price_cny <= 220.0:
-                score += 2.5
-            elif price_cny < 55.0:
-                score -= 4.5
-            elif price_cny > 220.0:
-                score -= 5.0
-        else:
-            if 48.0 <= price_cny <= 125.0:
-                score += 6.5
-            elif 32.0 <= price_cny < 48.0:
+            if 35.0 <= price_cny <= 68.0:
+                score += 8.0
+            elif 68.0 < price_cny <= 85.0:
                 score += 3.0
-            elif 125.0 < price_cny <= 170.0:
-                score += 3.5
-            elif price_cny > 170.0:
+            elif price_cny < 24.0:
+                score -= 6.0
+            elif price_cny > 88.0:
+                score -= 8.0
+        elif item_bucket == "shoes":
+            if 28.0 <= price_cny <= 56.0:
+                score += 8.0
+            elif 56.0 < price_cny <= 72.0:
+                score += 2.5
+            elif price_cny < 19.0:
                 score -= 5.0
+            elif price_cny > 75.0:
+                score -= 8.0
+        elif item_bucket == "bottom":
+            if 24.0 <= price_cny <= 48.0:
+                score += 8.0
+            elif 48.0 < price_cny <= 60.0:
+                score += 2.5
+            elif price_cny < 16.0:
+                score -= 5.0
+            elif price_cny > 62.0:
+                score -= 8.0
+        elif item_bucket == "accessory":
+            if 10.0 <= price_cny <= 28.0:
+                score += 8.0
+            elif 28.0 < price_cny <= 38.0:
+                score += 2.0
+            elif price_cny > 40.0:
+                score -= 8.0
+        else:
+            if 22.0 <= price_cny <= 46.0:
+                score += 8.0
+            elif 46.0 < price_cny <= 58.0:
+                score += 2.5
+            elif price_cny < 15.0:
+                score -= 5.0
+            elif price_cny > 60.0:
+                score -= 8.0
         return score
 
     async def search_apify_pdd(
@@ -1286,12 +1313,14 @@ class PinduoduoConnector:
             )
             return out_list
 
-        # 1) Aniq kalit so'z 7 kunlik keshda bormi va hali ishlatilmagan (yangi) tovarlar bormi? (0$ sarf!)
+        sweet_hard_max = {"outerwear": 85.0, "shoes": 72.0, "bottom": 60.0, "accessory": 38.0, "top": 58.0}.get(target_bucket, 65.0)
+        # 1) Aniq kalit so'z 7 kunlik keshda bormi va ichida hamyonbop + yangi tovarlar bormi? (0$ sarf!)
         cached_rows = cached_map.get(kw_key)
         if isinstance(cached_rows, list) and cached_rows:
             first_ts = int((cached_rows[0] or {}).get("_cached_at") or now_ts) if isinstance(cached_rows[0], dict) else now_ts
             clean_cached = _valid_pdd_rows(cached_rows, apply_exclude=True, strict_bucket=True)
-            if clean_cached and (now_ts - first_ts) <= cache_ttl_sec:
+            affordable_exact = [p for p in clean_cached if float(p.price_cny or 0) <= sweet_hard_max]
+            if affordable_exact and (now_ts - first_ts) <= cache_ttl_sec:
                 return clean_cached[:page_size]
 
         # 2) Xuddi shu ANIQ tur (masalan: leather_jacket, cardigan, watch, loafers...) bo'yicha hali ishlatilmagan kesh bormi?
@@ -1316,8 +1345,9 @@ class PinduoduoConnector:
             key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny)
         )
 
-        # Faqat aynan so'ralgan subtype (masalan: palto uchun palto, soat uchun soat!) keshda 3+ ta yangi tovar bo'lsagina keshdan olamiz
-        if len(subtype_fallback) >= 3:
+        # Faqat aynan so'ralgan subtype keshda 3+ ta hamyonbop + sifatli (sweet-spot) tovar bo'lsagina Apify'ni tejaymiz
+        affordable_sub = [p for p in subtype_fallback if float(p.price_cny or 0) <= sweet_hard_max]
+        if len(affordable_sub) >= 3:
             return subtype_fallback[:page_size]
 
         search_query = f'site:mobile.yangkeduo.com/poros/h5 "goods_id" {short_q}'
@@ -1328,15 +1358,14 @@ class PinduoduoConnector:
                 allowed, cap_reason = await self._check_apify_budget(session)
                 if not allowed:
                     log.info("Apify bepul limit himoyasi faol (%s) — keshdagi jonli Pinduoduo tovarlaridan foydalaniladi", cap_reason)
-                    if bucket_fallback:
-                        return bucket_fallback[:page_size]
-                    return []
+                    combined = affordable_sub + [p for p in bucket_fallback if p.goods_id not in {a.goods_id for a in affordable_sub}]
+                    return (combined or subtype_fallback or bucket_fallback)[:page_size]
 
                 apify_url = "https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items"
                 async with session.post(
                     apify_url,
                     params={"token": self.apify_token, "timeout": 58, "memory": 512},
-                    json={"queries": search_query, "maxPagesPerQuery": 1, "resultsPerPage": 6},
+                    json={"queries": search_query, "maxPagesPerQuery": 1, "resultsPerPage": 10},
                 ) as resp:
                     self._record_apify_call()
                     if resp.status not in (200, 201):
@@ -1367,7 +1396,7 @@ class PinduoduoConnector:
                         pass
                     return []
 
-                batches = await asyncio.gather(*(_fetch_poros(u) for u in poros_urls[:3]))
+                batches = await asyncio.gather(*(_fetch_poros(u) for u in poros_urls[:5]))
                 raw_items: list[dict[str, Any]] = []
                 seen_ids: set[str] = set()
                 for b in batches:
@@ -1398,7 +1427,8 @@ class PinduoduoConnector:
                         price_cny = round(float(p_fen) / 100.0, 2)
                     except (TypeError, ValueError):
                         price_cny = 0.0
-                    if price_cny < 18.0:
+                    min_p_threshold = 9.5 if target_bucket == "accessory" else 16.0
+                    if price_cny < min_p_threshold:
                         continue
 
                     gallery = g.get("gallery_urls") or []
@@ -1456,11 +1486,19 @@ class PinduoduoConnector:
                     except Exception:
                         pass
                     fresh_out = [p for p in all_found if p.goods_id not in excl]
-                    return (fresh_out or bucket_fallback or all_found)[:page_size]
+                    merged_pool = list(fresh_out)
+                    seen_m = {p.goods_id for p in merged_pool}
+                    for p in [*affordable_sub, *bucket_fallback, *all_found]:
+                        if p.goods_id not in seen_m and (p.goods_id not in excl or not fresh_out):
+                            seen_m.add(p.goods_id)
+                            merged_pool.append(p)
+                    merged_pool.sort(key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny))
+                    return (merged_pool or bucket_fallback or all_found)[:page_size]
         except Exception as e:
             self.last_error = f"apify_err:{type(e).__name__}"
             log.warning("Apify Pinduoduo jonli qidiruv xatosi (%s): %s", kw_key, e)
-        return bucket_fallback[:page_size]
+        combined = affordable_sub + [p for p in bucket_fallback if p.goods_id not in {a.goods_id for a in affordable_sub}]
+        return (combined or subtype_fallback or bucket_fallback)[:page_size]
 
     @property
     def connection_mode(self) -> str:

@@ -125,8 +125,9 @@ class AgentOffice:
 
         existing_looks = await self.db.list_looks(only_active=False)
         used_goods_ids: set[str] = set()
+        used_titles_cn: set[str] = set()
         recent_titles: list[str] = []
-        for ex_l in existing_looks:
+        for idx_ex, ex_l in enumerate(existing_looks):
             t_str = str(ex_l.get("title") or "").strip()
             if t_str and len(recent_titles) < 12:
                 recent_titles.append(t_str)
@@ -135,9 +136,13 @@ class AgentOffice:
             except Exception:
                 ex_items = []
             for ex_it in ex_items if isinstance(ex_items, list) else []:
-                gid_val = str(ex_it.get("pdd_goods_id") or "").strip()
+                gid_val = str(ex_it.get("pdd_goods_id") or ex_it.get("goods_id") or "").strip()
                 if gid_val:
                     used_goods_ids.add(gid_val)
+                if idx_ex < 8:
+                    tcn = str(ex_it.get("title_cn") or "").strip()[:28]
+                    if tcn:
+                        used_titles_cn.add(tcn)
         saved_cycle = int(await self.db.get_setting("look_cycle_idx") or "0")
         cycle_idx = max(len(existing_looks), saved_cycle, self._cycle_counter)
         await self.db.set_setting("look_cycle_idx", cycle_idx + 1)
@@ -194,6 +199,7 @@ class AgentOffice:
             weather=weather,
             ig_intel=ig_intel,
             exclude_goods_ids=used_goods_ids,
+            exclude_titles_cn=used_titles_cn,
         )
         b = gen.breakdown
 

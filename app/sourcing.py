@@ -99,9 +99,9 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "To'q jigarrang, Qahva-taupe",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "To'q Jigarrang Ikki Qatorli Jun Palto", "price_cny": 138.0, "weight_kg": 1.15, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
-            {"category": "top", "name": "To'q Qahva Kashmir Vodolazka", "price_cny": 68.0, "weight_kg": 0.48, "cn_keyword": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫"},
-            {"category": "bottom", "name": "Qahva-Taupe Old Money Jun Shim", "price_cny": 64.0, "weight_kg": 0.52, "cn_keyword": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚"},
+            {"category": "outerwear", "name": "To'q Jigarrang Ikki Qatorli Jun Palto", "price_cny": 65.0, "weight_kg": 1.15, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
+            {"category": "top", "name": "To'q Qahva Kashmir Vodolazka", "price_cny": 36.0, "weight_kg": 0.48, "cn_keyword": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫"},
+            {"category": "bottom", "name": "Qahva-Taupe Old Money Jun Shim", "price_cny": 36.0, "weight_kg": 0.52, "cn_keyword": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚"},
         ],
     },
     {
@@ -115,10 +115,10 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "Qora, To'q kulrang (grafit), To'q zaytun, Oq-kulrang",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "Qora Jun Bomber Kurtka", "price_cny": 89.0, "weight_kg": 0.75, "cn_keyword": "美式复古重磅飞行员夹克男春秋宽松外套"},
-            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 54.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
-            {"category": "bottom", "name": "Zaytun Cho'ntakli Erkin Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
-            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 48.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
+            {"category": "outerwear", "name": "Qora Jun Bomber Kurtka", "price_cny": 56.0, "weight_kg": 0.75, "cn_keyword": "美式复古重磅飞行员夹克男春秋宽松外套"},
+            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 34.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
+            {"category": "bottom", "name": "Zaytun Cho'ntakli Erkin Shim", "price_cny": 35.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
+            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 39.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
     {
@@ -132,8 +132,8 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "To'q ko'k (navy), Och bej",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "To'q Ko'k Klassik Jun Blazer", "price_cny": 115.0, "weight_kg": 0.78, "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克"},
-            {"category": "top", "name": "Och Bej Zamokli Sviter", "price_cny": 62.0, "weight_kg": 0.50, "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领"},
+            {"category": "outerwear", "name": "To'q Ko'k Klassik Jun Blazer", "price_cny": 62.0, "weight_kg": 0.78, "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克"},
+            {"category": "top", "name": "Och Bej Zamokli Sviter", "price_cny": 36.0, "weight_kg": 0.50, "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领"},
         ],
     },
     {
@@ -147,11 +147,11 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "Qora, Oq, To'q kulrang",
         "sizes": "M, L, XL, 2XL",
         "items": [
-            {"category": "outerwear", "name": "Qora Tik Yoqali Jun Palto", "price_cny": 138.0, "weight_kg": 1.05, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
-            {"category": "top", "name": "Oq Yoqali Svitshot", "price_cny": 88.0, "weight_kg": 0.48, "cn_keyword": "半拉链卫衣男潮"},
-            {"category": "bottom", "name": "To'q Kulrang Qishki Erkin Shim", "price_cny": 58.0, "weight_kg": 0.52, "cn_keyword": "工装裤男士直筒宽松"},
-            {"category": "shoes", "name": "Qora-Oq Retro Krossovka", "price_cny": 95.0, "weight_kg": 0.85, "cn_keyword": "男复古板鞋运动鞋"},
-            {"category": "accessory", "name": "Qora Minimalist Kepka", "price_cny": 26.0, "weight_kg": 0.15, "cn_keyword": "美式复古纯色软顶棒球帽男百搭显脸小鸭舌帽"},
+            {"category": "outerwear", "name": "Qora Tik Yoqali Jun Palto", "price_cny": 62.0, "weight_kg": 1.05, "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套"},
+            {"category": "top", "name": "Oq Yoqali Svitshot", "price_cny": 32.0, "weight_kg": 0.48, "cn_keyword": "半拉链卫衣男潮"},
+            {"category": "bottom", "name": "To'q Kulrang Qishki Erkin Shim", "price_cny": 34.0, "weight_kg": 0.52, "cn_keyword": "工装裤男士直筒宽松"},
+            {"category": "shoes", "name": "Qora-Oq Retro Krossovka", "price_cny": 39.0, "weight_kg": 0.85, "cn_keyword": "男复古板鞋运动鞋"},
+            {"category": "accessory", "name": "Qora Minimalist Kepka", "price_cny": 15.0, "weight_kg": 0.15, "cn_keyword": "美式复古纯色软顶棒球帽男百搭显脸小鸭舌帽"},
         ],
     },
     {
@@ -165,9 +165,9 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
         "colors": "To'q kulrang (grafit), To'q zaytun, Oq-kulrang",
         "sizes": "S, M, L, XL, 2XL",
         "items": [
-            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 54.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
-            {"category": "bottom", "name": "Zaytun Cho'ntakli Erkin Shim", "price_cny": 52.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
-            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 48.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
+            {"category": "top", "name": "Grafit Oversize Xudi", "price_cny": 36.0, "weight_kg": 0.55, "cn_keyword": "420g重磅纯棉连帽卫衣男宽松美式帽衫"},
+            {"category": "bottom", "name": "Zaytun Cho'ntakli Erkin Shim", "price_cny": 35.0, "weight_kg": 0.50, "cn_keyword": "美式工装裤男直筒宽松多口袋伞兵休闲裤"},
+            {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 42.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
 ]
@@ -483,9 +483,10 @@ Instagram & Telegram tahlilchisi quyidagi trend hisobotini yubordi:
 - Toshkent ob-havosi va mavsumi: {weather_line}
 - Auditoriya: {gender}
 {market_block}{recent_block}{playbook_section}
-Vazifang: Pinduoduo (拼多多) da haqiqatda ko'p sotilayotgan, sifati baland va narxi hamyonbop (~38–125 CNY oralig'ida, ENG QIMMAT emas, balki sifat/narx nisbati eng zo'r variantlar, jami ~140–270 CNY) bo'lgan mutlaqo YANGI va uyg'un Look yig'.
-Har safar har xil kiyim turlarini tanla (masalan: zamsh/teri kurtka, yengil puxovik, kardigan, polo sviter, yarim-zamokli sviter, jun palto, klassik shim, to'g'ri jinsi, kargo, chelsea etik, zamsh lofer, retro krossovka).
-MUHIM QOIDA: "title" va har bir buyumning "name" maydoni FAQAT O'ZBEK TILIDA, qisqa va tushunarli (2–4 so'z) bo'lsin! Inglizcha so'zlar yozma!
+Vazifang: Pinduoduo (拼多多) da haqiqatda ko'p sotilayotgan, sifati baland va narxi hamyonbop (ust kiyim 38–65 CNY, ichki/shim 24–45 CNY, oyoq kiyim 32–54 CNY, aksessuar 12–25 CNY; BUTUN KAPSULA ~110–168 CNY jami!) bo'lgan mutlaqo YANGI va uyg'un Look yig'.
+100+ yuanlik qimmat buyumlar tanlab lookni qimmatlashtirma va raqobatdan chiqarib yuborma — sifatli + arzon "oltin o'rtalik" top!
+Har safar har xil kiyim turlarini tanla (masalan: zamsh/teri kurtka, yengil puxovik, kardigan, polo sviter, yarim-zamokli sviter, jun palto, klassik shim, to'g'ri jinsi, cho'ntakli erkin shim, chelsea etik, zamsh lofer, retro krossovka, soat, kamar, sharf).
+MUHIM QOIDA: "title" va har bir buyumning "name" maydoni FAQAT O'ZBEK TILIDA, qisqa va tushunarli (2–4 so'z) bo'lsin! Inglizcha so'zlar yozma va HECH QACHON 'kargo shim' deb yozma!
 Har bir buyum uchun real Pinduoduo narxi (yuan - CNY), vazni (kg), kategoriyasi (outerwear, top, bottom, shoes, accessory) va aniq xitoycha qidiruv so'zini ber.
 
 FAQAT JSON QAYTAR:
@@ -562,21 +563,21 @@ FAQAT JSON QAYTAR:
             {
                 "name": "To'q Jigarrang Ikki Qatorli Jun Palto",
                 "cn_keyword": "老钱风双排扣羊毛呢大衣男秋冬加厚英伦外套",
-                "price_cny": 138.0,
+                "price_cny": 65.0,
                 "weight_kg": 1.15,
                 "color_uz": "To'q jigarrang",
             },
             {
                 "name": "To'q Ko'k Klassik Jun Blazer",
                 "cn_keyword": "老钱风藏青色羊毛修身西装外套男秋冬商务夹克",
-                "price_cny": 115.0,
+                "price_cny": 62.0,
                 "weight_kg": 0.78,
                 "color_uz": "To'q ko'k",
             },
             {
                 "name": "Qora Jun Bomber Kurtka",
                 "cn_keyword": "老钱风重磅羊毛飞行员夹克男秋冬外套",
-                "price_cny": 96.0,
+                "price_cny": 56.0,
                 "weight_kg": 0.78,
                 "color_uz": "Qora",
             },
@@ -585,14 +586,14 @@ FAQAT JSON QAYTAR:
             {
                 "name": "To'q Qahva Kashmir Vodolazka",
                 "cn_keyword": "男秋冬加厚羊绒高领打底毛衣老钱风保暖针织衫",
-                "price_cny": 68.0,
+                "price_cny": 36.0,
                 "weight_kg": 0.48,
                 "color_uz": "To'q jigarrang",
             },
             {
                 "name": "Och Bej Zamokli Sviter",
                 "cn_keyword": "老钱风半拉链针织毛衣男秋冬加厚立领",
-                "price_cny": 62.0,
+                "price_cny": 34.0,
                 "weight_kg": 0.50,
                 "color_uz": "Och bej",
             },
@@ -601,14 +602,14 @@ FAQAT JSON QAYTAR:
             {
                 "name": "Qahva-Taupe Old Money Jun Shim",
                 "cn_keyword": "老钱风摩卡棕垂感褶皱羊毛西装裤男秋冬加厚",
-                "price_cny": 64.0,
+                "price_cny": 36.0,
                 "weight_kg": 0.52,
                 "color_uz": "Qahva-taupe",
             },
             {
                 "name": "Grafit Klassik Drape Shim",
                 "cn_keyword": "垂感羊毛西装裤男直筒老钱风秋冬加厚长裤",
-                "price_cny": 62.0,
+                "price_cny": 35.0,
                 "weight_kg": 0.50,
                 "color_uz": "To'q kulrang (grafit)",
             },
@@ -617,14 +618,14 @@ FAQAT JSON QAYTAR:
             {
                 "name": "Qora Charm Qishki Chelsea Etik",
                 "cn_keyword": "切尔西靴男真皮英伦风复古短靴秋冬加绒皮靴",
-                "price_cny": 78.0,
+                "price_cny": 52.0,
                 "weight_kg": 0.92,
                 "color_uz": "Qora",
             },
             {
                 "name": "Espresso Zamsh Lofer",
                 "cn_keyword": "老钱风翻毛皮乐福鞋男英伦休闲皮鞋加绒",
-                "price_cny": 56.0,
+                "price_cny": 44.0,
                 "weight_kg": 0.76,
                 "color_uz": "To'q jigarrang",
             },
@@ -686,15 +687,21 @@ FAQAT JSON QAYTAR:
                 if det_col and det_col not in exact_colors:
                     exact_colors.append(det_col)
             else:
-                # Faqat lokal studiya rasmi ishlatilgandagina studiya rangi bilan sinxronlaymiz
-                synced_name, synced_col = _sync_item_with_studio_photo_color(
-                    str(it.get("name", "")),
-                    str(it.get("category", "")),
-                    idx,
-                )
+                # Agar nom allaqachon aniq (masalan 'Jigarrang Zamsh Kurtka', 'Klassik Charm Soat') bo'lsa, uni buzmaymiz!
+                orig_name = str(it.get("name") or "").strip()
+                if orig_name and orig_name.lower() not in ("buyum", "kiyim", ""):
+                    synced_name = orig_name
+                    _, inferred_col = _sync_item_with_studio_photo_color(orig_name, str(it.get("category", "")), idx)
+                    synced_col = str(it.get("color_uz") or "").strip() or inferred_col
+                else:
+                    synced_name, synced_col = _sync_item_with_studio_photo_color(
+                        orig_name,
+                        str(it.get("category", "")),
+                        idx,
+                    )
                 it["name"] = synced_name
                 it["color_uz"] = synced_col
-                if synced_col not in exact_colors:
+                if synced_col and synced_col not in exact_colors:
                     exact_colors.append(synced_col)
 
         colors_str = ", ".join(exact_colors) if exact_colors else str(data.get("colors", "Qora, Grafit"))
@@ -793,6 +800,7 @@ FAQAT JSON QAYTAR:
         weather: WeatherForecast | None = None,
         ig_intel: dict[str, Any] | None = None,
         exclude_goods_ids: set[str] | None = None,
+        exclude_titles_cn: set[str] | None = None,
     ) -> GeneratedLook:
         """Jonli Toshkent ob-havosi + Raqobatchi narx tahlili + OmniRoute/Gemini AI + haqiqiy Pinduoduo API bilan asinxron Look yaratadi."""
         weather = weather or await fetch_tashkent_weather()
@@ -840,11 +848,28 @@ FAQAT JSON QAYTAR:
         if self.pdd.connection_mode not in ("official_api", "apify_pdd_live", "onebound_pdd"):
             return self._build_generated_look(raw_data, eff_brief, weather_line)
 
+        CATEGORY_SWEET_BOUNDS: dict[str, tuple[float, float, float]] = {
+            "outerwear": (24.0, 68.0, 82.0),
+            "top": (16.0, 46.0, 56.0),
+            "bottom": (18.0, 48.0, 58.0),
+            "shoes": (22.0, 56.0, 68.0),
+            "accessory": (9.0, 28.0, 36.0),
+        }
+        CATEGORY_SWEET_MEDIAN: dict[str, float] = {
+            "outerwear": 58.0,
+            "top": 36.0,
+            "bottom": 36.0,
+            "shoes": 45.0,
+            "accessory": 20.0,
+        }
+
         _, base_items = self._calculate_pricing(raw_data["items"])
         enriched_items: list[dict[str, Any]] = []
         downloaded_imgs: list[bytes | None] = []
+        candidate_pools: list[list[Any]] = []
         used_urls: set[str] = set()
         used_gids: set[str] = {str(x).strip() for x in (exclude_goods_ids or set()) if str(x).strip()}
+        used_titles_cn: set[str] = {str(t).strip()[:28] for t in (exclude_titles_cn or set()) if str(t).strip()}
 
         vision_state = {"alive": bool(self.ai.enabled)}
 
@@ -874,92 +899,201 @@ FAQAT JSON QAYTAR:
                 vision_state["alive"] = False
             return True
 
+        async def _fetch_cand_image(cand: Any, target_cat: str) -> bytes | None:
+            gal = list(getattr(cand, "gallery_images", None) or [])
+            img_u = getattr(cand, "image_url", "")
+            if img_u and img_u not in gal:
+                gal.append(img_u)
+            probe_urls = gal[1:3] + gal[:1]
+            fb_b = None
+            for g_url in probe_urls[:3]:
+                if not g_url or g_url in used_urls:
+                    continue
+                img_b = await self.pdd.fetch_image_bytes(g_url)
+                if not img_b:
+                    continue
+                if fb_b is None:
+                    fb_b = img_b
+                if await _is_usable_pdd_garment_photo(img_b, target_cat=target_cat):
+                    used_urls.add(g_url)
+                    return img_b
+            return fb_b
+
+        async def _apply_picked_product(base_item: dict[str, Any], prod: Any, img_b: bytes | None, cat_name: str) -> dict[str, Any]:
+            if getattr(prod, "goods_id", ""):
+                used_gids.add(str(prod.goods_id).strip())
+            if getattr(prod, "title_cn", ""):
+                used_titles_cn.add(str(prod.title_cn).strip()[:28])
+            updated = dict(base_item)
+            updated["price_cny"] = float(prod.price_cny)
+            updated["cny"] = float(prod.price_cny)
+            updated["pdd_goods_id"] = prod.goods_id or updated.get("pdd_goods_id", "")
+            updated["title_cn"] = prod.title_cn or updated.get("cn_keyword", "")
+            updated["sales_tip"] = prod.sales_tip
+            updated["_from_live_pdd"] = True
+            if prod.product_url:
+                updated["url"] = prod.product_url
+            if prod.image_url:
+                updated["image_url"] = prod.image_url
+            chart_info: dict[str, Any] = {}
+            if not prod.size_chart and prod.detail_images and vision_state["alive"]:
+                chart_info = await self.pdd.extract_store_size_chart(
+                    prod.detail_images,
+                    prod.title_cn,
+                    ai=self.ai,
+                )
+            store_colors = list(dict.fromkeys([*(prod.store_colors or []), *(chart_info.get("store_colors") or [])]))
+            store_sizes = list(chart_info.get("store_sizes") or prod.store_sizes or [])
+            size_chart = list(chart_info.get("size_chart") or prod.size_chart or [])
+            fit_parts = [p for p in (prod.fit_note, chart_info.get("fit_note")) if p]
+            updated["store_colors"] = store_colors
+            updated["store_sizes"] = store_sizes
+            updated["size_chart"] = size_chart
+            updated["fit_note"] = " | ".join(dict.fromkeys(fit_parts))
+            insta_pose = derive_insta_pose_direction(ig_intel, category=cat_name)
+            updated["studio_prompt"] = build_scout_studio_prompt(updated, insta_pose_direction=insta_pose)
+            return updated
+
+        def _load_bucket_cache_sweet_candidates(target_cat: str, min_cny: float, max_cny: float) -> list[Any]:
+            cache_path = "data/pdd_live_cache.json"
+            if not os.path.exists(cache_path):
+                return []
+            try:
+                raw_cache = json.load(open(cache_path, encoding="utf-8")) or {}
+            except Exception:
+                return []
+            out: list[Any] = []
+            seen_l: set[str] = set()
+            want_bucket = target_cat if target_cat in ("outerwear", "top", "bottom", "shoes", "accessory") else "top"
+            for rows in raw_cache.values():
+                if not isinstance(rows, list):
+                    continue
+                for r in rows:
+                    if not isinstance(r, dict) or not r.get("goods_id"):
+                        continue
+                    gid_s = str(r["goods_id"]).strip()
+                    t_cn = str(r.get("title_cn") or "")
+                    if gid_s in used_gids or gid_s in seen_l or t_cn[:28] in used_titles_cn:
+                        continue
+                    if "pddpic.com" not in str(r.get("image_url") or ""):
+                        continue
+                    if self.pdd._category_bucket(t_cn) != want_bucket:
+                        continue
+                    p_val = float(r.get("price_cny") or 0)
+                    if min_cny <= p_val <= max_cny:
+                        seen_l.add(gid_s)
+                        out.append(self.pdd._row_to_product(r))
+            out.sort(key=lambda pr: (-self.pdd._score_value_quality(pr, [], True), pr.price_cny))
+            return out
+
         for item_idx, item in enumerate(base_items):
             kw = item.get("cn_keyword") or item.get("name", "")
-            cat = str(item.get("category") or "")
-            live_matches = await self.pdd.search_live(kw, page_size=12, exclude_goods_ids=used_gids)
+            cat = str(item.get("category") or "top").lower()
+            min_p, sweet_max, hard_max = CATEGORY_SWEET_BOUNDS.get(cat, (18.0, 48.0, 62.0))
+
+            live_matches = await self.pdd.search_live(kw, page_size=14, exclude_goods_ids=used_gids)
             picked_prod = None
             picked_bytes = None
             fallback_prod = None
             fallback_bytes = None
+            pool: list[Any] = []
+
             if live_matches:
-                # 50% oldindan to'lov Xitoy narxini qoplashi va jami narx raqobatchilardan hamyonbop chiqishi uchun sifatli + arzon (¥20–¥138) tovarlar birinchi!
-                fresh_pool = [m for m in live_matches if m.goods_id and m.goods_id not in used_gids]
+                fresh_pool = [
+                    m for m in live_matches
+                    if m.goods_id and m.goods_id not in used_gids and str(m.title_cn or "").strip()[:28] not in used_titles_cn
+                ]
                 base_pool = fresh_pool if fresh_pool else live_matches
-                max_cny_item = 138.0 if self._params().ensure_50_covers_cost else 165.0
-                affordable = [m for m in base_pool if 20.0 <= float(m.price_cny or 0) <= max_cny_item]
-                pool = affordable if affordable else base_pool
+                sweet_pool = [m for m in base_pool if min_p <= float(m.price_cny or 0) <= sweet_max]
+                hard_pool = [m for m in base_pool if min_p <= float(m.price_cny or 0) <= hard_max]
+                if not hard_pool:
+                    bucket_sweet = _load_bucket_cache_sweet_candidates(cat, min_p, sweet_max)
+                    if bucket_sweet:
+                        hard_pool = bucket_sweet
+                pool = sweet_pool if sweet_pool else (hard_pool if hard_pool else base_pool)
                 picked_prod = pool[0]
 
-                # Galereyadan [1..3] (odatda reklama yozuvsiz toza kiyim rasmlari) + [0] ni tekshiramiz
-                for cand in pool[:2]:
-                    gal = list(cand.gallery_images or [])
-                    if cand.image_url and cand.image_url not in gal:
-                        gal.append(cand.image_url)
-                    probe_urls = gal[1:3] + gal[:1]
-                    for g_url in probe_urls[:2]:
-                        if not g_url or g_url in used_urls:
-                            continue
-                        img_b = await self.pdd.fetch_image_bytes(g_url)
-                        if not img_b:
-                            continue
-                        if fallback_bytes is None:
-                            fallback_prod = cand
-                            fallback_bytes = img_b
-                        if await _is_usable_pdd_garment_photo(img_b, target_cat=cat):
-                            picked_prod = cand
-                            picked_bytes = img_b
-                            used_urls.add(g_url)
-                            break
-                    if picked_bytes:
-                        break
+                for cand in pool[:3]:
+                    img_b = await _fetch_cand_image(cand, cat)
+                    if not img_b:
+                        continue
+                    if fallback_bytes is None:
+                        fallback_prod = cand
+                        fallback_bytes = img_b
+                    picked_prod = cand
+                    picked_bytes = img_b
+                    break
 
                 if picked_bytes is None and fallback_bytes is not None:
                     picked_prod = fallback_prod or picked_prod
                     picked_bytes = fallback_bytes
 
+            candidate_pools.append(pool)
             if picked_prod is not None:
-                if picked_prod.goods_id:
-                    used_gids.add(str(picked_prod.goods_id).strip())
-                updated = dict(item)
-                updated["price_cny"] = picked_prod.price_cny
-                updated["cny"] = picked_prod.price_cny
-                updated["pdd_goods_id"] = picked_prod.goods_id or updated.get("pdd_goods_id", "")
-                updated["title_cn"] = picked_prod.title_cn or updated.get("cn_keyword", "")
-                updated["sales_tip"] = picked_prod.sales_tip
-                if picked_prod.product_url:
-                    updated["url"] = picked_prod.product_url
-                if picked_prod.image_url:
-                    updated["image_url"] = picked_prod.image_url
-
-                # Do'konning haqiqiy ranglari, razmerlari, qishki bichim eslatmasi va razmer jadvali (尺码表)
-                chart_info: dict[str, Any] = {}
-                if not picked_prod.size_chart and picked_prod.detail_images and vision_state["alive"]:
-                    chart_info = await self.pdd.extract_store_size_chart(
-                        picked_prod.detail_images,
-                        picked_prod.title_cn,
-                        ai=self.ai,
-                    )
-                store_colors = list(dict.fromkeys([*(picked_prod.store_colors or []), *(chart_info.get("store_colors") or [])]))
-                store_sizes = list(chart_info.get("store_sizes") or picked_prod.store_sizes or [])
-                size_chart = list(chart_info.get("size_chart") or picked_prod.size_chart or [])
-                fit_parts = [p for p in (picked_prod.fit_note, chart_info.get("fit_note")) if p]
-                updated["store_colors"] = store_colors
-                updated["store_sizes"] = store_sizes
-                updated["size_chart"] = size_chart
-                updated["fit_note"] = " | ".join(dict.fromkeys(fit_parts))
-                # Pinduoduo Tahlilchi Photoshop Studio agenti uchun aynan shu mahsulotni O'ZGARTIRMAYDIGAN aniq prompt yozadi
-                # (+ Instagram Tahlilchi videolardan o'rgangan tabiiy turish promptini qo'shadi!)
-                insta_pose = derive_insta_pose_direction(ig_intel, category=cat)
-                updated["studio_prompt"] = build_scout_studio_prompt(updated, insta_pose_direction=insta_pose)
+                updated = await _apply_picked_product(item, picked_prod, picked_bytes, cat)
                 downloaded_imgs.append(picked_bytes)
                 enriched_items.append(updated)
             else:
                 insta_pose = derive_insta_pose_direction(ig_intel, category=cat)
                 item_with_prompt = dict(item)
+                item_with_prompt["price_cny"] = min(float(item_with_prompt.get("price_cny") or hard_max), sweet_max)
+                item_with_prompt["cny"] = item_with_prompt["price_cny"]
                 item_with_prompt["studio_prompt"] = build_scout_studio_prompt(item_with_prompt, insta_pose_direction=insta_pose)
                 downloaded_imgs.append(None)
                 enriched_items.append(item_with_prompt)
+
+        # Aqlli Insoncha Kapsula Byudjeti Muvofiqlashtirgichi (Capsule Budget Rebalancer)
+        default_cap = 115.0 if len(enriched_items) <= 2 else (148.0 if len(enriched_items) == 3 else 172.0)
+        max_capsule_cny = float(halol.get("max_capsule_cny") or default_cap)
+        drop_indices: set[int] = set()
+        ranked_indices = sorted(range(len(enriched_items)), key=lambda idx: -float(enriched_items[idx].get("price_cny") or 0))
+        for r_idx in ranked_indices:
+            cur_it = enriched_items[r_idx]
+            cur_cat = str(cur_it.get("category") or "top").lower()
+            cur_price = float(cur_it.get("price_cny") or 0)
+            min_p, sweet_max, hard_max = CATEGORY_SWEET_BOUNDS.get(cur_cat, (18.0, 48.0, 62.0))
+            live_total = sum(float(it.get("price_cny") or 0) for i_l, it in enumerate(enriched_items) if i_l not in drop_indices)
+            is_overpriced_acc = (cur_cat == "accessory" and cur_price > hard_max)
+            if live_total <= max_capsule_cny and not is_overpriced_acc:
+                continue
+
+            # 1) Avval shu tovarning o'z nomzodlar poolidan yoki bucket keshdan arzonroq (<= sweet_max) va sifatli variant qidiramiz
+            max_alt_price = sweet_max if cur_price > sweet_max else max(min_p, cur_price - 5.0)
+            alt_cands = [
+                c for c in (candidate_pools[r_idx] if r_idx < len(candidate_pools) else [])
+                if min_p <= float(c.price_cny or 0) <= max_alt_price
+                and str(getattr(c, "goods_id", "")) not in used_gids
+            ]
+            if not alt_cands:
+                alt_cands = _load_bucket_cache_sweet_candidates(cur_cat, min_p, max_alt_price)
+            swapped = False
+            for cand in alt_cands[:3]:
+                img_b = await _fetch_cand_image(cand, cur_cat)
+                if img_b:
+                    enriched_items[r_idx] = await _apply_picked_product(base_items[r_idx], cand, img_b, cur_cat)
+                    downloaded_imgs[r_idx] = img_b
+                    swapped = True
+                    break
+            if not swapped:
+                active_count = len(enriched_items) - len(drop_indices)
+                if cur_cat == "accessory" and cur_price > hard_max and active_count >= 3:
+                    # Aqlli sotuvchi: qimmat ixtiyoriy aksessuarni (¥70 kamar / ¥139 sharf) olib tashlab, obraz narxini saqlab qoladi!
+                    drop_indices.add(r_idx)
+                elif active_count >= 5 and cur_price > sweet_max:
+                    drop_indices.add(r_idx)
+                elif not cur_it.get("_from_live_pdd"):
+                    med = CATEGORY_SWEET_MEDIAN.get(cur_cat, 36.0)
+                    if cur_price > med:
+                        cur_it["price_cny"] = med
+                        cur_it["cny"] = med
+
+        if drop_indices:
+            enriched_items = [it for i_l, it in enumerate(enriched_items) if i_l not in drop_indices]
+            downloaded_imgs = [im for i_l, im in enumerate(downloaded_imgs) if i_l not in drop_indices]
+
+        # Tozalash: vaqtinchalik ichki flagni saqlamaslik
+        for it in enriched_items:
+            it.pop("_from_live_pdd", None)
 
         return self._build_generated_look(
             raw_data,

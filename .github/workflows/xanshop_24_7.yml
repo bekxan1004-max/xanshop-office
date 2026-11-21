@@ -76,7 +76,7 @@ jobs:
           DELIVERY_TEXT: "5–12 kun (Avia)"
           CARGO_CLIENT_UZS_PER_KG: "120000"
           APIFY_MAX_MONTHLY_USD: "4.20"
-          APIFY_MAX_DAILY_CALLS: "3"
+          APIFY_MAX_DAILY_CALLS: "20"
           PROFIT_PERCENT: "0"
           ENSURE_50_COVERS_COST: "1"
           PREPAY_ROUND_TO: "20000"
