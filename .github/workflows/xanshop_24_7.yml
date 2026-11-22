@@ -2,6 +2,8 @@ name: XAN SHOP 24/7 Autonomous AI Office
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '0 */4 * * *'
 
 permissions:
   contents: write
