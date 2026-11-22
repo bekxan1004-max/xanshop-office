@@ -751,6 +751,7 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
             now_ts = time.time()
             from app.source_learner import check_ig_publish_ready
 
+            allow_tg_only = (await office.db.get_setting("allow_tg_without_ig")) == "1"
             has_ig_creds = bool(office.s.ig_user_id and office.s.ig_access_token)
             if has_ig_creds and (now_ts - last_ig_probe_ts) >= 1800:
                 last_ig_probe_ts = now_ts
@@ -763,6 +764,9 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
                         await office.db.set_setting("ig_pause_alerted", "0")
                         if alert_fn:
                             await alert_fn("🟢 Instagram qulfdan chiqdi — avtonom Reels + Telegram nashr qayta tiklandi!")
+                elif allow_tg_only:
+                    if await office.db.get_setting("ig_pause_alerted") != "0":
+                        await office.db.set_setting("ig_pause_alerted", "0")
                 else:
                     if await office.db.get_setting("ig_pause_alerted") != "1":
                         await office.db.set_setting("ig_pause_alerted", "1")
@@ -784,7 +788,6 @@ async def office_scheduler_loop(office: AgentOffice, alert_fn=None) -> None:
                     await alert_fn("\n".join(alerts))
 
             if office.s.auto_post_hours > 0:
-                allow_tg_only = (await office.db.get_setting("allow_tg_without_ig")) == "1"
                 if ig_ready or allow_tg_only:
                     last_ts = int(await office.db.get_setting("last_auto_post_ts") or "0")
                     if (now_ts - last_ts) >= office.s.auto_post_hours * 3600:

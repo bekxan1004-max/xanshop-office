@@ -272,6 +272,8 @@ def build_admin_router(s: Settings) -> Router:
         cur = await db.get_setting("allow_tg_without_ig")
         new_val = "0" if cur == "1" else "1"
         await db.set_setting("allow_tg_without_ig", new_val)
+        if new_val == "1":
+            await db.set_setting("ig_pause_alerted", "0")
         await cb.answer("🟢 TG avto yoqildi" if new_val == "1" else "⏸ IG blokda bo'lsa TG pauzada")
         txt, kb = await _build_home_hub(db)
         await _edit_or_send(cb, txt, kb)
@@ -511,6 +513,7 @@ def build_admin_router(s: Settings) -> Router:
         arg = (command.args or "").strip().lower()
         if arg in ("yoq", "on", "1", "ruxsat"):
             await db.set_setting("allow_tg_without_ig", "1")
+            await db.set_setting("ig_pause_alerted", "0")
             await message.answer("🟢 <b>TG avto-posti yoqildi</b> (Instagram blokda bo'lsa ham Telegram kanalga post qo'yaveradi).")
             return
         if arg in ("toxtat", "off", "0", "pauza"):
