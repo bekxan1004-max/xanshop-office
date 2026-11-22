@@ -505,6 +505,8 @@ class PhotoStudioAgent:
         env_key = "" if os.getenv("PYTEST_CURRENT_TEST") else os.getenv("GEMINI_API_KEY", "")
         self.api_key = (getattr(settings, "gemini_api_key", "") or env_key).strip()
         self.hf_token = (getattr(settings, "hf_token", "") or os.getenv("HF_TOKEN", "")).strip()
+        fal_env = "" if os.getenv("PYTEST_CURRENT_TEST") else os.getenv("FAL_KEY", "")
+        self.fal_key = (getattr(settings, "fal_key", "") or fal_env).strip()
         self._client = None
         if self.api_key:
             try:
@@ -632,6 +634,52 @@ class PhotoStudioAgent:
                     _VISION_COOLDOWN_UNTIL = time.monotonic() + 180.0
                     break
         return fallback
+
+    def _call_fal_kontext_sync(
+        self,
+        raw_bytes: bytes,
+        edit_prompt: str,
+        seed: int = 42,
+    ) -> bytes | None:
+        """Fal.ai (FLUX.1-Kontext-Dev — arzon va tezkor ~$0.025/rasm) orqali rasmni studiya sifatida qayta chizadi."""
+        if not self.fal_key:
+            return None
+        b64 = "data:image/jpeg;base64," + base64.b64encode(raw_bytes).decode("ascii")
+        headers = {
+            "Authorization": f"Key {self.fal_key}",
+            "Content-Type": "application/json",
+        }
+        for ep in (
+            "https://fal.run/fal-ai/flux-kontext/dev",
+            "https://fal.run/fal-ai/flux-pro/kontext",
+        ):
+            try:
+                with httpx.Client(timeout=45.0, follow_redirects=True) as client:
+                    resp = client.post(
+                        ep,
+                        headers=headers,
+                        json={
+                            "prompt": edit_prompt,
+                            "image_url": b64,
+                            "seed": int(seed),
+                            "output_format": "png",
+                        },
+                    )
+                    if resp.status_code != 200:
+                        log.warning("Fal.ai Kontext (%s) xato %s: %s", ep, resp.status_code, resp.text[:140])
+                        continue
+                    data = resp.json()
+                    imgs = data.get("images") if isinstance(data, dict) else None
+                    if isinstance(imgs, list) and imgs and isinstance(imgs[0], dict) and imgs[0].get("url"):
+                        dl = client.get(str(imgs[0]["url"]))
+                        if dl.status_code == 200 and len(dl.content) > 500:
+                            im = Image.open(io.BytesIO(dl.content)).convert("RGB")
+                            buf = io.BytesIO()
+                            im.save(buf, format="PNG")
+                            return buf.getvalue()
+            except Exception as exc:
+                log.warning("Fal.ai Kontext xatosi: %s", exc)
+        return None
 
     def _call_hf_kontext_img2img_sync(
         self,
@@ -827,10 +875,36 @@ class PhotoStudioAgent:
                         _STUDIO_COOLDOWN_UNTIL = time.monotonic() + 600.0
                         break
 
-        # 2-ENGINE: FLUX.1-Kontext-Dev haqiqiy Image-to-Image Regenerator (xuddi ChatGPT kabi rasmni tozalab qayta chizadi!)
+        # 2-ENGINE: Fal.ai (agar FAL_KEY ulangan bo'lsa) -> FLUX.1-Kontext-Dev HF Image-to-Image Regenerator
         if self.cloud_regen_enabled:
             edit_prompt = _build_kontext_edit_instruction(item, insta_pose_direction=insta_pose_direction)
             seed_base = int(hashlib.sha1(ckey.encode("utf-8")).hexdigest()[:8], 16) % 100000
+            if self.fal_key:
+                try:
+                    fal_bytes = await asyncio.wait_for(
+                        asyncio.to_thread(self._call_fal_kontext_sync, raw_bytes, edit_prompt, seed_base),
+                        timeout=45.0,
+                    )
+                    if fal_bytes and len(fal_bytes) > 500:
+                        studio_pil = Image.open(io.BytesIO(fal_bytes)).convert("RGBA")
+                        isolated = _isolate_from_clean_white_studio_bg(studio_pil, category=cat)
+                        final_im = self._polish_studio_lighting(isolated)
+                        if _verify_regenerated_rgba(final_im):
+                            if use_cache:
+                                try:
+                                    STUDIO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                                    final_im.save(cache_file, format="PNG")
+                                except Exception:
+                                    pass
+                            return StudioRenderResult(
+                                image=final_im,
+                                used_nano_banana=True,
+                                model_used="fal_flux_kontext",
+                                prompt_used=edit_prompt,
+                                cache_hit=False,
+                            )
+                except Exception as exc:
+                    log.warning("Fal.ai Kontext zaxiraga tushdi: %s", exc)
             try:
                 for attempt in range(2):
                     kontext_bytes = await asyncio.wait_for(

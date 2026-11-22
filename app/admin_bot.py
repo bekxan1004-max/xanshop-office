@@ -1,4 +1,6 @@
 """Admin bot: sizning boshqaruv paneli. To'lov tasdiqlash, statuslar, looklar, narx, hisobot."""
+import asyncio
+import io
 import json
 import logging
 import os
@@ -57,6 +59,10 @@ class AddLook(StatesGroup):
 class AdminForm(StatesGroup):
     weight = State()
     source_link = State()
+
+
+class CustomAiLook(StatesGroup):
+    waiting_sample = State()
 
 
 ADMIN_BOT_COMMANDS = [
@@ -330,28 +336,177 @@ def build_admin_router(s: Settings) -> Router:
         await cb.answer("✅ CBU dan yangilandi" if res else "❌ CBU xatosi", show_alert=not bool(res))
         await cb_finance(cb, db)
 
-    @admin.callback_query(F.data == "adm:ai_look")
-    async def cb_ai_look(cb: CallbackQuery, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
-        await cb.answer("⚡ Ishga tushirildi...")
-        wait_msg = await cb.message.answer("⚡ <b>1080p AI Look tayyorlanmoqda...</b>")
-        office = AgentOffice(db=db, settings=s, sales_bot=sales_bot, admin_bot=admin_bot, sales_username=sales_username)
-        res = await office.run_look_pipeline(season="avtomatik ob-havo", delete_previous=False, notify_admin_on_publish=False)
+    async def _execute_ai_look_and_reply(
+        target_msg: Message,
+        db: Database,
+        sales_bot: Bot,
+        admin_bot: Bot,
+        sales_username: str,
+        custom_prompt: str = "",
+        media_bytes: bytes | None = None,
+        media_mime: str = "",
+    ) -> None:
+        hint = (custom_prompt or "").strip()
+        mode_line = (
+            "• Namuna media va buyrug'ingiz tahlil qilinmoqda"
+            if (media_bytes or hint)
+            else "• Insta Tahlilchi va ob-havo bo'yicha obraz tanlanmoqda"
+        )
+        wait_msg = await target_msg.answer(
+            "⚡ <b>1080p AI Look & Reels tayyorlanmoqda...</b>\n"
+            f"{mode_line}\n"
+            "• Pinduoduo'dan saralanib, Photo Studioda qayta chiziladi (30–60s)"
+        )
+        try:
+            office = AgentOffice(db=db, settings=s, sales_bot=sales_bot, admin_bot=admin_bot, sales_username=sales_username)
+            res = await office.run_look_pipeline(
+                season="avtomatik ob-havo",
+                delete_previous=False,
+                notify_admin_on_publish=False,
+                custom_prompt=hint,
+                reference_media_bytes=media_bytes,
+                reference_media_mime=media_mime,
+            )
+        except Exception as exc:
+            log.exception("Telegram bot AI Look yaratish xatosi: %s", exc)
+            try:
+                await wait_msg.edit_text(
+                    f"❌ <b>AI Look yaratishda xatolik:</b> <code>{escape(str(exc)[:180])}</code>\n"
+                    "Qayta urinish uchun <b>⚡ AI Look</b> tugmasini bosing.",
+                    reply_markup=ikb([[("🔄 Qayta urinish", "adm:ai_look"), ("◀️ Bosh menyu", "adm:home")]]),
+                )
+            except Exception:
+                pass
+            return
+
         try:
             await wait_msg.delete()
         except Exception:
             pass
         caption = (
-            f"✅ <b>Look #{res.look_id} ({res.piece_count} qism, 1080p)</b>\n"
+            f"✅ <b>Look #{res.look_id} ({res.piece_count} qism, 1080p) tayyor!</b>\n\n"
             f"👔 <b>{escape(res.title)}</b>\n"
-            f"💳 <b>50%: {fmt(res.prepay_50_uzs)} so'm</b> + kargo (100%: {fmt(res.prepay_uzs)} so'm)\n"
+            f"🎯 Auditoriya: <i>{escape(res.target_persona)}</i>\n"
+            f"💳 <b>50% oldindan: {fmt(res.prepay_50_uzs)} so'm</b> + kargo (100%: {fmt(res.prepay_uzs)} so'm)\n"
             f"🎬 <code>{escape(res.video_style)}</code> · 🎵 <code>{escape(res.audio_vibe)}</code>"
         )
+        if res.tg_link or res.ig_link:
+            caption += f"\n\n📢 {escape(res.tg_link or '')}  📸 {escape(res.ig_link or '')}"
+        kb_done = ikb([[("⚡ Yana AI Look", "adm:ai_look"), ("◀️ Bosh menyu", "adm:home")]])
         if res.mp4_path and res.mp4_path.endswith(".mp4") and os.path.exists(res.mp4_path):
-            await cb.message.answer_video(FSInputFile(res.mp4_path), caption=caption, supports_streaming=True, reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
+            await target_msg.answer_video(FSInputFile(res.mp4_path), caption=caption, supports_streaming=True, reply_markup=kb_done)
+        elif os.path.exists(res.video_path):
+            await target_msg.answer_animation(FSInputFile(res.video_path), caption=caption, reply_markup=kb_done)
         elif os.path.exists(res.photo_path):
-            await cb.message.answer_photo(FSInputFile(res.photo_path), caption=caption, reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
+            await target_msg.answer_photo(FSInputFile(res.photo_path), caption=caption, reply_markup=kb_done)
         else:
-            await cb.message.answer(caption, reply_markup=ikb([[("◀️ Bosh menyu", "adm:home")]]))
+            await target_msg.answer(caption, reply_markup=kb_done)
+
+    def _custom_ai_look_menu_text_kb() -> tuple[str, InlineKeyboardMarkup]:
+        txt = (
+            "✨ <b>Maxsus AI Look & Reels Yaratish</b>\n\n"
+            "📸 <b>Obrazets (namuna) yuboring:</b>\n"
+            "Shu yerga <b>rasm</b>, <b>video (.mp4)</b> yoki qisqa <b>matn</b> yozib yuboring\n"
+            "<i>(Masalan: «Jigarrang zamsh kurtka, qora svitshot, klassik shim va botinka yig'» "
+            "yoki rasm/video tashlab «shu kabi look yig'»).</i>\n\n"
+            "Yoki 1 bosishda tayyor uslub tanlang 👇"
+        )
+        kb = ikb([
+            [("🎲 Avto-Trend Look", "adm:ai_look_run:auto"), ("🏛 Old Money Look", "adm:ai_look_run:old_money")],
+            [("⚡ Clean Streetwear", "adm:ai_look_run:streetwear"), ("◀️ Bosh menyu", "adm:home")],
+        ])
+        return txt, kb
+
+    @admin.callback_query(F.data == "adm:ai_look")
+    async def cb_ai_look(cb: CallbackQuery, state: FSMContext):
+        await cb.answer()
+        await state.set_state(CustomAiLook.waiting_sample)
+        txt, kb = _custom_ai_look_menu_text_kb()
+        await _edit_or_send(cb, txt, kb)
+
+    @admin.callback_query(F.data.startswith("adm:ai_look_run:"))
+    async def cb_ai_look_run(cb: CallbackQuery, state: FSMContext, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+        await state.clear()
+        preset = cb.data.split(":", 2)[-1]
+        preset_map = {
+            "auto": "",
+            "old_money": "Jigarrang zamsh kurtka yoki jun palto, qora vodolazka, grafit klassik drape shim va qora chelsea etikdan iborat Old Money kapsula yig'",
+            "streetwear": "Qora bomber kurtka, qora oversize svitshot, keng erkin shim va qishki botinkadan iborat Toshkent clean streetwear kapsula yig'",
+        }
+        await cb.answer("⚡ Ishga tushirildi...")
+        asyncio.create_task(
+            _execute_ai_look_and_reply(
+                cb.message,
+                db,
+                sales_bot,
+                admin_bot,
+                sales_username,
+                custom_prompt=preset_map.get(preset, ""),
+            )
+        )
+
+    @admin.message(CustomAiLook.waiting_sample, F.photo)
+    async def custom_ai_look_photo(message: Message, state: FSMContext, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+        await state.clear()
+        caption = (message.caption or "").strip() or "Shu yuklangan rasmga o'xshash zamonaviy look yig'"
+        buf = io.BytesIO()
+        await admin_bot.download(message.photo[-1], destination=buf)
+        asyncio.create_task(
+            _execute_ai_look_and_reply(
+                message,
+                db,
+                sales_bot,
+                admin_bot,
+                sales_username,
+                custom_prompt=caption,
+                media_bytes=buf.getvalue(),
+                media_mime="image/jpeg",
+            )
+        )
+
+    @admin.message(CustomAiLook.waiting_sample, F.video | F.animation | F.document)
+    async def custom_ai_look_video_or_doc(message: Message, state: FSMContext, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+        media_obj = message.video or message.animation or message.document
+        if not media_obj:
+            await message.answer("❌ Fayl o'qilmadi. Rasm, video yoki matn yuboring.")
+            return
+        await state.clear()
+        caption = (message.caption or "").strip() or "Shu yuklangan video/fayldagi obraz kabi look yig'"
+        buf = io.BytesIO()
+        try:
+            tg_file = await admin_bot.get_file(media_obj.file_id)
+            await admin_bot.download_file(tg_file.file_path, buf)
+        except Exception as exc:
+            await message.answer(f"❌ Faylni yuklab bo'lmadi: <code>{escape(str(exc)[:140])}</code>")
+            return
+        mime = getattr(media_obj, "mime_type", None) or ("video/mp4" if (message.video or message.animation) else "image/jpeg")
+        asyncio.create_task(
+            _execute_ai_look_and_reply(
+                message,
+                db,
+                sales_bot,
+                admin_bot,
+                sales_username,
+                custom_prompt=caption,
+                media_bytes=buf.getvalue(),
+                media_mime=mime,
+            )
+        )
+
+    @admin.message(CustomAiLook.waiting_sample, F.text, ~F.text.startswith("/"))
+    async def custom_ai_look_text(message: Message, state: FSMContext, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+        await state.clear()
+        prompt_txt = (message.text or "").strip()
+        asyncio.create_task(
+            _execute_ai_look_and_reply(
+                message,
+                db,
+                sales_bot,
+                admin_bot,
+                sales_username,
+                custom_prompt=prompt_txt,
+            )
+        )
 
     async def send_card(message: Message, db: Database, order: dict, note: str = ""):
         look = await db.get_look(order["look_id"])
@@ -528,7 +683,7 @@ def build_admin_router(s: Settings) -> Router:
         )
 
     @admin.message(
-        ~StateFilter(AddLook),
+        ~StateFilter(AddLook, CustomAiLook),
         F.video
         | F.animation
         | F.document.func(
@@ -601,7 +756,7 @@ def build_admin_router(s: Settings) -> Router:
         )
 
     @admin.message(
-        ~StateFilter(AddLook),
+        ~StateFilter(AddLook, CustomAiLook),
         F.text,
         ~F.text.startswith("/"),
         F.text.func(
@@ -692,7 +847,7 @@ def build_admin_router(s: Settings) -> Router:
         await _handle_pdd_item_inspect(message, arg, db, admin_bot)
 
     @admin.message(
-        ~StateFilter(AddLook),
+        ~StateFilter(AddLook, CustomAiLook),
         F.text,
         ~F.text.startswith("/"),
         F.text.func(
@@ -746,40 +901,24 @@ def build_admin_router(s: Settings) -> Router:
         await cb.message.answer(txt)
 
     @admin.message(Command("ai_look"))
-    async def ai_look_cmd(message: Message, command: CommandObject, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
+    async def ai_look_cmd(message: Message, state: FSMContext, command: CommandObject, db: Database, sales_bot: Bot, admin_bot: Bot, sales_username: str):
         args_str = (command.args or "").strip()
-        season = args_str if args_str else "avtomatik ob-havo"
-        wait_msg = await message.answer(
-            "⚡ <b>1080p Full HD Look tayyorlanmoqda...</b>\n"
-            "• Instagram Tahlilchi auditoriya va video uslubini tanlamoqda\n"
-            "• Video Montajchi 1080x1920 .mp4 Reels render qilmoqda\n"
-            "• Yangi Look IG + TG kanalga joylanmoqda..."
+        if not args_str:
+            await state.set_state(CustomAiLook.waiting_sample)
+            txt, kb = _custom_ai_look_menu_text_kb()
+            await message.answer(txt, reply_markup=kb)
+            return
+        await state.clear()
+        asyncio.create_task(
+            _execute_ai_look_and_reply(
+                message,
+                db,
+                sales_bot,
+                admin_bot,
+                sales_username,
+                custom_prompt=args_str,
+            )
         )
-        office = AgentOffice(db=db, settings=s, sales_bot=sales_bot, admin_bot=admin_bot, sales_username=sales_username)
-        res = await office.run_look_pipeline(season=season, delete_previous=False, notify_admin_on_publish=False)
-        try:
-            await wait_msg.delete()
-        except Exception:
-            pass
-        caption = (
-            f"✅ <b>Yangi Look #{res.look_id} ({res.piece_count} qism, 1080p) joylandi!</b>\n\n"
-            f"👔 <b>{escape(res.title)}</b>\n"
-            f"🎯 Auditoriya: <i>{escape(res.target_persona)}</i>\n"
-            f"🎬 Uslub: <code>{escape(res.video_style)}</code> · 🎵 Zvuk: <code>{escape(res.audio_vibe)}</code>\n"
-            f"💳 <b>Hozirgi narx (50%): {fmt(res.prepay_50_uzs)} so'm</b>\n"
-            f"📦 <b>+ kargo</b> (100%: {fmt(res.prepay_uzs)} so'm)\n"
-            f"💵 Sof foyda: <b>{fmt(res.profit_uzs)} so'm</b>\n\n"
-            f"📢 <b>Telegram Kanal:</b> {res.tg_link}\n"
-            f"📸 <b>Instagram Reels:</b> {res.ig_link}"
-        )
-        if res.mp4_path and res.mp4_path.endswith(".mp4") and os.path.exists(res.mp4_path):
-            await message.answer_video(FSInputFile(res.mp4_path), caption=caption, supports_streaming=True)
-        elif os.path.exists(res.video_path):
-            await message.answer_animation(FSInputFile(res.video_path), caption=caption)
-        elif os.path.exists(res.photo_path):
-            await message.answer_photo(FSInputFile(res.photo_path), caption=caption)
-        else:
-            await message.answer(caption)
 
     # ---------------- to'lov ----------------
     @admin.callback_query(F.data.startswith("pay_ok:"))

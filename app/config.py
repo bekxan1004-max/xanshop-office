@@ -76,8 +76,9 @@ class Settings:
     use_omniroute: bool = True
     # ECC (everything-claude-code: 71 Agent + 314 Skill)
     ecc_root: str = "vendor/ecc"
-    # Hugging Face AI Image Studio (FLUX.1-Kontext-Dev / FLUX.1-schnell)
+    # Hugging Face & Fal.ai AI Image Studio (FLUX.1-Kontext-Dev / Nano Banana muqobillari)
     hf_token: str = ""
+    fal_key: str = ""
     # Ovozli Sun'iy Intellekt (Reels uchun default o'chirilgan: faqat toza beat + saund-dizayn)
     ai_voice_name: str = "uz-UZ-SardorNeural"
     enable_ai_voiceover: bool = False
@@ -143,6 +144,7 @@ def load_settings() -> Settings:
         use_omniroute=os.getenv("USE_OMNIROUTE", "1") == "1",
         ecc_root=os.getenv("ECC_ROOT", "vendor/ecc").strip(),
         hf_token=os.getenv("HF_TOKEN", "").strip(),
+        fal_key=os.getenv("FAL_KEY", "").strip(),
         ai_voice_name=os.getenv("AI_VOICE_NAME", "uz-UZ-SardorNeural").strip(),
         enable_ai_voiceover=os.getenv("ENABLE_AI_VOICEOVER", "0") == "1",
     )
