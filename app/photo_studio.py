@@ -32,7 +32,10 @@ from typing import Any
 import httpx
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
-from scipy import ndimage
+try:
+    from scipy import ndimage
+except ImportError:
+    ndimage = None
 
 from .config import Settings
 from .cutout_agent import (
@@ -370,6 +373,8 @@ def _build_kontext_edit_instruction(
 
 def _isolate_from_clean_white_studio_bg(studio_pil: Image.Image, category: str = "") -> Image.Image:
     """Qayta generatsiya qilingan toza studiya rasmidan (#FFFFFF / tekis fon) mahsulotni matosini yemirmasdan va oq qirrasiz ajratadi."""
+    if ndimage is None:
+        return studio_pil.convert("RGBA")
     rgb_im = studio_pil.convert("RGB")
     arr = np.asarray(rgb_im, dtype=np.float32)
     h, w, _ = arr.shape
@@ -492,6 +497,8 @@ def _isolate_from_clean_white_studio_bg(studio_pil: Image.Image, category: str =
 
 def _scrub_promo_fire_stickers_rgba(rgba_img: Image.Image) -> Image.Image:
     """Qora/neytral kiyim burchak va chetlarida qolib ketgan yorqin olov/sariq reklama stikerlarini (加绒加厚) tozalaydi."""
+    if ndimage is None:
+        return rgba_img
     rgba = rgba_img.convert("RGBA")
     arr = np.asarray(rgba, dtype=np.uint8).copy()
     h, w, _ = arr.shape

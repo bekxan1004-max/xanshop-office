@@ -245,11 +245,38 @@ class PersonalStylistUserbot:
             lk = await self.db.get_look(lk_id)
             if lk:
                 cap = _strip_html(look_caption(lk, self.s))
-                vid = lk.get("video_path") or ""
+                vid = (lk.get("video_path") or "").replace("\\", "/")
+                p_path = (lk.get("photo_path") or "").replace("\\", "/")
+                sent = False
                 if vid and os.path.exists(vid) and vid.endswith(".mp4"):
-                    await self.client.send_file(uid, vid, caption=cap, supports_streaming=True)
-                elif lk.get("photo_path") and os.path.exists(lk["photo_path"]):
-                    await self.client.send_file(uid, lk["photo_path"], caption=cap)
+                    try:
+                        await self.client.send_file(uid, vid, caption=cap, supports_streaming=True)
+                        sent = True
+                    except Exception as e:
+                        log.warning("userbot send_file video error: %s", e)
+                if not sent and p_path and os.path.exists(p_path):
+                    try:
+                        await self.client.send_file(uid, p_path, caption=cap)
+                        sent = True
+                    except Exception as e:
+                        log.warning("userbot send_file photo error: %s", e)
+                if not sent:
+                    items = look_items(lk)
+                    for it in items:
+                        img_url = it.get("image_url") or ""
+                        if img_url and img_url.startswith("http"):
+                            try:
+                                await self.client.send_file(uid, img_url, caption=cap)
+                                sent = True
+                                break
+                            except Exception as e:
+                                log.warning("userbot send_file img_url error: %s", e)
+                if not sent and lk.get("channel_msg_id") and self.s.channel_id:
+                    try:
+                        await self.client.forward_messages(uid, int(lk["channel_msg_id"]), self.s.channel_id)
+                        sent = True
+                    except Exception as e:
+                        log.warning("userbot forward error: %s", e)
 
         if clean_answer:
             await event.respond(_strip_html(clean_answer))
