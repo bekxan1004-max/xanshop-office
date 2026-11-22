@@ -46,9 +46,10 @@ log = logging.getLogger(__name__)
 
 STUDIO_CACHE_DIR = Path("data/studio_cache")
 STUDIO_MODELS = (
-    "gemini-nano-banana-2.1",
-    "gemini-3.1-flash-lite-image",
     "gemini-2.5-flash-image",
+    "gemini-3.1-flash-image",
+    "gemini-3.1-flash-lite-image",
+    "gemini-nano-banana-2.1",
     "gemini-3-pro-image",
 )
 VISION_MODELS = (
@@ -142,11 +143,20 @@ def build_scout_studio_prompt(
 
     extra_remove = ""
     if cat == "bottom":
-        extra_remove = "CRITICAL: Completely remove any shoes, sneakers, socks, belt, shirt hem, or human legs/feet — keep ONLY the trousers/jeans themselves! "
+        extra_remove = (
+            "CRITICAL: Completely remove any shoes, sneakers, socks, belt, shirt hem, or human legs/feet — keep ONLY the trousers/jeans themselves! "
+            "If the input photo shows 2 pairs of pants side-by-side (different colors), output ONLY ONE single pair of full-length straight upright trousers in the target color from waistband cleanly to ankle hems. "
+        )
     elif cat in ("top", "outerwear"):
-        extra_remove = "CRITICAL: Completely remove any human head, face, neck, hair, hands, pants, hanger, or background — reconstruct the inside back collar/neckline naturally as an invisible ghost-mannequin! "
+        extra_remove = (
+            "CRITICAL: Completely remove any human head, face, neck, hair, hands, pants, hanger, orange fire stickers (加绒加厚), or background — reconstruct the inside back collar/neckline naturally as an invisible ghost-mannequin! "
+            "If the input photo shows 2 stacked or folded sweaters/shirts/jackets together, output ONLY ONE single complete, fully unfolded, upright front-facing garment with full symmetrical sleeves. "
+        )
     elif cat == "shoes":
-        extra_remove = "CRITICAL: Completely remove any human ankles, socks, pants legs, shoebox clutter, floor shadows, or promotional badges — keep ONLY the exact pair of shoes! "
+        extra_remove = (
+            "CRITICAL: Completely remove any human ankles, calves, socks, pants legs, shoebox clutter, floor shadows, or promotional badges — keep ONLY the exact pair of shoes! "
+            "Position ONLY the pair of shoes standing upright on a flat horizontal studio surface at a clean 3/4 front-side angle (NEVER tilted diagonally on human legs). "
+        )
     elif cat == "accessory":
         extra_remove = "CRITICAL: Completely remove any human wrist, face, neck, hand, stand, or cluttered background — keep ONLY the exact accessory! "
 
@@ -314,22 +324,22 @@ def _build_kontext_edit_instruction(
     low = f"{name_uz} {item.get('title_cn', '')} {custom_spec}".lower()
     if cat == "outerwear":
         instr = (
-            "Remove the orange fire sticker badge, all Chinese text banners, hangers, human hands, neck, face, and background clutter. "
-            "Reconstruct the clean covered shoulder seam cleanly and keep ONLY the exact jacket or coat from the input image "
+            "Remove the orange fire sticker badge (加绒加厚), all Chinese text banners, hangers, human hands, neck, face, and background clutter. "
+            "If two jackets/coats appear stacked or side-by-side, show ONLY ONE single complete upright unfolded front-facing jacket or coat with full symmetrical sleeves "
             "(keeping 100% of its exact original color shade, fabric texture, inner lining, collar, zipper, and pockets) "
             "isolated alone on a solid pure white #FFFFFF studio background."
         )
     elif cat == "bottom":
         instr = (
             "Remove the black shoes and boots at the bottom, the shirt sleeves at the waist, all floor shadows, Chinese text or badges, and the room wall and wooden floor background. "
-            "Keep ONLY the exact full-length wide-leg trousers or jeans from waistband down to clean symmetrical ankle hems "
+            "If the photo shows 2 pairs of pants side-by-side, keep ONLY ONE single pair of full-length straight upright wide-leg trousers or jeans in the target color from waistband down to clean symmetrical ankle hems "
             "(keeping 100% of its exact color and fabric) isolated alone on a solid pure white #FFFFFF studio background."
         )
     elif cat == "shoes":
         instr = (
-            "Remove the human hand, wristwatch, ankles, socks, wooden table or floor surface, corner round logos, and all Chinese promotional text or calligraphy. "
-            "Keep ONLY the exact footwear / boots from the input image (keeping 100% of the exact original colors, olive/black/brown panels, sole, laces, and stitching) "
-            "isolated alone on a solid pure white #FFFFFF studio background."
+            "Remove the human ankles, calves, trousers, socks, wristwatch, hands, wooden table or floor surface, corner round logos, and all Chinese promotional text or calligraphy. "
+            "Position ONLY ONE exact pair of footwear / boots standing upright on a clean flat horizontal studio surface at a clean 3/4 front-side angle (NEVER tilted diagonally on human legs), "
+            "(keeping 100% of the exact original colors, panels, sole, laces, and stitching) isolated alone on a solid pure white #FFFFFF studio background."
         )
     elif cat == "accessory":
         instr = (
@@ -338,14 +348,14 @@ def _build_kontext_edit_instruction(
         )
     else:
         garment_label = (
-            f"{en_color} heavyweight oversized sweatshirt"
+            f"{en_color} heavyweight oversized sweater/sweatshirt"
             if (en_color and ("svitshot" in low or "sviter" in low))
             else f"{en_color} garment".strip()
         )
         instr = (
-            "Remove the yellow vertical Chinese banner, orange fire sticker, hangers, extra garments behind, and human hand. "
-            f"Reconstruct and show the complete full-length {garment_label} with full symmetrical long sleeves and ribbed hem "
-            "in a clean front-facing flat-lay or invisible ghost-mannequin studio shot isolated alone on a solid pure white #FFFFFF background, "
+            "Remove the yellow vertical Chinese banner, orange fire stickers (加绒加厚), hangers, extra garments behind, and human hand. "
+            f"If stacked/folded or two sweaters appear together, reconstruct and show ONLY ONE complete, fully unfolded, upright front-facing {garment_label} with full symmetrical long sleeves and ribbed hem "
+            "in a clean invisible ghost-mannequin studio shot isolated alone on a solid pure white #FFFFFF background, "
             "with no mannequin head, no human model, no hands, and no pants."
         )
 
@@ -478,6 +488,71 @@ def _isolate_from_clean_white_studio_bg(studio_pil: Image.Image, category: str =
         rgba = rgba.crop((x0, y0, x1, y1))
     rgba.info["xan_studio_regenerated"] = "1"
     return rgba
+
+
+def _scrub_promo_fire_stickers_rgba(rgba_img: Image.Image) -> Image.Image:
+    """Qora/neytral kiyim burchak va chetlarida qolib ketgan yorqin olov/sariq reklama stikerlarini (加绒加厚) tozalaydi."""
+    rgba = rgba_img.convert("RGBA")
+    arr = np.asarray(rgba, dtype=np.uint8).copy()
+    h, w, _ = arr.shape
+    if h < 48 or w < 48:
+        return rgba
+
+    rgb = arr[:, :, :3].astype(np.int16)
+    alpha = arr[:, :, 3]
+    fg = alpha > 25
+
+    # Kiyimning o'zi apelsin/sariq bo'lsa tegmaymiz
+    cy0, cy1 = int(h * 0.28), int(h * 0.72)
+    cx0, cx1 = int(w * 0.28), int(w * 0.72)
+    core_fg = fg[cy0:cy1, cx0:cx1]
+    if np.any(core_fg):
+        core_rgb = rgb[cy0:cy1, cx0:cx1][core_fg]
+        core_flame_ratio = float(
+            np.mean((core_rgb[:, 0] > 185) & (core_rgb[:, 1] >= 40) & (core_rgb[:, 1] <= 215) & (core_rgb[:, 2] < 75) & ((core_rgb[:, 0] - core_rgb[:, 2]) > 115))
+        )
+        if core_flame_ratio > 0.28:
+            return rgba
+
+    # Olov/reklama stiker piksellari (yuqori to'yingan olov rang + ichidagi sariq xitoy yozuvisimon chegara)
+    flame_px = (
+        fg
+        & (rgb[:, :, 0] > 185)
+        & (rgb[:, :, 1] >= 40)
+        & (rgb[:, :, 1] <= 215)
+        & (rgb[:, :, 2] < 75)
+        & ((rgb[:, :, 0] - rgb[:, :, 2]) > 115)
+    )
+    if float(np.mean(flame_px)) < 0.002:
+        return rgba
+
+    # Faqat chet/burchak zonalarga tushgan olov orollarini stiker deb aniqlaymiz
+    yy, xx = np.ogrid[:h, :w]
+    periph = (yy < int(h * 0.24)) | (yy > int(h * 0.62)) | (xx < int(w * 0.24)) | (xx > int(w * 0.68))
+
+    labeled, n_comp = ndimage.label(flame_px)
+    if n_comp == 0:
+        return rgba
+    scrub_mask = np.zeros((h, w), dtype=bool)
+    total_px = h * w
+    for comp_id in range(1, n_comp + 1):
+        comp = labeled == comp_id
+        cnt = int(np.sum(comp))
+        if cnt < 25 or cnt > total_px * 0.22:
+            continue
+        if np.any(comp & periph):
+            scrub_mask |= comp
+
+    if not np.any(scrub_mask):
+        return rgba
+
+    # Stikerning tashqi qora/qizil hoshiyasini ham qo'shib tozalash
+    scrub_mask = ndimage.binary_dilation(scrub_mask, iterations=4)
+    arr[scrub_mask, 3] = 0
+    out = Image.fromarray(arr, mode="RGBA")
+    for k, v in rgba_img.info.items():
+        out.info[k] = v
+    return out
 
 
 def _verify_regenerated_rgba(rgba: Image.Image) -> bool:
@@ -844,7 +919,10 @@ class PhotoStudioAgent:
 
         # 1-ENGINE: Gemini Nano Banana Image-to-Image (to'lovli kalit ulanganda avtomatik ishlaydi)
         if self.enabled and time.monotonic() >= _STUDIO_COOLDOWN_UNTIL:
+            attempted_primary: set[str] = set()
             for model_name in STUDIO_MODELS:
+                if model_name in ("gemini-2.5-flash-image", "gemini-nano-banana-2.1"):
+                    attempted_primary.add(model_name)
                 try:
                     out_bytes = await asyncio.wait_for(
                         asyncio.to_thread(self._call_nano_banana_sync, model_name, raw_bytes, scout_prompt),
@@ -872,8 +950,9 @@ class PhotoStudioAgent:
                     err_s = str(exc)
                     log.warning("Photoshop Studio (%s) zaxiraga o'tdi (%s): %s", model_name, type(exc).__name__, err_s[:140])
                     if "429" in err_s or "RESOURCE_EXHAUSTED" in err_s or "quota" in err_s.lower() or isinstance(exc, TimeoutError):
-                        _STUDIO_COOLDOWN_UNTIL = time.monotonic() + 600.0
-                        break
+                        if {"gemini-2.5-flash-image", "gemini-nano-banana-2.1"}.issubset(attempted_primary):
+                            _STUDIO_COOLDOWN_UNTIL = time.monotonic() + 30.0
+                            break
 
         # 2-ENGINE: Fal.ai (agar FAL_KEY ulangan bo'lsa) -> FLUX.1-Kontext-Dev HF Image-to-Image Regenerator
         if self.cloud_regen_enabled:
@@ -978,10 +1057,12 @@ class PhotoStudioAgent:
         from .media import resolve_real_item_photo
 
         fallback = extract_main_item(raw_pil, category=cat, use_cache=use_cache)
+        if fallback is not None:
+            fallback = _scrub_promo_fire_stickers_rgba(fallback)
         # Agar xom rasmda sariq/olovli xitoy reklama stikerlari ustun bo'lsa va fallback faqat kichik/sariq dog' qoldirsa, toza studiya rasmini olamiz
         raw_rgb_arr = np.asarray(raw_pil.convert("RGB"), dtype=np.float32)
         yellow_orange_ratio = float(
-            np.mean((raw_rgb_arr[:, :, 0] > 200) & (raw_rgb_arr[:, :, 1] > 110) & (raw_rgb_arr[:, :, 2] < 85))
+            np.mean((raw_rgb_arr[:, :, 0] > 190) & (raw_rgb_arr[:, :, 1] >= 40) & (raw_rgb_arr[:, :, 1] <= 215) & (raw_rgb_arr[:, :, 2] < 75) & ((raw_rgb_arr[:, :, 0] - raw_rgb_arr[:, :, 2]) > 115))
         )
         fb_is_bad = (fallback is None) or (not _verify_regenerated_rgba(fallback))
         if fallback is not None and not fb_is_bad:
@@ -989,9 +1070,9 @@ class PhotoStudioAgent:
             fb_rgb = np.asarray(fallback.convert("RGB"), dtype=np.float32)
             if np.any(fb_alpha):
                 fb_yo = float(
-                    np.mean((fb_rgb[fb_alpha, 0] > 195) & (fb_rgb[fb_alpha, 1] > 110) & (fb_rgb[fb_alpha, 2] < 85))
+                    np.mean((fb_rgb[fb_alpha, 0] > 190) & (fb_rgb[fb_alpha, 1] >= 40) & (fb_rgb[fb_alpha, 1] <= 215) & (fb_rgb[fb_alpha, 2] < 75) & ((fb_rgb[fb_alpha, 0] - fb_rgb[fb_alpha, 2]) > 115))
                 )
-                if (yellow_orange_ratio > 0.08 and fb_yo > 0.18) or (
+                if (fb_yo > 0.035) or (yellow_orange_ratio > 0.08 and fb_yo > 0.025) or (
                     fallback.width * fallback.height < raw_pil.width * raw_pil.height * 0.22
                 ):
                     fb_is_bad = True

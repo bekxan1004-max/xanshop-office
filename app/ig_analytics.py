@@ -856,7 +856,7 @@ DYNAMIC_INSTAGRAM_TREND_BLUEPRINTS: list[dict[str, Any]] = [
         ],
     },
     {
-        "title": "Toshkent Qishki Trench Palto & Sharf Kapsulasi",
+        "title": "Klassik Trench Palto & Kashmir Sharf Kapsulasi",
         "description": "Uzun trench palto + kashmir vodolazka + kashmir sharf.",
         "palette_name": "Trench Camel & Obsidian",
         "palette_hex": ["#8B7355", "#1C1E22", "#C8B8A6", "#3E2F26"],
@@ -1051,7 +1051,7 @@ async def decompose_instagram_trending_look_async(
                 "   - Shim (klassik/jinsi/erkin shim): 25–45 CNY\n"
                 "   - Oyoq kiyim (krossovka/lofer/etik): 32–54 CNY\n"
                 "   - Aksessuar (soat/kamar/sharf/sumka/ko'zoynak): 12–25 CNY\n"
-                "2) 'title' maydoni 100% TABIIY O'ZBEK TILIDA bo'lsin (inglizcha 'Bond Vibe', 'Alpine Heritage', 'Nordic' kabi so'zlarni yozma, masalan: 'Toshkent Qishki Zamsh Kurtka va Klassik Shim Kapsulasi').\n"
+                "2) 'title' maydoni 100% TABIIY O'ZBEK TILIDA, qisqa va aniq bo'lsin. HECH QACHON 'Toshkent', 'Shahar', 'O'zbekiston' kabi keraksiz so'zlarni qo'shma! Sarlavha faqat obrazdagi haqiqiy asosiy kiyimlardan tuzilsin (masalan: 'Jigarrang Zamsh Kurtka va Klassik Shim Kapsulasi').\n"
                 "3) HECH QACHON 'kargo shim' so'zini ishlatma! O'rniga 'Cho'ntakli Erkin Shim', 'Keng Shim', 'Klassik Shim' yoki 'Jinsi Shim' deb yoz!\n"
                 "4) Photoshop Studio agentiga videolardan ko'rib o'rganilgan tabiiy kiyim turish va yoritish yo'nalishini (studio_pose_direction, inglizcha 1-2 jumla) yoz!\n"
                 "FAQAT JSON QAYTAR:\n"

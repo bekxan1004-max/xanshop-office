@@ -507,6 +507,8 @@ class PinduoduoConnector:
         "笔袋", "文具", "铅笔盒", "纽扣", "鞋扣", "乳酸菌", "饮料", "烘焙", "模具", "香薰",
         "拖拉机", "收割机", "摩托车", "汽车配件", "手机壳", "数据线", "充电器", "猫粮", "狗粮",
         "男童", "女童", "儿童", "中小童", "大童", "宝宝", "童装", "婴儿",
+        "中老年", "老年", "爸爸装", "爸爸", "爷爷", "大爷", "老头",
+        "2件", "两件", "二件", "2条", "两条", "二条", "3件", "三件", "买一送一", "多件装",
     )
     _WOMEN_ONLY_WORDS = (
         "女装", "妈妈装", "女士", "女款", "连衣裙", "半身裙", "高跟鞋", "女鞋", "旗袍", "汉服女", "阔腿裤女",
@@ -1188,13 +1190,17 @@ class PinduoduoConnector:
         # Mato va sifat belgilari
         if any(q in title_cn for q in ("纯棉", "重磅", "加厚", "垂感", "加绒", "羊毛", "真皮", "头层牛皮", "羊绒")):
             score += 2.5
-        # Sovuq/kuz-qish kiyimi so'ralganda arzon yupqa yozgi futbolkalarni pasaytirish
+        # Sovuq/kuz-qish kiyimi so'ralganda arzon yupqa yozgi/bahorgi narsalarni keskin pasaytirish
         kw_joined = " ".join(kw_terms)
         item_bucket = cls._category_bucket(title_cn)
         if any(w in kw_joined for w in ("卫衣", "毛衣", "针织", "外套", "夹克", "大衣")) and any(
             bad in title_cn.lower() for bad in ("短袖", "薄款", "t恤", "夏季")
         ):
             score -= 7.5
+        if any(w in kw_joined for w in ("冬", "秋冬", "加绒", "加厚", "毛呢", "羊毛", "羊绒", "羽绒", "棉")) and any(
+            thin in title_cn.lower() for thin in ("春秋薄款", "薄款", "夏季", "冰丝", "短袖")
+        ):
+            score -= 9.0
         # Kategoriya bo'yicha Oltin O'rtalik CNY zonasi (hamyonbop + sifatli, raqobatchidan 15-25% arzon chiqish uchun)
         if item_bucket == "outerwear":
             if 35.0 <= price_cny <= 68.0:

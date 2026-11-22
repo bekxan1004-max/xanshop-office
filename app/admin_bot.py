@@ -431,7 +431,7 @@ def build_admin_router(s: Settings) -> Router:
         preset_map = {
             "auto": "",
             "old_money": "Jigarrang zamsh kurtka yoki jun palto, qora vodolazka, grafit klassik drape shim va qora chelsea etikdan iborat Old Money kapsula yig'",
-            "streetwear": "Qora bomber kurtka, qora oversize svitshot, keng erkin shim va qishki botinkadan iborat Toshkent clean streetwear kapsula yig'",
+            "streetwear": "Qora bomber kurtka, qora oversize svitshot, keng erkin shim va qishki botinkadan iborat clean streetwear kapsula yig'",
         }
         await cb.answer("⚡ Ishga tushirildi...")
         asyncio.create_task(

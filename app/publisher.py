@@ -199,6 +199,11 @@ def build_telegram_post_link(channel_id: str | int, msg_id: int | None) -> str:
 
 async def get_instagram_permalink(ig_media_id: str, ig_access_token: str) -> str:
     """Yuklangan Instagram Reels videoning aniq havolasini (permalink) oladi."""
+    if ig_media_id and ig_media_id.startswith("web_reel_"):
+        code = ig_media_id[len("web_reel_"):]
+        if code and not code.isdigit():
+            return f"https://www.instagram.com/reel/{code}/"
+        return "https://www.instagram.com/xans_styles/reels/"
     if not (ig_media_id and ig_access_token):
         return "https://www.instagram.com/xans_styles/reels/"
     try:
@@ -541,6 +546,17 @@ async def publish_reels_via_web_browser(
                         await page.wait_for_timeout(2000)
                         body_txt = (await page.locator('div[role="dialog"]').inner_text() if await page.locator('div[role="dialog"]').count() > 0 else "")
                         if any(k in body_txt.lower() for k in ("reel has been shared", "post has been shared", "публикация размещена", "shared reel")):
+                            try:
+                                await page.goto("https://www.instagram.com/xans_styles/", timeout=20000, wait_until="domcontentloaded")
+                                await page.wait_for_timeout(2500)
+                                reel_loc = page.locator('a[href*="/reel/"]').first
+                                if await reel_loc.count() > 0:
+                                    href = await reel_loc.get_attribute("href")
+                                    m_code = re.search(r"/reel/([A-Za-z0-9_-]+)", href or "")
+                                    if m_code:
+                                        return f"web_reel_{m_code.group(1)}"
+                            except Exception:
+                                pass
                             return f"web_reel_{int(asyncio.get_running_loop().time())}"
             finally:
                 await browser.close()

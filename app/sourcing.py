@@ -356,6 +356,26 @@ def _sync_item_with_studio_photo_color(name: str, category: str = "", idx: int =
     return fallbacks[idx % len(fallbacks)]
 
 
+def _synchronize_look_title_with_items(raw_title: str, norm_items: list[dict[str, Any]]) -> str:
+    """Look sarlavhasini keraksiz so'zlardan ('Toshkent', 'Shahar') tozalaydi va haqiqiy buyumlar bilan 100% moslashtiradi."""
+    cleaned = re.sub(r"\b(?:Toshkent(?:da|lik|ga|dan)?|Shahar|O'zbekiston(?:da|lik)?)\b", "", raw_title or "", flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -–—,:;")
+
+    item_names = [str(it.get("name") or "").strip() for it in norm_items if str(it.get("name") or "").strip()]
+    joined_items_low = " ".join(n.lower() for n in item_names)
+    title_low = cleaned.lower()
+
+    specific_types = ("palto", "kurtka", "blazer", "jilet", "kardigan", "sviter", "vodolazka", "xudi", "svitshot")
+    mentioned_types = [gt for gt in specific_types if gt in title_low]
+    has_mismatch = any(gt not in joined_items_low for gt in mentioned_types)
+
+    if (not cleaned or len(cleaned) < 8 or has_mismatch) and item_names:
+        if len(item_names) >= 2:
+            return f"{item_names[0]} va {item_names[1]} Kapsulasi"
+        return f"{item_names[0]} Kapsulasi"
+    return cleaned
+
+
 @dataclass(frozen=True)
 class GeneratedLook:
     title: str
@@ -725,9 +745,10 @@ FAQAT JSON QAYTAR:
                     exact_colors.append(synced_col)
 
         colors_str = ", ".join(exact_colors) if exact_colors else str(data.get("colors", "Qora, Grafit"))
+        final_title = _synchronize_look_title_with_items(data.get("title", "Yangi Trend Look"), norm_items)
 
         return GeneratedLook(
-            title=data.get("title", "Yangi Trend Look"),
+            title=final_title,
             description=data.get("description", ""),
             items_json=json.dumps(norm_items, ensure_ascii=False),
             colors=colors_str,
@@ -1026,6 +1047,16 @@ FAQAT JSON QAYTAR:
         )
         count_note = f"Aynan {piece_count} ta buyum bo'lsin." if piece_count in (2, 3, 4) else "2 dan 4 tagacha uyg'un buyum bo'lsin."
 
+        img_extract_rule = (
+            "MUHIM RASM/VIDEO TAHLIL QOIDASI (Obrazets yuborildi!):\n"
+            "- Yuklangan rasm/videodagi HAR BIR kiyim, poyabzal va aksessuarni ko'rib aniq ajratib chiq "
+            "(nechta qism, aniq kiyim turi, aniq rangi `color_uz`, mato qalinligi va mavsumi).\n"
+            "- Har bir buyumning `cn_keyword` maydonida Xitoycha aniq rang so'zini (黑色, 深灰, 棕色, 咖色, 米色, 卡其, 藏青, 白色, 军绿) "
+            "+ yagona buyum kalit so'zini (男 单件, masalan: `男羊毛大衣 黑色单件` — `2件`/`两件`/`中老年`/`爸爸` QAT'IYAN YOZMA!) kirit.\n"
+            if image_bytes
+            else ""
+        )
+
         ai_prompt = f"""Sen "XAN SHOP" Bosh Dizayneri, Instagram Trend Tahlilchisi va Pinduoduo Skaut Agentisan.
 Admin senga quyidagi MAXSUS BUYRUQ va/yoki namunaviy rasm/video yubordi:
 - Admin buyrug'i: "{prompt_text or "Yuklangan rasm/videodagi lookka aynan o'xshash kapsula yig'"}"
@@ -1033,14 +1064,14 @@ Admin senga quyidagi MAXSUS BUYRUQ va/yoki namunaviy rasm/video yubordi:
 - Byudjet talabi: {budget_note}
 - Ob-havo: {w_line}
 
-VAZIFANG:
+{img_extract_rule}VAZIFANG:
 1. Agar rasm/video berilgan bo'lsa, undagi HAR BIR kiyim, poyabzal va aksessuarni aniq ajratib chiq (rangi, matosi, fasoni, yoqasi, bichimi).
-2. Admin matnida so'ralgan talablarni 100% inobatga ol.
+2. Admin matnida so'ralgan talablarni 100% inobatga ol. HECH QACHON 'title' ichida 'Toshkent', 'Shahar', 'O'zbekiston' kabi keraksiz so'zlarni yozma — sarlavha faqat obrazdagi kiyimlar nomi va uslubidan iborat bo'lsin.
 3. Har bir buyum uchun:
    - `category`: FAQAT `outerwear`, `top`, `bottom`, `shoes`, yoki `accessory`
    - `name`: FAQAT O'ZBEK TILIDA qisqa nom (masalan `Jigarrang Zamsh Kurtka`, `Qora Oversize Svitshot`, `Qora Klassik Drape Shim`, `Qora Chelsea Etik`). HECH QACHON `kargo shim` deb yozma (`Cho'ntakli Erkin Shim` deb yoz)!
    - `color_uz`: asosiy rangi (masalan `Jigarrang`, `Qora`, `Grafit`)
-   - `cn_keyword`: Pinduoduo'dan aynan o'shanday kiyimni topish uchun aniq xitoycha qidiruv so'zi
+   - `cn_keyword`: Pinduoduo'dan aynan o'shanday rangi va fasonidagi YAGONA kiyimni topish uchun aniq xitoycha qidiruv so'zi (rang + turi, lekin `中老年`/`爸爸`/`2件` yozma)
    - `price_cny`: real Pinduoduo narxi (yuan)
    - `weight_kg`: taxminiy vazni (kg)
    - `studio_regen_prompt`: ingliz tilida 25-40 so'zlik aniq vizual tavsif (FLUX Image-to-Image studio regeneratsiyasi uchun rangi, matosi va fasoni).
@@ -1201,11 +1232,13 @@ FAQAT JSON QAYTAR:
         used_gids: set[str] = {str(x).strip() for x in (exclude_goods_ids or set()) if str(x).strip()}
         used_titles_cn: set[str] = {str(t).strip()[:28] for t in (exclude_titles_cn or set()) if str(t).strip()}
 
-        vision_state = {"alive": bool(self.ai.enabled)}
+        vision_state = {"alive": bool(self.ai.enabled), "fails": 0}
 
         async def _is_usable_pdd_garment_photo(img_bytes: bytes, target_cat: str = "") -> bool:
-            """Haqiqiy Pinduoduo kiyim rasmini tekshiradi: katta xitoycha reklama banner/infografikani rad etadi,
-            lekin toza flat-lay YOKI modeldagi bitta kiyim rasmini QABUL qiladi (u2net_cloth_seg yuz va fonni 100% qirqib oladi!)."""
+            """Haqiqiy Pinduoduo kiyim rasmini tekshiradi:
+            - katta xitoycha reklama banner / olov stiker / infografikani rad etadi
+            - 2 ta buklangan kofta, 2 ta yonma-yon shim kabi ko'plik rasmlarni rad etadi
+            - buklangan yengsiz kiyim yoki odam oyog'ida qiyshayib turgan poyabzalni rad etadi"""
             if not img_bytes:
                 return False
             if not vision_state["alive"]:
@@ -1213,30 +1246,43 @@ FAQAT JSON QAYTAR:
             try:
                 qc = await self.ai.ask_json(
                     f"Inspect this Pinduoduo product photo (target category: {target_cat or 'clothing'}). "
-                    "Our AI cloth segmenter (u2net_cloth_seg) will cleanly cut out ONLY the clothing/shoe item and remove any human model/face/background. "
-                    "Return strict JSON: {\"shows_target_garment\": bool, \"has_heavy_promo_text_or_collage\": bool}. "
-                    "Set shows_target_garment=true if a clear single garment or pair of shoes is clearly visible (whether flat-lay OR worn by a model). "
-                    "Set has_heavy_promo_text_or_collage=true ONLY if it is a cluttered infographic, size table, multi-grid collage, or covered with big Chinese promotional price/discount banners across the garment.",
+                    "Return strict JSON: "
+                    "{\"shows_target_garment\": bool, \"has_heavy_promo_text_or_collage\": bool, "
+                    "\"shows_multiple_duplicate_items\": bool, \"is_folded_or_cut_badly\": bool}. "
+                    "Rules:\n"
+                    "- shows_target_garment=true ONLY if ONE clear target garment or ONE pair of shoes is clearly shown.\n"
+                    "- shows_multiple_duplicate_items=true if the image shows 2+ stacked sweaters, 2+ side-by-side trousers, or multi-pack/color options together.\n"
+                    "- is_folded_or_cut_badly=true if a top/jacket is neatly folded hiding its sleeves, OR shoes are photographed sideways/tilted while worn on human ankles/legs/trousers, OR half the garment is cut off.\n"
+                    "- has_heavy_promo_text_or_collage=true if it has big Chinese yellow banners, bright red/orange fire badges overlapping the product, size tables, or multi-grid collages.",
                     media_bytes=img_bytes,
                     mime_type="image/jpeg",
-                    timeout_sec=8.0,
+                    timeout_sec=9.0,
                 )
                 if isinstance(qc, dict) and qc:
-                    return bool(qc.get("shows_target_garment") and not qc.get("has_heavy_promo_text_or_collage"))
-                # Vision modeli vaqtincha javob bermasa, qolgan rasmlarda 5 daqiqa kutmasdan tezkor o'tamiz
-                vision_state["alive"] = False
+                    vision_state["fails"] = 0
+                    return bool(
+                        qc.get("shows_target_garment")
+                        and not qc.get("has_heavy_promo_text_or_collage")
+                        and not qc.get("shows_multiple_duplicate_items")
+                        and not qc.get("is_folded_or_cut_badly")
+                    )
+                vision_state["fails"] += 1
+                if vision_state["fails"] >= 4:
+                    vision_state["alive"] = False
             except Exception:
-                vision_state["alive"] = False
+                vision_state["fails"] += 1
+                if vision_state["fails"] >= 4:
+                    vision_state["alive"] = False
             return True
 
-        async def _fetch_cand_image(cand: Any, target_cat: str) -> bytes | None:
+        async def _fetch_cand_image(cand: Any, target_cat: str, allow_fallback: bool = False) -> bytes | None:
             gal = list(getattr(cand, "gallery_images", None) or [])
             img_u = getattr(cand, "image_url", "")
             if img_u and img_u not in gal:
                 gal.append(img_u)
-            probe_urls = gal[1:3] + gal[:1]
+            probe_urls = gal[1:4] + gal[:1]
             fb_b = None
-            for g_url in probe_urls[:3]:
+            for g_url in probe_urls[:4]:
                 if not g_url or g_url in used_urls:
                     continue
                 img_b = await self.pdd.fetch_image_bytes(g_url)
@@ -1247,7 +1293,7 @@ FAQAT JSON QAYTAR:
                 if await _is_usable_pdd_garment_photo(img_b, target_cat=target_cat):
                     used_urls.add(g_url)
                     return img_b
-            return fb_b
+            return fb_b if allow_fallback else None
 
         async def _apply_picked_product(base_item: dict[str, Any], prod: Any, img_b: bytes | None, cat_name: str) -> dict[str, Any]:
             if getattr(prod, "goods_id", ""):
@@ -1316,9 +1362,41 @@ FAQAT JSON QAYTAR:
             out.sort(key=lambda pr: (-self.pdd._score_value_quality(pr, [], True), pr.price_cny))
             return out
 
+        _CN_COLOR_TOKENS = (
+            ("qora", ("黑", "纯黑", "炭黑")),
+            ("to'q ko'k", ("藏青", "深蓝", "藏蓝")),
+            ("ko'k", ("蓝", "藏青", "牛仔蓝")),
+            ("jigarrang", ("棕", "咖", "驼", "焦糖", "摩卡")),
+            ("qahva", ("咖", "摩卡", "棕")),
+            ("grafit", ("深灰", "炭灰", "灰")),
+            ("kulrang", ("灰", "深灰", "浅灰")),
+            ("och bej", ("米", "杏", "卡其", "浅驼")),
+            ("bej", ("米", "卡其", "杏")),
+            ("krem", ("米白", "奶白", "米")),
+            ("oq", ("白", "纯白", "米白")),
+            ("zaytun", ("绿", "军绿", "墨绿", "橄榄")),
+            ("yashil", ("绿", "军绿", "墨绿")),
+        )
+
+        def _candidate_rank_key(cand: Any, kw_str: str, target_col_uz: str, want_sub: str) -> tuple[float, float]:
+            t_cn = str(getattr(cand, "title_cn", "") or "")
+            sc = self.pdd._score_value_quality(cand, [w for w in kw_str.split() if w], True)
+            if want_sub and self.pdd._subtype_key(t_cn) == want_sub:
+                sc += 6.5
+            col_low = (target_col_uz or "").lower()
+            for uz_k, cn_chars in _CN_COLOR_TOKENS:
+                if uz_k in col_low:
+                    st_cols_low = " ".join(str(x).lower() for x in (getattr(cand, "store_colors", None) or []))
+                    if any(ch in t_cn for ch in cn_chars) or uz_k in st_cols_low:
+                        sc += 4.5
+                    break
+            return (-sc, float(getattr(cand, "price_cny", 0) or 0))
+
         for item_idx, item in enumerate(base_items):
             kw = item.get("cn_keyword") or item.get("name", "")
             cat = str(item.get("category") or "top").lower()
+            target_sub = self.pdd._subtype_key(str(kw))
+            target_col_uz = str(item.get("color_uz") or item.get("name") or "")
             min_p, sweet_max, hard_max = CATEGORY_SWEET_BOUNDS.get(cat, (18.0, 48.0, 62.0))
 
             live_matches = await self.pdd.search_live(kw, page_size=14, exclude_goods_ids=used_gids)
@@ -1341,22 +1419,24 @@ FAQAT JSON QAYTAR:
                     if bucket_sweet:
                         hard_pool = bucket_sweet
                 pool = sweet_pool if sweet_pool else (hard_pool if hard_pool else base_pool)
+                pool.sort(key=lambda pr: _candidate_rank_key(pr, str(kw), target_col_uz, target_sub))
                 picked_prod = pool[0]
 
-                for cand in pool[:3]:
-                    img_b = await _fetch_cand_image(cand, cat)
+                for cand in pool[:4]:
+                    img_b = await _fetch_cand_image(cand, cat, allow_fallback=False)
                     if not img_b:
                         continue
-                    if fallback_bytes is None:
-                        fallback_prod = cand
-                        fallback_bytes = img_b
                     picked_prod = cand
                     picked_bytes = img_b
                     break
 
-                if picked_bytes is None and fallback_bytes is not None:
-                    picked_prod = fallback_prod or picked_prod
-                    picked_bytes = fallback_bytes
+                if picked_bytes is None:
+                    for cand in pool[:2]:
+                        img_fb = await _fetch_cand_image(cand, cat, allow_fallback=True)
+                        if img_fb:
+                            picked_prod = cand
+                            picked_bytes = img_fb
+                            break
 
             candidate_pools.append(pool)
             if picked_prod is not None:
