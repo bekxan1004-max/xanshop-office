@@ -1,5 +1,8 @@
 .env
-data/
+data/ig_browser_session.json
+data/*.session*
+data/photos/*.mp4
+data/photos/*.gif
 __pycache__/
 *.pyc
 .pytest_cache/

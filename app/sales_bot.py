@@ -77,6 +77,34 @@ def options_kb(prefix: str, options: list[str], extra: list[tuple[str, str]] | N
 
 async def send_look(message: Message, look: dict, db: Database, s: Settings) -> None:
     caption = look_caption(look, s)
+    target_chat = message.chat.id
+    cid = look.get("channel_msg_id")
+
+    # 1) Kanalda e'lon qilingan bo'lsa: to'g'ridan-to'g'ri kanal postini to'liq rasm/video bilan uzatish!
+    if cid and s.channel_id:
+        try:
+            await message.bot.copy_message(
+                chat_id=target_chat,
+                from_chat_id=s.channel_id,
+                message_id=int(cid),
+                caption=caption,
+                reply_markup=look_kb(look["id"]),
+            )
+            return
+        except Exception as e_copy:
+            log.info("copy_message %s failed (%s); trying forward_message", cid, e_copy)
+            try:
+                await message.bot.forward_message(
+                    chat_id=target_chat,
+                    from_chat_id=s.channel_id,
+                    message_id=int(cid),
+                )
+                await message.answer(caption, reply_markup=look_kb(look["id"]))
+                return
+            except Exception as e_fwd:
+                log.warning("forward_message %s failed: %s", cid, e_fwd)
+
+    # 2) Fayl yoki Pinduoduo CDN rasm orqali to'g'ridan-to'g'ri rasm jo'natish
     photo = look.get("sales_file_id")
     p_path = (look.get("photo_path") or "").replace("\\", "/")
     if not photo and p_path and os.path.exists(p_path):
