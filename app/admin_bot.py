@@ -306,8 +306,15 @@ def build_admin_router(s: Settings) -> Router:
         for lk in looks[:10]:
             st = "✅" if lk["active"] else "⏸"
             lines.append(f"{st} <b>#{lk['id']}</b> {escape(lk['title'][:40])} — {fmt(lk['prepay_uzs'])} so'm (50%: {fmt(lk.get('prepay_50_uzs') or 0)})")
-        lines.append("\nBatafsil /toggle uchun: /looklar")
-        await _edit_or_send(cb, "\n".join(lines), ikb([[("⚡ Yangi AI Look", "adm:ai_look"), ("◀️ Bosh menyu", "adm:home")]]))
+        lines.append("\nBatafsil boshqarish: /looklar yoki /tozalash")
+        await _edit_or_send(
+            cb,
+            "\n".join(lines),
+            ikb([
+                [("⚡ Yangi AI Look", "adm:ai_look"), ("🗑 Barchasini o'chirish", "adm:clear_all_ask")],
+                [("◀️ Bosh menyu", "adm:home")]
+            ]),
+        )
 
     @admin.callback_query(F.data == "adm:finance")
     async def cb_finance(cb: CallbackQuery, db: Database):
@@ -1252,14 +1259,111 @@ def build_admin_router(s: Settings) -> Router:
                 f"#{lk['id']} <b>{escape(lk['title'])}</b> — {fmt(lk['prepay_uzs'])} so'm, {state}\n"
                 f"Foyda: {fmt(lk['profit_uzs'])} so'm · {lk['weight_kg']} kg\n"
                 f"Instagram uchun havola:\n<code>{link}</code>",
-                reply_markup=ikb([[("⏸ O'chirish" if lk["active"] else "▶️ Yoqish", f"toggle:{lk['id']}")]]))
+                reply_markup=ikb([
+                    [("⏸ Muzlatish" if lk["active"] else "▶️ Faollashtirish", f"toggle:{lk['id']}"),
+                     ("🗑 Butunlay o‘chirish", f"del_look:{lk['id']}")]
+                ]),
+            )
 
     @admin.callback_query(F.data.startswith("toggle:"))
     async def toggle(cb: CallbackQuery, db: Database):
         lk = await db.get_look(int(cb.data.split(":")[1]))
+        if not lk:
+            await cb.answer("Look topilmadi")
+            return
         await db.update_look(lk["id"], active=0 if lk["active"] else 1)
         await cb.answer("O'chirildi" if lk["active"] else "Yoqildi")
         await drop_kb(cb)
+
+    @admin.callback_query(F.data.startswith("del_look:"))
+    async def delete_single_look_cb(cb: CallbackQuery, db: Database):
+        look_id = int(cb.data.split(":")[1])
+        lk = await db.get_look(look_id)
+        if not lk:
+            await cb.answer("Look topilmadi")
+            return
+        cid = lk.get("channel_msg_id")
+        if cid and s.channel_id:
+            try:
+                await cb.bot.delete_message(chat_id=s.channel_id, message_id=int(cid))
+            except Exception as e:
+                log.warning("Could not delete channel msg %s: %s", cid, e)
+        for p_key in ("photo_path", "video_path"):
+            p_val = lk.get(p_key) or ""
+            if p_val and os.path.exists(p_val):
+                try:
+                    os.remove(p_val)
+                except Exception:
+                    pass
+        await db.delete_look(look_id)
+        await cb.answer(f"#{look_id} kanaldan va bazadan o'chirildi!", show_alert=True)
+        try:
+            await cb.message.delete()
+        except Exception:
+            pass
+
+    @admin.callback_query(F.data == "adm:clear_all_ask")
+    async def clear_all_ask_cb(cb: CallbackQuery):
+        await cb.answer()
+        txt = (
+            "⚠️ <b>DIQQAT! Barcha looklarni butunlay o‘chirmoqchimisiz?</b>\n\n"
+            "Bu amal:\n"
+            "• Telegram kanal (@XAN_SHOP_UZ) dagi barcha look postlarini o‘chiradi\n"
+            "• Sotuv botidagi barcha looklarni tozalaydi\n"
+            "• Ma‘lumotlar bazasini to‘liq bo‘shatadi\n\n"
+            "Rostdan ham hammasini o‘chirmoqchimisiz?"
+        )
+        kb = ikb([
+            [("🔴 Ha, HAMMASINI O‘CHIR!", "adm:clear_all_confirm")],
+            [("❌ Bekor qilish", "adm:looks")]
+        ])
+        await _edit_or_send(cb, txt, kb)
+
+    @admin.callback_query(F.data == "adm:clear_all_confirm")
+    async def clear_all_confirm_cb(cb: CallbackQuery, db: Database):
+        await cb.answer("Tozalanmoqda...", show_alert=False)
+        looks = await db.list_looks(only_active=False)
+        del_channel_count = 0
+        for lk in looks:
+            cid = lk.get("channel_msg_id")
+            if cid and s.channel_id:
+                try:
+                    await cb.bot.delete_message(chat_id=s.channel_id, message_id=int(cid))
+                    del_channel_count += 1
+                except Exception:
+                    pass
+            for p_key in ("photo_path", "video_path"):
+                p_val = lk.get(p_key) or ""
+                if p_val and os.path.exists(p_val):
+                    try:
+                        os.remove(p_val)
+                    except Exception:
+                        pass
+        total_deleted = await db.clear_all_looks()
+        txt = (
+            f"✅ <b>Barcha looklar muvaffaqiyatli o‘chirildi!</b>\n\n"
+            f"• Bazadan jami: <b>{total_deleted} ta</b> look tozalandi\n"
+            f"• Kanaldan o‘chirilgan xabarlar: <b>{del_channel_count} ta</b>\n"
+            f"• Sotuv boti katalogi to‘liq tozalandi.\n\n"
+            "Yangi look yaratish uchun: /ai_look"
+        )
+        await _edit_or_send(cb, txt, ikb([[("⚡ Yangi AI Look", "adm:ai_look"), ("◀️ Bosh menyu", "adm:home")]]))
+
+    @admin.message(Command("tozalash"))
+    async def cmd_tozalash(message: Message, db: Database):
+        looks = await db.list_looks(only_active=False)
+        if not looks:
+            await message.answer("👔 Katalog allaqachon bo‘sh.")
+            return
+        txt = (
+            f"⚠️ <b>DIQQAT! Bazada {len(looks)} ta look bor.</b>\n\n"
+            "Barchasini Telegram kanaldan, botdan va bazadan bir martada butunlay o‘chirib yubormoqchimisiz?"
+        )
+        kb = ikb([
+            [("🔴 Ha, HAMMASINI O‘CHIR!", "adm:clear_all_confirm")],
+            [("❌ Bekor qilish", "adm:home")]
+        ])
+        await message.answer(txt, reply_markup=kb)
 
     @admin.message(Command("look_qosh"))
     async def add_start(message: Message, state: FSMContext):
