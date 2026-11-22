@@ -56,21 +56,37 @@ def look_50_values(look: dict) -> tuple[int, int]:
 
 def look_caption(look: dict, s: Settings) -> str:
     """Sotuv botdagi ixcham va sodda look kartochkasi."""
+    from .sizes import item_size_group
     p50, rem50 = look_50_values(look)
     items = look_items(look)
+
+    size_parts = []
+    has_top = any(item_size_group(it) == "top" for it in items)
+    has_bot = any(item_size_group(it) == "bottom" for it in items)
+    has_sho = any(item_size_group(it) == "shoes" for it in items)
+    if has_top:
+        size_parts.append(f"Ust: {look.get('sizes') or 'M, L, XL, 2XL'}")
+    if has_bot:
+        size_parts.append("Shim: 29-36")
+    if has_sho:
+        size_parts.append("Oyoq: 39-44")
+    size_str = " | ".join(size_parts) if size_parts else (look.get('sizes') or 'M, L, XL, 2XL')
+
     lines = [
         f"👔 <b>{escape(look['title'])}</b> ({len(items)} qism)",
         "",
         *[f"• {escape(i['name'])}" for i in items],
         "",
-        f"🎨 Rasmdagi ranglar: <b>{escape(look.get('colors') or 'Och bej, Grafit, Jigarrang')}</b> <i>(boshqa ranglari ham bor)</i>",
-        f"📏 Razmer: {escape(look.get('sizes') or 'M, L, XL, 2XL')}",
+        f"🎨 Rasmdagi ranglar: <b>{escape(look.get('colors') or 'Rasmdagidek')}</b> <i>(boshqa ranglari ham bor)</i>",
+        f"📏 Razmer: {escape(size_str)}",
         f"✈️ Yetkazish: {escape(s.delivery_text)}",
         "",
         f"💳 <b>Hozirgi narx (50%): {fmt(p50)} so'm</b>",
         f"📦 <b>Kargo: 12 000 so'm / 100 gr</b> <i>(qolgan {fmt(rem50)} so'm + kargo — kiyim Toshkentga kelganda!)</i>",
         f"💰 To'liq narxi: {fmt(look['prepay_uzs'])} so'm",
     ]
+    if s.manager_username:
+        lines.append(f"\n👤 Buyurtma uchun lichka: @{s.manager_username.lstrip('@')}")
     return "\n".join(lines)[:1024]
 
 

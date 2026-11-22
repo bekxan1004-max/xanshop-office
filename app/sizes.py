@@ -10,6 +10,36 @@ WEIGHT_TABLE = [(50, "S"), (57, "M"), (65, "L"), (72, "XL"), (80, "2XL"),
                 (87, "3XL"), (95, "4XL"), (105, "5XL"), (999, "6XL")]
 ALIASES = {"XXL": "2XL", "XXXL": "3XL", "XXXXL": "4XL", "XXXXXL": "5XL"}
 
+# Erkaklar shimi o'lchamlari (Xitoy/Xalqaro bel o'lchami dyuymda: 28-38)
+PANTS_NUMERIC_DEFAULT = ["29", "30", "31", "32", "33", "34", "36"]
+PANTS_WEIGHT_TABLE = [
+    (54, "28", "Bel 70-72 sm"),
+    (59, "29", "Bel 73-75 sm"),
+    (64, "30", "Bel 76-78 sm"),
+    (69, "31", "Bel 79-81 sm"),
+    (74, "32", "Bel 82-84 sm"),
+    (79, "33", "Bel 85-87 sm"),
+    (85, "34", "Bel 88-91 sm"),
+    (92, "36", "Bel 92-96 sm"),
+    (102, "38", "Bel 97-102 sm"),
+]
+
+
+def recommend_bottom_numeric(weight_kg: float, height_cm: float = 175.0, available: list[str] | None = None) -> str:
+    """Erkaklar shimi uchun bel o'lchami (28, 29, 30, 31, 32, 33, 34, 36, 38)."""
+    picked = next((sz for lim, sz, _ in PANTS_WEIGHT_TABLE if weight_kg <= lim), "38")
+    if available:
+        num_avail = [str(a).strip() for a in available if str(a).strip().isdigit()]
+        if num_avail:
+            if picked in num_avail:
+                return picked
+            try:
+                p_int = int(picked)
+                return str(min(num_avail, key=lambda x: abs(int(x) - p_int)))
+            except Exception:
+                pass
+    return picked
+
 # Erkaklar oyoq kiyimi (oyoq uzunligi sm -> EU/CN razmer)
 SHOE_CM_TABLE = [
     (24.0, "38"), (24.5, "39"), (25.0, "40"), (25.5, "41"),
@@ -203,10 +233,14 @@ def recommend_for_item(
                 reason += f" (eslatma: {hint_reason})"
             return {"name": name, "group": group, "is_shoe": False, "size": sz, "source": "store_size_chart", "reason_uz": reason}
 
-    # 2) Agar do'kon jadvali hali o'qilmagan bo'lsa, Osiyo jadvali (faqat do'kon izohi talab qilsagina +1)
+    # 2) Agar do'kon jadvali hali o'qilmagan bo'lsa:
     eff_weight = weight_kg + (5.5 if force_up else 0.0)
-    sz = recommend(height_cm, eff_weight, avail)
-    reason = f"Bo'y {height_cm:g} sm / vazn {weight_kg:g} kg bo'yicha {sz or 'XL'} razmer mos"
+    if group == "bottom":
+        sz = recommend_bottom_numeric(eff_weight, height_cm, avail)
+        reason = f"Vazn {weight_kg:g} kg bo'yicha bel razmeri {sz} mos"
+    else:
+        sz = recommend(height_cm, eff_weight, avail)
+        reason = f"Bo'y {height_cm:g} sm / vazn {weight_kg:g} kg bo'yicha {sz or 'XL'} razmer mos"
     if hint_reason:
         reason += f" ({hint_reason})"
     return {"name": name, "group": group, "is_shoe": False, "size": sz, "source": "store_fit_adjusted" if force_up else "asia_standard", "reason_uz": reason}

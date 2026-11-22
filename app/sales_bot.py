@@ -78,14 +78,25 @@ def options_kb(prefix: str, options: list[str], extra: list[tuple[str, str]] | N
 async def send_look(message: Message, look: dict, db: Database, s: Settings) -> None:
     caption = look_caption(look, s)
     photo = look.get("sales_file_id")
-    if not photo and look.get("photo_path") and os.path.exists(look["photo_path"]):
-        photo = FSInputFile(look["photo_path"])
+    p_path = (look.get("photo_path") or "").replace("\\", "/")
+    if not photo and p_path and os.path.exists(p_path):
+        photo = FSInputFile(p_path)
+    if not photo:
+        items = look_items(look)
+        for it in items:
+            img = it.get("image_url") or ""
+            if img and img.startswith("http"):
+                photo = img
+                break
     if photo:
-        msg = await message.answer_photo(photo, caption=caption, reply_markup=look_kb(look["id"]))
-        if not look.get("sales_file_id"):
-            await db.update_look(look["id"], sales_file_id=msg.photo[-1].file_id)
-    else:
-        await message.answer(caption, reply_markup=look_kb(look["id"]))
+        try:
+            msg = await message.answer_photo(photo, caption=caption, reply_markup=look_kb(look["id"]))
+            if not look.get("sales_file_id") and hasattr(msg, "photo") and msg.photo:
+                await db.update_look(look["id"], sales_file_id=msg.photo[-1].file_id)
+            return
+        except Exception as e:
+            log.warning("send_look answer_photo failed: %s; falling back to text", e)
+    await message.answer(caption, reply_markup=look_kb(look["id"]))
 
 
 def build_sales_router() -> Router:
@@ -200,8 +211,9 @@ def build_sales_router() -> Router:
         fallback_sizes = split_list(look["sizes"]) or ["M", "L", "XL", "2XL"]
         if not top_sizes:
             top_sizes = fallback_sizes
-        if has_bottom and not bottom_sizes:
-            bottom_sizes = fallback_sizes
+        if has_bottom:
+            num_bottom = [s for s in bottom_sizes if str(s).strip().isdigit()]
+            bottom_sizes = num_bottom if num_bottom else ["29", "30", "31", "32", "33", "34", "36"]
         if has_shoes and not shoe_sizes:
             shoe_sizes = ["39", "40", "41", "42", "43", "44"]
 
