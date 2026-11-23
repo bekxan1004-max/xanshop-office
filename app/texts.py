@@ -1,9 +1,20 @@
 """Ixcham, sodda va tushunarli matnlar (V3.2 — Sotuv Bot, Admin Bot va Kanal uchun)."""
 import json
-from html import escape
 
 from .config import Settings
 from .pricing import fmt
+
+def tg_escape(text: str) -> str:
+    """Telegram Bot API HTML parse_mode xavfsiz ekranlash (Telegram &#x27; ni qo'llamaydi, faqat &lt;, &gt;, &amp;, &quot;)."""
+    return (
+        str(text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+escape = tg_escape
 
 STATUS_LABELS = {
     "awaiting_payment": "💳 To'lov kutilmoqda",

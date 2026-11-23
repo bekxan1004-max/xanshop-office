@@ -175,6 +175,74 @@ DYNAMIC_LOOK_TEMPLATES: list[dict[str, Any]] = [
             {"category": "shoes", "name": "Oq-Kulrang Krossovka", "price_cny": 42.0, "weight_kg": 0.80, "cn_keyword": "复古百搭板鞋男休闲运动鞋防滑厚底潮鞋"},
         ],
     },
+    {
+        "title": "Cleanfit Shokolad Zamsh Kurtka va Denim Kapsulasi",
+        "description": "Shokolad zamsh kurtka + oq vafli longsliv + to'q ko'k to'g'ri vintage denim shim + jigarrang lofer.",
+        "piece_count": 4,
+        "palette_name": "Chocolate Suede & Indigo",
+        "palette_hex": ["#3D2314", "#EBE6DD", "#1C2D42", "#5C3826"],
+        "audio_vibe": "luxury_chill",
+        "viral_hook": "BAHOR VA SALQIN KUNLAR UCHUN CLEANFIT OBRAZ",
+        "colors": "To'q shokolad, Oq, To'q ko'k denim, Jigarrang",
+        "sizes": "M, L, XL, 2XL",
+        "items": [
+            {"category": "outerwear", "name": "Shokolad Zamsh Kurtka", "price_cny": 58.0, "weight_kg": 0.85, "cn_keyword": "美式复古翻毛皮夹克男秋冬加绒短款外套"},
+            {"category": "top", "name": "Oq Vafli Trikotaj Longsliv", "price_cny": 28.0, "weight_kg": 0.40, "cn_keyword": "重磅华夫格长袖t恤男宽松圆领打底衫"},
+            {"category": "bottom", "name": "To'q Ko'k Vintage Denim Shim", "price_cny": 38.0, "weight_kg": 0.60, "cn_keyword": "复古水洗深蓝直筒牛仔裤男宽松百搭"},
+            {"category": "shoes", "name": "Jigarrang Zamsh Lofer", "price_cny": 45.0, "weight_kg": 0.75, "cn_keyword": "英伦风翻毛皮乐福鞋男加绒一脚蹬豆豆鞋"},
+        ],
+    },
+    {
+        "title": "Minimalist Bej Trenj va Drape Shim Kapsulasi",
+        "description": "Och bej klassik trenj plash + qora qalin svitshot + to'q grafit keng drape shim + qora lofer.",
+        "piece_count": 4,
+        "palette_name": "Beige Trench & Graphite",
+        "palette_hex": ["#D8CBB5", "#18191C", "#383B42", "#0F1012"],
+        "audio_vibe": "lofi_editorial",
+        "viral_hook": "MINIMALIST KLASSIK USLUB • PREMIUM TRENJ VA DRAPE",
+        "colors": "Och bej, Qora, To'q grafit",
+        "sizes": "M, L, XL, 2XL",
+        "items": [
+            {"category": "outerwear", "name": "Och Bej Klassik Trenj Plash", "price_cny": 68.0, "weight_kg": 1.10, "cn_keyword": "英伦风中长款双排扣风衣男加厚垂感大衣"},
+            {"category": "top", "name": "Qora Qalin Svitshot", "price_cny": 32.0, "weight_kg": 0.45, "cn_keyword": "加绒加厚纯色圆领卫衣男宽松保暖内搭"},
+            {"category": "bottom", "name": "To'q Grafit Keng Drape Shim", "price_cny": 36.0, "weight_kg": 0.52, "cn_keyword": "垂感西装裤男直筒阔腿宽松加厚休闲长裤"},
+            {"category": "shoes", "name": "Qora Klassik Lofer", "price_cny": 46.0, "weight_kg": 0.75, "cn_keyword": "商务正装皮鞋男德比鞋英伦风休闲软底"},
+        ],
+    },
+    {
+        "title": "Qishki Qalin Puffer Kurtka va Velvet Shim Kapsulasi",
+        "description": "To'q yashil qalin puffer kurtka + krem rangli qovurg'ali sviter + qora velvet shim + qora chelsea botinka.",
+        "piece_count": 4,
+        "palette_name": "Forest Puffer & Cream",
+        "palette_hex": ["#253B2F", "#ECE5D8", "#1E1F22", "#0A0B0D"],
+        "audio_vibe": "phonk_bass",
+        "viral_hook": "QISHNING ENG SOVUQ KUNLARIGA ISSIQ VA ZAMONAVIY LOOK",
+        "colors": "To'q yashil, Krem, Qora",
+        "sizes": "M, L, XL, 2XL",
+        "items": [
+            {"category": "outerwear", "name": "To'q Yashil Qalin Puffer Kurtka", "price_cny": 66.0, "weight_kg": 1.15, "cn_keyword": "冬季连帽加厚保暖棉服男宽松立领短款羽绒棉袄"},
+            {"category": "top", "name": "Krem Rangli Qovurg'ali Sviter", "price_cny": 34.0, "weight_kg": 0.50, "cn_keyword": "加厚圆领羊毛衫男冬季保暖针织打底毛衣"},
+            {"category": "bottom", "name": "Qora Velvet Erkin Shim", "price_cny": 35.0, "weight_kg": 0.55, "cn_keyword": "灯芯绒条绒直筒裤男秋冬加厚保暖阔腿裤"},
+            {"category": "shoes", "name": "Qora Chelsea Qishki Botinka", "price_cny": 48.0, "weight_kg": 0.90, "cn_keyword": "切尔西靴男真皮秋冬英伦短靴加绒马丁靴"},
+        ],
+    },
+    {
+        "title": "Retro Bayker Charm Kurtka va Vintage Jinsi",
+        "description": "Qora charm bayker kurtka + grafit yoqali sviter + vintage keng denim shim + oq retro krossovka.",
+        "piece_count": 4,
+        "palette_name": "Obsidian Leather & Vintage Denim",
+        "palette_hex": ["#161719", "#3A3D45", "#48586E", "#E8EAED"],
+        "audio_vibe": "uk_drill_beat",
+        "viral_hook": "RETRO VINTAGE CHARM KURTKA • SOTILADIGAN TREND",
+        "colors": "Qora charm, Grafit, Vintage denim, Oq",
+        "sizes": "M, L, XL, 2XL",
+        "items": [
+            {"category": "outerwear", "name": "Qora Charm Bayker Kurtka", "price_cny": 62.0, "weight_kg": 0.95, "cn_keyword": "美式复古PU皮衣外套男加厚机车短款夹克"},
+            {"category": "top", "name": "Grafit Half-Zip Sviter", "price_cny": 32.0, "weight_kg": 0.48, "cn_keyword": "半拉链加厚针织衫男高领立领保暖毛衣"},
+            {"category": "bottom", "name": "Vintage Keng Denim Shim", "price_cny": 36.0, "weight_kg": 0.58, "cn_keyword": "水洗做旧复古直筒牛仔裤男宽松阔腿长裤"},
+            {"category": "shoes", "name": "Oq Retro Krossovka", "price_cny": 42.0, "weight_kg": 0.80, "cn_keyword": "复古运动鞋男轻便舒适防滑厚底百搭板鞋"},
+        ],
+    },
 ]
 
 
@@ -1206,9 +1274,7 @@ FAQAT JSON QAYTAR:
         if not is_custom:
             raw_data = self._enforce_seasonal_and_persona_rules(raw_data, eff_brief, weather=weather, ig_intel=ig_intel)
 
-        if self.pdd.connection_mode not in ("official_api", "apify_pdd_live", "onebound_pdd"):
-            return self._build_generated_look(raw_data, eff_brief, weather_line)
-
+        # Agar jonli API ulanmagan bo'lsa ham to'xtamaymiz: 900+ lik real Pinduoduo kesh tovarlari bilan boyitamiz!
         CATEGORY_SWEET_BOUNDS: dict[str, tuple[float, float, float]] = {
             "outerwear": (24.0, 68.0, 82.0),
             "top": (16.0, 46.0, 56.0),
@@ -1256,7 +1322,7 @@ FAQAT JSON QAYTAR:
                     "- has_heavy_promo_text_or_collage=true if it has big Chinese yellow banners, bright red/orange fire badges overlapping the product, size tables, or multi-grid collages.",
                     media_bytes=img_bytes,
                     mime_type="image/jpeg",
-                    timeout_sec=9.0,
+                    timeout_sec=5.0,
                 )
                 if isinstance(qc, dict) and qc:
                     vision_state["fails"] = 0
@@ -1267,11 +1333,11 @@ FAQAT JSON QAYTAR:
                         and not qc.get("is_folded_or_cut_badly")
                     )
                 vision_state["fails"] += 1
-                if vision_state["fails"] >= 4:
+                if vision_state["fails"] >= 2:
                     vision_state["alive"] = False
             except Exception:
                 vision_state["fails"] += 1
-                if vision_state["fails"] >= 4:
+                if vision_state["fails"] >= 2:
                     vision_state["alive"] = False
             return True
 
@@ -1304,6 +1370,8 @@ FAQAT JSON QAYTAR:
             updated["price_cny"] = float(prod.price_cny)
             updated["cny"] = float(prod.price_cny)
             updated["pdd_goods_id"] = prod.goods_id or updated.get("pdd_goods_id", "")
+            updated["pdd_id"] = updated["pdd_goods_id"]
+            updated["goods_id"] = updated["pdd_goods_id"]
             updated["title_cn"] = prod.title_cn or updated.get("cn_keyword", "")
             updated["sales_tip"] = prod.sales_tip
             updated["_from_live_pdd"] = True
@@ -1436,6 +1504,21 @@ FAQAT JSON QAYTAR:
                         if img_fb:
                             picked_prod = cand
                             picked_bytes = img_fb
+                            break
+
+            if not pool or picked_prod is None:
+                # Agar jonli API tovar topolmasa, 900+ lik haqiqiy Pinduoduo tovarlar keshidan to'ldiramiz!
+                pool = _load_bucket_cache_sweet_candidates(cat, min_p, hard_max)
+                if not pool:
+                    pool = _load_bucket_cache_sweet_candidates(cat, 12.0, 95.0)
+                if pool:
+                    pool.sort(key=lambda pr: _candidate_rank_key(pr, str(kw), target_col_uz, target_sub))
+                    picked_prod = pool[0]
+                    for cand in pool[:3]:
+                        img_b = await _fetch_cand_image(cand, cat, allow_fallback=True)
+                        if img_b:
+                            picked_prod = cand
+                            picked_bytes = img_b
                             break
 
             candidate_pools.append(pool)

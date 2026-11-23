@@ -426,12 +426,44 @@ async def publish_reels_via_web_browser(
                 page = await ctx.new_page()
                 await page.goto("https://www.instagram.com/", timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(3000)
+
+                # 0) Agar "Continue as xans_styles" profili taklif etilsa, uni bosib lentaga kiramiz
+                for sel in (
+                    '[aria-label*="Continue"]',
+                    '[role="button"]:has-text("Continue")',
+                    'div[role="button"]:has-text("Continue")',
+                    'button:has-text("Continue")',
+                    '[role="button"]:has-text("Войти как")',
+                ):
+                    loc = page.locator(sel).first
+                    if await loc.count() > 0:
+                        try:
+                            await loc.click(timeout=3000)
+                            await page.wait_for_timeout(3000)
+                            break
+                        except Exception:
+                            pass
+
+                # Agar login formasi chiqsa va IG_USERNAME/PASSWORD mavjud bo'lsa - avto-login
+                ig_user = os.getenv("IG_USERNAME", "xans_styles").strip()
+                ig_pwd = os.getenv("IG_PASSWORD", "").strip()
+                if ("/accounts/login" in page.url or await page.locator('input[name="username"]').count() > 0) and ig_user and ig_pwd:
+                    try:
+                        log.info("Instagram brauzerida xavfsiz avto-login qilinmoqda (%s)...", ig_user)
+                        await page.locator('input[name="username"]').first.fill(ig_user)
+                        await page.locator('input[name="password"]').first.fill(ig_pwd)
+                        await page.locator('button[type="submit"]').first.click()
+                        await page.wait_for_timeout(5000)
+                        await ctx.storage_state(path=session_path)
+                    except Exception as e_login:
+                        log.warning("Instagram brauzer avto-login xatosi: %s", e_login)
+
                 if "/accounts/login" in page.url or "challenge" in page.url:
                     log.warning("Instagram brauzer sessiyasi eskirgan yoki tekshiruv so'radi: %s", page.url)
                     return None
 
                 # "Not Now" bildirishnoma oynasini yopish
-                for sel in ('button:has-text("Not Now")', 'button:has-text("Не сейчас")'):
+                for sel in ('button:has-text("Not Now")', 'button:has-text("Не сейчас")', 'div[role="button"]:has-text("Not Now")'):
                     if await page.locator(sel).count() > 0:
                         try:
                             await page.locator(sel).first.click(timeout=2000)
@@ -731,6 +763,14 @@ async def publish_story_via_web_browser(
                 page = await ctx.new_page()
                 await page.goto("https://www.instagram.com/", timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(3000)
+                for sel in ('[aria-label*="Continue"]', '[role="button"]:has-text("Continue")', 'button:has-text("Continue")'):
+                    if await page.locator(sel).count() > 0:
+                        try:
+                            await page.locator(sel).first.click(timeout=3000)
+                            await page.wait_for_timeout(3000)
+                            break
+                        except Exception:
+                            pass
                 if "/accounts/login" in page.url or "challenge" in page.url:
                     return None
                 for sel in ('button:has-text("Your story")', 'span:has-text("Your story")', 'svg[aria-label="New story"]'):

@@ -107,8 +107,12 @@ async def send_look(message: Message, look: dict, db: Database, s: Settings) -> 
     # 2) Fayl yoki Pinduoduo CDN rasm orqali to'g'ridan-to'g'ri rasm jo'natish
     photo = look.get("sales_file_id")
     p_path = (look.get("photo_path") or "").replace("\\", "/")
-    if not photo and p_path and os.path.exists(p_path):
-        photo = FSInputFile(p_path)
+    if not photo and p_path:
+        cand_paths = [p_path, os.path.join("data", "photos", os.path.basename(p_path))]
+        for cp in cand_paths:
+            if os.path.exists(cp) and os.path.isfile(cp):
+                photo = FSInputFile(cp)
+                break
     if not photo:
         items = look_items(look)
         for it in items:
@@ -118,13 +122,19 @@ async def send_look(message: Message, look: dict, db: Database, s: Settings) -> 
                 break
     if photo:
         try:
-            msg = await message.answer_photo(photo, caption=caption, reply_markup=look_kb(look["id"]))
+            msg = await message.answer_photo(photo, caption=caption, parse_mode="HTML", reply_markup=look_kb(look["id"]))
             if not look.get("sales_file_id") and hasattr(msg, "photo") and msg.photo:
                 await db.update_look(look["id"], sales_file_id=msg.photo[-1].file_id)
             return
         except Exception as e:
-            log.warning("send_look answer_photo failed: %s; falling back to text", e)
-    await message.answer(caption, reply_markup=look_kb(look["id"]))
+            log.warning("send_look answer_photo HTML failed: %s; retrying with plain text", e)
+            try:
+                from .userbot import _strip_html
+                msg = await message.answer_photo(photo, caption=_strip_html(caption), reply_markup=look_kb(look["id"]))
+                return
+            except Exception as e_plain:
+                log.warning("send_look answer_photo plain failed: %s; falling back to text", e_plain)
+    await message.answer(caption, parse_mode="HTML", reply_markup=look_kb(look["id"]))
 
 
 def build_sales_router() -> Router:

@@ -19,6 +19,7 @@ import os
 import re
 from collections import defaultdict
 from html import escape
+from typing import Any
 
 from aiogram import Bot
 from telethon import TelegramClient, events
@@ -122,6 +123,7 @@ class PersonalStylistUserbot:
                 f"Haqiqiy Telegram akkaunt ({uname}) AI boshqaruviga ulandi",
             )
             self._register_handlers()
+            asyncio.create_task(self._catch_up_unread_messages())
             return True
         except Exception as e:
             log.warning("Userbot ulanishida xato: %s", e)
@@ -155,7 +157,31 @@ class PersonalStylistUserbot:
             async with self._user_locks[uid]:
                 await self._process_private_message(event, sender)
 
-    async def _process_private_message(self, event: events.NewMessage.Event, sender) -> None:
+    async def _catch_up_unread_messages(self) -> None:
+        """Userbot ishga tushganda yoki qayta ulanganda oflayn paytda kelgan o'qilmagan xabarlarga avto-javob beradi."""
+        if not self.client:
+            return
+        await asyncio.sleep(4.0)
+        try:
+            dialogs = await self.client.get_dialogs(limit=25)
+            for d in dialogs:
+                if not d.is_user:
+                    continue
+                if d.unread_count > 0:
+                    ent = d.entity
+                    if getattr(ent, "bot", False):
+                        continue
+                    msgs = await self.client.get_messages(ent, limit=min(d.unread_count, 3))
+                    if msgs:
+                        last_m = msgs[0]
+                        if not last_m.out:
+                            log.info("📩 O'qilmagan xabar avto-javobga olindi: %s (%s)", ent.id, getattr(ent, "username", ""))
+                            async with self._user_locks[ent.id]:
+                                await self._process_private_message(last_m, ent)
+        except Exception as e_catch:
+            log.warning("Userbot o'qilmagan xabarlarni qayta ishlash xatosi: %s", e_catch)
+
+    async def _process_private_message(self, event: Any, sender) -> None:
         uid = sender.id
         username = getattr(sender, "username", "") or ""
         full_name = f"{getattr(sender, 'first_name', '') or ''} {getattr(sender, 'last_name', '') or ''}".strip()

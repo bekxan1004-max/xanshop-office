@@ -132,9 +132,10 @@ class AgentOffice:
         used_goods_ids: set[str] = set()
         used_titles_cn: set[str] = set()
         recent_titles: list[str] = []
-        for idx_ex, ex_l in enumerate(existing_looks):
+        # Eng yangi looklardan boshlab (reversed) oxirgi 16 ta sarlavha va barcha ishlatilgan tovar ID larni yig'amiz
+        for ex_l in reversed(existing_looks):
             t_str = str(ex_l.get("title") or "").strip()
-            if t_str and len(recent_titles) < 12:
+            if t_str and t_str not in recent_titles and len(recent_titles) < 16:
                 recent_titles.append(t_str)
             try:
                 ex_items = json.loads(ex_l.get("items_json") or "[]")
@@ -144,10 +145,9 @@ class AgentOffice:
                 gid_val = str(ex_it.get("pdd_goods_id") or ex_it.get("goods_id") or "").strip()
                 if gid_val:
                     used_goods_ids.add(gid_val)
-                if idx_ex < 8:
-                    tcn = str(ex_it.get("title_cn") or "").strip()[:28]
-                    if tcn:
-                        used_titles_cn.add(tcn)
+                tcn = str(ex_it.get("title_cn") or "").strip()[:28]
+                if tcn and len(used_titles_cn) < 60:
+                    used_titles_cn.add(tcn)
         saved_cycle = int(await self.db.get_setting("look_cycle_idx") or "0")
         cycle_idx = max(len(existing_looks), saved_cycle, self._cycle_counter)
         await self.db.set_setting("look_cycle_idx", cycle_idx + 1)
