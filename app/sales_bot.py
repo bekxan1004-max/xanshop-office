@@ -88,6 +88,7 @@ async def send_look(message: Message, look: dict, db: Database, s: Settings) -> 
                 from_chat_id=s.channel_id,
                 message_id=int(cid),
                 caption=caption,
+                parse_mode="HTML",
                 reply_markup=look_kb(look["id"]),
             )
             return
@@ -99,12 +100,31 @@ async def send_look(message: Message, look: dict, db: Database, s: Settings) -> 
                     from_chat_id=s.channel_id,
                     message_id=int(cid),
                 )
-                await message.answer(caption, reply_markup=look_kb(look["id"]))
+                await message.answer(caption, parse_mode="HTML", reply_markup=look_kb(look["id"]))
                 return
             except Exception as e_fwd:
                 log.warning("forward_message %s failed: %s", cid, e_fwd)
 
-    # 2) Fayl yoki Pinduoduo CDN rasm orqali to'g'ridan-to'g'ri rasm jo'natish
+    # 2) Video (Reels .mp4) fayl mavjud bo'lsa: video bilan yuborish
+    vid_path = (look.get("video_path") or "").replace("\\", "/")
+    if vid_path:
+        cand_vids = [vid_path, os.path.join("data", "photos", os.path.basename(vid_path))]
+        for cv in cand_vids:
+            if os.path.exists(cv) and os.path.isfile(cv) and cv.endswith(".mp4"):
+                try:
+                    await message.answer_video(
+                        video=FSInputFile(cv),
+                        caption=caption,
+                        parse_mode="HTML",
+                        supports_streaming=True,
+                        reply_markup=look_kb(look["id"]),
+                    )
+                    return
+                except Exception as e_vid:
+                    log.warning("send_look answer_video failed: %s", e_vid)
+                break
+
+    # 3) Fayl yoki Pinduoduo CDN rasm orqali to'g'ridan-to'g'ri rasm jo'natish
     photo = look.get("sales_file_id")
     p_path = (look.get("photo_path") or "").replace("\\", "/")
     if not photo and p_path:
