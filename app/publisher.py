@@ -729,7 +729,10 @@ async def publish_reels_to_instagram(
         except Exception as e:
             log.warning("Instagram Graph API xatosi: %s", e)
 
-    if local_video_path and os.path.isfile(local_video_path):
+    # 3) instagrapi zaxirasi: FAQAT lokal kompyuterda (rezidensial IP) ruxsat etiladi.
+    # Bulutli serverlarda (GitHub Actions / Azure / AWS) bu bloklanadi va foydalanuvchi telefoniga "Pixel 8 Pro bloklandi" xabarini chiqaradi.
+    is_cloud_runner = bool(os.getenv("GITHUB_ACTIONS") or os.getenv("CI"))
+    if not is_cloud_runner and local_video_path and os.path.isfile(local_video_path):
         return await asyncio.to_thread(
             _publish_via_instagrapi_sync,
             local_video_path,
