@@ -281,32 +281,32 @@ def resolve_real_item_photo(name: str, idx: int = 0, category: str = "") -> Imag
     low = f"{name or ''} {category or ''}".lower()
     candidates: list[str] = []
 
-    if any(k in low for k in ("palto", "overcoat", "trench", "plosh", "ikki qatorli")):
+    if any(k in low for k in ("chelsea", "etik", "botinka", "qishki poyabzal")):
+        candidates = ["studio_chelsea_boots.jpg", "studio_loafers.jpg"]
+    elif any(k in low for k in ("lofer", "tufli", "moccasin", "klassik poyabzal", "loafer")):
+        candidates = ["studio_loafers.jpg", "studio_chelsea_boots.jpg"]
+    elif any(k in low for k in ("krossovka", "sneaker", "runner", "oyoq", "poyabzal", "shoes")):
+        candidates = ["studio_loafers.jpg", "studio_chelsea_boots.jpg"]
+    elif any(k in low for k in ("kepka", "shapka", "aksessuar", "accessory", "cap", "hat", "sumka", "soat", "ko'zoynak", "kamar", "sharf")):
+        candidates = ["studio_cap.jpg"]
+    elif any(k in low for k in ("palto", "overcoat", "trench", "plosh", "ikki qatorli")):
         candidates = ["studio_overcoat.jpg", "studio_bomber.jpg"]
     elif any(k in low for k in ("blazer", "pidjak", "kostyum", "ko'k jun")):
         candidates = ["studio_blazer_navy.jpg", "studio_overcoat.jpg"]
-    elif any(k in low for k in ("bomber", "kurtka", "vetrovka", "kardigan", "outerwear", "jacket", "coat")):
+    elif any(k in low for k in ("bomber", "kurtka", "puxovik", "vetrovka", "jilet", "outerwear", "jacket", "coat")):
         candidates = ["studio_bomber.jpg", "studio_overcoat.jpg"]
     elif any(k in low for k in ("vodolazka", "turtleneck", "kashemir", "kashmir", "qahva sviter", "to'q jigarrang sviter")):
         candidates = ["studio_turtleneck.jpg", "studio_halfzip.jpg"]
-    elif any(k in low for k in ("svitshot", "half-zip", "zamok", "sviter", "polo", "trikotaj", "jemper", "pullover")):
+    elif any(k in low for k in ("svitshot", "half-zip", "zamok", "sviter", "kardigan", "polo", "trikotaj", "jemper", "pullover")):
         candidates = ["studio_halfzip.jpg", "studio_turtleneck.jpg"]
-    elif any(k in low for k in ("xudi", "hoodie", "tolstovka", "top")):
+    elif any(k in low for k in ("xudi", "hoodie", "tolstovka", "ko'ylak", "top")):
         candidates = ["studio_hoodie.jpg", "studio_halfzip.jpg"]
     elif any(k in low for k in ("kargo", "parachute", "jinsi", "denim", "cho'ntak", "cargo", "jeans")):
         candidates = ["studio_cargo.jpg", "studio_trousers.jpg"]
     elif any(k in low for k in ("taupe", "jigarrang", "mocha", "qahva shim", "brown")) and any(k in low for k in ("shim", "bryuk", "trouser", "pants", "bottom")):
         candidates = ["studio_trousers_brown.jpg", "studio_trousers.jpg"]
-    elif any(k in low for k in ("shim", "bryuk", "drape", "joger", "bottom", "klassik", "trousers", "pants")):
+    elif any(k in low for k in ("shim", "bryuk", "drape", "joger", "bottom", "trousers", "pants")):
         candidates = ["studio_trousers.jpg", "studio_trousers_brown.jpg"]
-    elif any(k in low for k in ("chelsea", "etik", "botinka", "qishki poyabzal")):
-        candidates = ["studio_chelsea_boots.jpg", "studio_loafers.jpg"]
-    elif any(k in low for k in ("lofer", "zamsh", "tufli", "moccasin", "klassik poyabzal", "loafer")):
-        candidates = ["studio_loafers.jpg", "studio_chelsea_boots.jpg"]
-    elif any(k in low for k in ("krossovka", "sneaker", "runner", "oyoq", "poyabzal", "shoes")):
-        candidates = ["shoes_sneaker_retro.jpg", "studio_loafers.jpg", "studio_chelsea_boots.jpg"]
-    elif any(k in low for k in ("kepka", "shapka", "aksessuar", "accessory", "cap", "hat", "sumka", "soat", "ko'zoynak")):
-        candidates = ["studio_cap.jpg"]
 
     default_cycle = [
         "studio_overcoat.jpg",

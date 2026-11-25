@@ -509,10 +509,35 @@ class PinduoduoConnector:
         "男童", "女童", "儿童", "中小童", "大童", "宝宝", "童装", "婴儿",
         "中老年", "老年", "爸爸装", "爸爸", "爷爷", "大爷", "老头",
         "2件", "两件", "二件", "2条", "两条", "二条", "3件", "三件", "买一送一", "多件装",
+        "短裤", "五分裤", "七分裤", "中裤", "沙滩裤",
+        "凉鞋", "拖鞋", "凉拖", "露趾", "鱼嘴", "洞洞鞋", "人字拖", "棉拖", "居家拖",
+        "伴郎", "新郎", "结婚", "礼服", "演出服", "工作服", "工作裤", "工服", "厨师", "厨房", "保安", "迷彩", "劳保", "雨鞋", "水鞋", "定制", "印logo", "文化衫",
+        "西服套装", "套装", "两件套", "三件套",
+        "夏季", "夏款", "夏装", "短袖", "冰丝", "天丝薄款",
     )
     _WOMEN_ONLY_WORDS = (
-        "女装", "妈妈装", "女士", "女款", "连衣裙", "半身裙", "高跟鞋", "女鞋", "旗袍", "汉服女", "阔腿裤女",
+        "女装", "妈妈装", "女士", "女款", "女子", "女式", "连衣裙", "半身裙", "高跟鞋",
+        "女鞋", "靴女", "凉鞋女", "毛衣女", "卫衣女", "外套女", "裤女", "牛仔裤女", "运动裤女",
+        "旗袍", "汉服女", "阔腿裤女", "遮肚", "显瘦", "高腰女", "孕妇", "美甲", "内衣", "胸垫",
     )
+
+    @classmethod
+    def is_valid_menswear_title(cls, title_cn: str, target_bucket: str = "", wants_men: bool = True) -> bool:
+        """Xitoycha Pinduoduo sarlavhasini tekshiradi: ayollar kiyimi, yozgi shorti/shippak, kostyum-to'plam va noto'g'ri toifani 100% bloklaydi."""
+        t = (title_cn or "").strip()
+        if not t:
+            return False
+        if any(sp in t for sp in cls._NON_MEN_SPAM_WORDS):
+            return False
+        if wants_men:
+            if any(wm in t for wm in cls._WOMEN_ONLY_WORDS):
+                return False
+            # Agar sarlavhada '女' bo'lsa-yu, '男' bo'lmasa (ya'ni faqat ayollar uchun bo'lsa) — rad etiladi
+            if "女" in t and "男" not in t:
+                return False
+        if target_bucket and cls._category_bucket(t) != target_bucket:
+            return False
+        return True
 
     def __init__(
         self,
@@ -611,11 +636,14 @@ class PinduoduoConnector:
                 cached_map = {}
 
         if kw_key in cached_map and cached_map[kw_key]:
+            target_b = self._category_bucket(kw_key)
             clean_cached = [
-                PddProduct(**row)
+                self._row_to_product(row)
                 for row in cached_map[kw_key][: max(page_size, 15)]
-                if "1688.com" not in str(row.get("product_url", ""))
+                if isinstance(row, dict)
+                and "1688.com" not in str(row.get("product_url", ""))
                 and "alicdn.com" not in str(row.get("image_url", ""))
+                and self.is_valid_menswear_title(str(row.get("title_cn") or ""), target_b, True)
             ]
             if clean_cached:
                 return clean_cached
@@ -962,9 +990,19 @@ class PinduoduoConnector:
             return "accessory"
         if any(w in kw for w in ("裤", "西裤", "工装裤", "牛仔裤", "休闲裤", "卫裤")):
             return "bottom"
-        if any(w in kw for w in ("大衣", "风衣", "羽绒", "马甲", "皮衣", "麂皮", "翻毛皮", "夹克", "外套", "棉衣", "棉服", "西装", "西服", "冲锋衣")):
+        # MUHIM: Xitoy sotuvchilari sviter/xudi/vodolazka oxiriga ham '外套' qo'shib yozadi.
+        # Agar asl kiyim sviter, vodolazka, xudi, svitshot, rubashka yoki polo bo'lsa (va haqiqiy palto/puxovik/charm kurtka bo'lmasa) -> 'top'!
+        is_explicit_coat_or_jacket = any(
+            w in kw for w in ("大衣", "风衣", "羽绒服", "羽绒马甲", "棉服", "棉衣", "棉袄", "皮衣", "真皮夹克", "麂皮", "翻毛皮", "西装外套", "西服", "飞行员夹克", "冲锋衣", "马甲", "背心")
+        )
+        is_knit_or_sweatshirt_top = any(
+            w in kw for w in ("卫衣", "帽衫", "毛衣", "针织衫", "羊绒衫", "羊绒高领", "高领打底", "打底衫", "半拉链", "衬衫", "T恤", "POLO", "polo", "抓绒衣", "摇粒绒")
+        )
+        if is_knit_or_sweatshirt_top and not is_explicit_coat_or_jacket:
+            return "top"
+        if is_explicit_coat_or_jacket or any(w in kw for w in ("夹克", "外套", "西装")):
             return "outerwear"
-        if any(w in kw for w in ("卫衣", "帽衫", "毛衣", "针织", "衬衫", "打底", "开衫", "T恤", "POLO", "polo", "灯芯绒")):
+        if any(w in kw for w in ("开衫", "灯芯绒", "针织", "打底")):
             return "top"
         return "top"
 
@@ -972,7 +1010,8 @@ class PinduoduoConnector:
     def _subtype_key(keyword_cn: str) -> str:
         """Aniq kiyim/aksessuar turi (24+ tur): yangi Instagram trendlari eski 4 ta keshga yopishib qolmasligi uchun!"""
         kw = (keyword_cn or "").lower()
-        rules = (
+        # Avval oyoq kiyim, aksessuar va shim turlarini tekshiramiz
+        primary_rules = (
             ("watch", ("手表", "腕表", "机械表", "石英表")),
             ("belt", ("皮带", "腰带")),
             ("scarf", ("围巾", "披肩")),
@@ -980,11 +1019,31 @@ class PinduoduoConnector:
             ("bag", ("斜挎包", "单肩包", "手提包", "挎包", "背包", "公文包")),
             ("cap", ("鸭舌帽", "棒球帽", "冷帽", "帽子")),
             ("chelsea_boots", ("切尔西靴", "马丁靴", "短靴", "皮靴")),
-            ("loafers", ("乐福鞋", "德比鞋", "皮鞋")),
+            ("loafers", ("乐福鞋", "德比鞋", "皮鞋", "豆豆鞋")),
             ("sneakers", ("板鞋", "德训", "运动鞋", "老爹鞋", "休闲鞋", "小白鞋")),
             ("jeans", ("牛仔裤",)),
             ("dress_trousers", ("西装裤", "西裤", "垂感")),
             ("utility_pants", ("工装裤", "伞兵", "休闲裤", "阔腿裤", "卫裤")),
+        )
+        for st, words in primary_rules:
+            if any(w in kw for w in words):
+                return st
+        # Ichki kiyimlar (xudi, sviter, vodolazka) oxirida '外套'/'夹克' bo'lsa ham 'bomber' bo'lib ketmasligi shart!
+        top_rules = (
+            ("cardigan", ("开衫",)),
+            ("halfzip", ("半拉链",)),
+            ("turtleneck", ("高领", "打底衫")),
+            ("polo_knit", ("polo", "翻领针织")),
+            ("hoodie", ("连帽卫衣", "帽衫", "卫衣")),
+            ("sweater", ("毛衣", "针织衫", "羊绒衫", "抓绒衣", "摇粒绒")),
+            ("shirt", ("衬衫", "灯芯绒")),
+        )
+        has_explicit_coat = any(w in kw for w in ("大衣", "风衣", "羽绒", "棉服", "棉衣", "皮衣", "麂皮", "翻毛皮", "西装", "西服", "飞行员", "冲锋衣", "马甲"))
+        if not has_explicit_coat:
+            for st, words in top_rules:
+                if any(w in kw for w in words):
+                    return st
+        outer_rules = (
             ("leather_jacket", ("皮衣", "真皮夹克", "皮夹克")),
             ("suede_jacket", ("麂皮", "翻毛皮", "鹿皮绒")),
             ("trench", ("风衣",)),
@@ -993,15 +1052,11 @@ class PinduoduoConnector:
             ("blazer", ("西装", "西服")),
             ("puffer", ("羽绒服", "棉服", "棉衣", "棉袄")),
             ("bomber", ("夹克", "冲锋衣", "外套")),
-            ("cardigan", ("开衫",)),
-            ("turtleneck", ("高领", "打底衫")),
-            ("halfzip", ("半拉链",)),
-            ("polo_knit", ("polo", "翻领针织")),
-            ("shirt", ("衬衫", "灯芯绒")),
-            ("hoodie", ("连帽卫衣", "帽衫", "卫衣")),
-            ("sweater", ("毛衣", "针织", "羊绒")),
         )
-        for st, words in rules:
+        for st, words in outer_rules:
+            if any(w in kw for w in words):
+                return st
+        for st, words in top_rules:
             if any(w in kw for w in words):
                 return st
         return PinduoduoConnector._category_bucket(keyword_cn)
@@ -1299,11 +1354,10 @@ class PinduoduoConnector:
                 if "pddpic.com" not in str(row.get("image_url", "")):
                     continue
                 t_cn = str(row.get("title_cn", ""))
-                if any(sp in t_cn for sp in self._NON_MEN_SPAM_WORDS):
-                    continue
-                if strict_bucket and self._category_bucket(t_cn) != target_bucket:
+                if not self.is_valid_menswear_title(t_cn, target_bucket if strict_bucket else "", wants_men):
                     continue
                 p_obj = self._row_to_product(row)
+                p_obj.category = self._category_bucket(p_obj.title_cn)
                 if not p_obj.store_sizes or not p_obj.fit_note:
                     meta = self._extract_cn_product_meta(p_obj.title_cn)
                     if not p_obj.store_sizes:
@@ -1319,7 +1373,7 @@ class PinduoduoConnector:
             )
             return out_list
 
-        sweet_hard_max = {"outerwear": 85.0, "shoes": 72.0, "bottom": 60.0, "accessory": 38.0, "top": 58.0}.get(target_bucket, 65.0)
+        sweet_hard_max = {"outerwear": 240.0, "shoes": 160.0, "bottom": 160.0, "accessory": 65.0, "top": 140.0}.get(target_bucket, 160.0)
         # 1) Aniq kalit so'z 7 kunlik keshda bormi va ichida hamyonbop + yangi tovarlar bormi? (0$ sarf!)
         cached_rows = cached_map.get(kw_key)
         if isinstance(cached_rows, list) and cached_rows:
@@ -1327,10 +1381,9 @@ class PinduoduoConnector:
             clean_cached = _valid_pdd_rows(cached_rows, apply_exclude=True, strict_bucket=True)
             affordable_exact = [p for p in clean_cached if float(p.price_cny or 0) <= sweet_hard_max]
             if affordable_exact and (now_ts - first_ts) <= cache_ttl_sec:
-                return clean_cached[:page_size]
+                return affordable_exact[:page_size]
 
-        # 2) Xuddi shu ANIQ tur (masalan: leather_jacket, cardigan, watch, loafers...) bo'yicha hali ishlatilmagan kesh bormi?
-        # MUHIM: faqat aynan shu subtype keshda yetarli bo'lsa Apify tejab qolinadi; aks holda YANGI trend buyumni Apify orqali jonli qidiramiz!
+        # 2) Xuddi shu ANIQ tur (masalan: overcoat, trench, leather_jacket, cardigan, watch, loafers...) bo'yicha hali ishlatilmagan kesh bormi?
         target_subtype = self._subtype_key(kw_key)
         subtype_fallback: list[PddProduct] = []
         bucket_fallback: list[PddProduct] = []
@@ -1351,10 +1404,10 @@ class PinduoduoConnector:
             key=lambda pr: (-self._score_value_quality(pr, kw_terms, wants_men), pr.price_cny)
         )
 
-        # Faqat aynan so'ralgan subtype keshda 3+ ta hamyonbop + sifatli (sweet-spot) tovar bo'lsagina Apify'ni tejaymiz
+        # Faqat aynan so'ralgan subtype keshda 2+ ta mos tovar bo'lsagina Apify'ni tejaymiz (va vaqt yo'qotmaymiz!)
         affordable_sub = [p for p in subtype_fallback if float(p.price_cny or 0) <= sweet_hard_max]
-        if len(affordable_sub) >= 3:
-            return subtype_fallback[:page_size]
+        if len(affordable_sub) >= 2:
+            return affordable_sub[:page_size]
 
         search_query = f'site:mobile.yangkeduo.com/poros/h5 "goods_id" {short_q}'
 
@@ -1377,7 +1430,7 @@ class PinduoduoConnector:
                     if resp.status not in (200, 201):
                         self.last_error = f"apify_http_{resp.status}"
                         log.warning("Apify Pinduoduo qidiruv xatosi (%s): HTTP %s", kw_key, resp.status)
-                        return bucket_fallback[:page_size]
+                        return (affordable_sub or subtype_fallback or bucket_fallback)[:page_size]
                     pages = await resp.json(content_type=None)
 
                 poros_urls: list[str] = []
@@ -1389,7 +1442,7 @@ class PinduoduoConnector:
                                 poros_urls.append(u)
                 if not poros_urls:
                     self.last_error = "apify_no_pdd_urls"
-                    return bucket_fallback[:page_size]
+                    return (affordable_sub or subtype_fallback or bucket_fallback)[:page_size]
 
                 pdd_headers = {"User-Agent": MOBILE_UA}
 
@@ -1418,9 +1471,7 @@ class PinduoduoConnector:
                     title_cn = str(g.get("goods_name") or "").strip()
                     if not title_cn:
                         continue
-                    if any(sp in title_cn for sp in self._NON_MEN_SPAM_WORDS):
-                        continue
-                    if wants_men and any(wm in title_cn for wm in self._WOMEN_ONLY_WORDS) and "男" not in title_cn:
+                    if not self.is_valid_menswear_title(title_cn, target_bucket, wants_men):
                         continue
 
                     p_fen = (

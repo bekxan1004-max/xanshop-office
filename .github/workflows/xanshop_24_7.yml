@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
           pip install -r requirements.txt
-          playwright install chromium || true
+          playwright install --with-deps chromium || playwright install chromium || true
           mkdir -p ~/.rembg/models/u2net ~/.rembg/models/u2net_cloth_seg
           curl -fsSL -o ~/.rembg/models/u2net/u2net.onnx https://huggingface.co/tomjackson2023/rembg/resolve/main/u2net.onnx || true
           curl -fsSL -o ~/.rembg/models/u2net_cloth_seg/u2net_cloth_seg.onnx https://huggingface.co/tomjackson2023/rembg/resolve/main/u2net_cloth_seg.onnx || true

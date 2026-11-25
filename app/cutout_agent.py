@@ -334,20 +334,44 @@ def extract_main_item(
     if float((mask > 0.5).mean()) < 0.02:
         return None
 
-    # To'q yoki rangli kiyimlarda qo'ltiq ostidagi studiya devori qoldig'ini xavfsiz tozalash
-    # (Och/bej/oq kiyimlarga va poyabzalga aslo tegmaymiz — kiyim qirqilmasligi uchun)
+    # To'q yoki rangli kiyimlarda qo'ltiq ostidagi va chetidagi oq/och studiya foni hamda soya qoldig'ini xavfsiz tozalash
     rgb = np.asarray(work, dtype=np.float32)
-    if category != "shoes":
-        fg_pix = rgb[mask > 0.5]
-        if len(fg_pix):
-            lum = 0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]
-            fg_lum = 0.299 * fg_pix[:, 0] + 0.587 * fg_pix[:, 1] + 0.114 * fg_pix[:, 2]
-            if float(np.median(fg_lum)) < 100.0:
-                bg_corner = np.median(rgb[:15, :15], axis=(0, 1))
-                dist_bg = np.linalg.norm(rgb - bg_corner, axis=2)
-                chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
-                is_wall = (dist_bg < 35.0) & (lum > 140.0) & (chroma < 20.0)
-                mask = np.where(is_wall, 0.0, mask)
+    fg_pix = rgb[mask > 0.5]
+    if len(fg_pix):
+        lum = 0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]
+        fg_lum = 0.299 * fg_pix[:, 0] + 0.587 * fg_pix[:, 1] + 0.114 * fg_pix[:, 2]
+        chroma = np.max(rgb, axis=2) - np.min(rgb, axis=2)
+        med_lum = float(np.median(fg_lum))
+        top_corners = np.concatenate([rgb[:16, :16].reshape(-1, 3), rgb[:16, -16:].reshape(-1, 3)], axis=0)
+        bg_corner = np.median(top_corners, axis=0)
+        bg_lum = float(0.299 * bg_corner[0] + 0.587 * bg_corner[1] + 0.114 * bg_corner[2])
+        dist_bg = np.linalg.norm(rgb - bg_corner, axis=2)
+
+        if med_lum < 155.0 and bg_lum > 175.0:
+            try:
+                from scipy import ndimage as _ndi
+
+                fg_bin = mask > 0.35
+                # Ichki 14px yadroga (yoqa birkasi, tugma, logotipga) tegmasdan faqat tashqi 14px qirradagi oq/kulrang fon soyasini qirqamiz
+                inner_core = _ndi.binary_erosion(fg_bin, iterations=14)
+                outer_ring = fg_bin & (~inner_core)
+                halo_thr = max(med_lum + 34.0, 118.0 if med_lum < 65.0 else 168.0)
+                is_ring_halo = outer_ring & (lum > halo_thr) & (chroma < 34.0)
+                # Qo'ltiq va oyoq orasidagi yorqin oq devor qoldiqlari
+                wall_thr = max(med_lum + 52.0, 150.0 if med_lum < 65.0 else 192.0)
+                is_bright_wall = (lum > wall_thr) & (chroma < 30.0) & (dist_bg < 95.0)
+                if category == "shoes":
+                    y_frac = np.linspace(0.0, 1.0, rgb.shape[0])[:, None]
+                    is_floor = (y_frac > 0.58) & (lum > max(med_lum + 38.0, 145.0)) & (chroma < 45.0)
+                    mask = np.where(is_ring_halo | is_bright_wall | is_floor, 0.0, mask)
+                else:
+                    mask = np.where(is_ring_halo | is_bright_wall, 0.0, mask)
+                mask = _clean_mask(mask, keep_pairs=(category in ("shoes", "accessory") or category == ""))
+                eroded_b = _ndi.binary_erosion(mask > 0.45, iterations=2)
+                if float(eroded_b.mean()) > 0.02:
+                    mask = np.where(eroded_b, mask, 0.0)
+            except Exception:
+                pass
 
     alpha_img = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))
     alpha = np.asarray(alpha_img, dtype=np.float32) / 255.0

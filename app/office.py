@@ -590,14 +590,20 @@ class AgentOffice:
                 item_photo_paths=[photo_path, *item_photo_paths],
             )
 
+        from .publisher import has_valid_ig_browser_session
+
+        has_web_ig = has_valid_ig_browser_session()
         ig_media_id = None
         ig_story_id = None
         ig_own_err = str((ig_intel.get("own_performance") or {}).get("error") or "")
         ig_checkpoint_blocked = bool(
-            ig_own_err and ("does not exist" in ig_own_err.lower() or "checkpoint" in ig_own_err.lower())
+            not has_web_ig
+            and ig_own_err
+            and ("does not exist" in ig_own_err.lower() or "checkpoint" in ig_own_err.lower())
         )
         if os.path.exists(mp4_path) and (
-            (self.s.ig_user_id and self.s.ig_access_token and self.s.public_base_url and not ig_checkpoint_blocked)
+            has_web_ig
+            or (self.s.ig_user_id and self.s.ig_access_token and self.s.public_base_url and not ig_checkpoint_blocked)
             or not os.getenv("PYTEST_CURRENT_TEST")
         ):
             video_url = f"{self.s.public_base_url}/media/look_{look_id}_reels.mp4?v={int(time.time())}" if self.s.public_base_url else ""

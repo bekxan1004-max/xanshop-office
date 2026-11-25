@@ -865,7 +865,8 @@ async def publish_story_to_instagram(
         except Exception as e:
             log.debug("Instagram Story API skip: %s", e)
 
-    if (local_video_path and os.path.isfile(local_video_path)) or (local_photo_path and os.path.isfile(local_photo_path)):
+    is_cloud_runner = bool(os.getenv("GITHUB_ACTIONS") or os.getenv("CI"))
+    if not is_cloud_runner and ((local_video_path and os.path.isfile(local_video_path)) or (local_photo_path and os.path.isfile(local_photo_path))):
         return await asyncio.to_thread(
             _publish_via_instagrapi_sync,
             local_video_path,

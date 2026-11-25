@@ -386,7 +386,12 @@ class SalesAI:
                         candidate_failed = False
                         return out, getattr(inter, "id", None)
                 except Exception as e:
+                    err_str = str(e)
                     log.warning("Gemini modeli (%s) zaxiraga o'tdi (%s): %s", candidate, type(e).__name__, e)
+                    if is_real_client and ("429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "too_many_requests" in err_str.lower()):
+                        for cm in candidates:
+                            _MODEL_COOLDOWN_UNTIL[cm] = time.monotonic() + 300.0
+                        return None, None
             if candidate_failed and is_real_client:
                 _MODEL_COOLDOWN_UNTIL[candidate] = time.monotonic() + 180.0
         return None, None
